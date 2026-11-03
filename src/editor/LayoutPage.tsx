@@ -23,6 +23,7 @@ import { PlaceholderNotice } from "../viewer/ArmPage.tsx";
 import { ArmViewer } from "../viewer/ArmViewer.tsx";
 import { anubisSize, INPUT_COUNT, type ArmState, type Pose } from "../viewer/useArm.ts";
 import { newElement, reorder, suggestVariantName, uniqueId } from "./edit.ts";
+import { applyStroke, type UV } from "./stroke.ts";
 import { ElementPanel } from "./ElementPanel.tsx";
 import { UnwrapEditor } from "./UnwrapEditor.tsx";
 
@@ -62,6 +63,9 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
   const [mode, setMode] = useState<RenderMode>("blockout");
   const [grid, setGrid] = useState(true);
   const [centerU, setCenterU] = useState(0);
+  // Brush tool (Phase 6): draw red lines on the 3D arm.
+  const [drawing, setDrawing] = useState(false);
+  const [appendStrokes, setAppendStrokes] = useState(false);
 
   const open = (fileName: string, list: StoredLayout[] | null) => {
     const file = list?.find((f) => f.name === fileName);
@@ -228,6 +232,14 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
   };
 
   const sel = selected !== null && layout ? layout.elements[selected] : undefined;
+  const appendTarget = appendStrokes && sel?.type === "line" && !sel.locked ? selected : null;
+  const onStroke = (samples: UV[]) => {
+    if (!layout) return;
+    const r = applyStroke(profile, layout, samples, appendTarget);
+    if (!r) return;
+    setLayout(r.layout);
+    setSelected(r.index);
+  };
   const selAsset: AssetInfo | null | undefined =
     sel && isFigureLike(sel) && sel.asset && assetMap ? (assetMap.get(sel.asset) ?? null) : undefined;
   const assignBlocked = !sel
@@ -352,6 +364,35 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
             />
           </div>
           <div className="viewer-col">
+            <div className="toolbar draw-toolbar">
+              <button
+                type="button"
+                className={drawing ? "active" : ""}
+                aria-pressed={drawing}
+                onClick={() => setDrawing((d) => !d)}
+                title="Drag on the 3D arm to draw a red line; it becomes a line element you can edit in the 2D editor"
+              >
+                Draw red line
+              </button>
+              {drawing && sel?.type === "line" && !sel.locked && (
+                <label className="inline check small">
+                  <input
+                    type="checkbox"
+                    checked={appendStrokes}
+                    onChange={(e) => setAppendStrokes(e.target.checked)}
+                  />{" "}
+                  continue {sel.id}
+                </label>
+              )}
+              {drawing && (
+                <span className="muted small">
+                  {appendTarget !== null
+                    ? `Strokes extend ${sel?.id} at its nearer end.`
+                    : "Each stroke becomes a new red line."}{" "}
+                  Rotation is off while drawing (right-drag pans, scroll zooms).
+                </span>
+              )}
+            </div>
             <ArmViewer
               profile={profile}
               canvas={texture}
@@ -359,6 +400,7 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
               hint={HINTS[mode]}
               bendDeg={pose.bendDeg}
               onBendDeg={pose.setBendDeg}
+              draw={{ active: drawing, onStroke }}
             />
           </div>
           <div className="side-col">

@@ -1,11 +1,12 @@
-import { OrbitControls } from "@react-three/drei";
-import { Canvas, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { Line, OrbitControls } from "@react-three/drei";
+import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ArmProfile } from "../arm/profile.ts";
 import { ArmModel } from "./ArmModel.tsx";
 import type { CameraSync } from "./cameraSync.ts";
 import { MAX_FLEXION_DEG } from "../arm/bend.ts";
+import { addSample, textureToLayout, type UV } from "../editor/stroke.ts";
 import { armGeometry, LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
 import { useViewState, type ViewState } from "./useViewState.ts";
 import { CAMERA_FOV, VIEWS, viewCamera, type Bounds } from "./views.ts";
@@ -27,6 +28,11 @@ type Props = {
   bendDeg?: number;
   /** When set, the toolbar shows the pose control. */
   onBendDeg?: (deg: number) => void;
+  /**
+   * Brush tool: while active, dragging on the skin draws instead of rotating (zoom and right-drag pan
+   * still work); every finished stroke arrives as layout points, thinned to the minimum step.
+   */
+  draw?: { active: boolean; onStroke: (samples: UV[]) => void };
 };
 
 export function ArmViewer(props: Props) {
@@ -40,6 +46,8 @@ export function ArmViewer(props: Props) {
     const box = geometry.boundingBox;
     return bendDeg > 0 && box ? { min: box.min.toArray(), max: box.max.toArray() } : undefined;
   }, [geometry, bendDeg]);
+  const drawing = !!props.draw?.active;
+  const brush = useBrush(profile, props.draw);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const screenshot = () => {
@@ -68,7 +76,7 @@ export function ArmViewer(props: Props) {
           </button>
         </div>
       )}
-      <div className="canvas-wrap">
+      <div className={`canvas-wrap${drawing ? " drawing" : ""}`}>
         {label && <span className="viewer-label">{label}</span>}
         <Canvas
           ref={canvasRef}
@@ -82,8 +90,17 @@ export function ArmViewer(props: Props) {
           />
           <directionalLight position={LIGHTS.key.position} intensity={LIGHTS.key.intensity} />
           <directionalLight position={LIGHTS.fill.position} intensity={LIGHTS.fill.intensity} />
-          <ArmModel geometry={geometry} canvas={canvas} version={version} />
-          <CameraRig profile={profile} bounds={bounds} state={vs} sync={sync} />
+          <ArmModel
+            geometry={geometry}
+            canvas={canvas}
+            version={version}
+            onPointerDown={drawing ? brush.down : undefined}
+            onPointerMove={drawing ? brush.move : undefined}
+          />
+          {brush.preview.length >= 2 && (
+            <Line points={brush.preview} color="#d01810" lineWidth={4} depthTest={false} />
+          )}
+          <CameraRig profile={profile} bounds={bounds} state={vs} sync={sync} rotate={!drawing} />
         </Canvas>
       </div>
       {toolbar && (
@@ -143,13 +160,70 @@ export function PoseControl({ bendDeg, onChange }: { bendDeg: number; onChange: 
   );
 }
 
+/** Records a stroke on the skin: raycast hit → texture UV → layout point, with a live preview line. */
+function useBrush(profile: ArmProfile, draw: Props["draw"]) {
+  const samples = useRef<UV[] | null>(null);
+  const [preview, setPreview] = useState<[number, number, number][]>([]);
+  const onStroke = draw?.onStroke;
+
+  // Finish on any pointer release, also when it happens beside the arm.
+  useEffect(() => {
+    if (!onStroke) return;
+    const up = () => {
+      const s = samples.current;
+      samples.current = null;
+      setPreview([]);
+      if (s && s.length >= 2) onStroke(s);
+    };
+    window.addEventListener("pointerup", up);
+    return () => window.removeEventListener("pointerup", up);
+  }, [onStroke]);
+
+  const sample = (e: ThreeEvent<PointerEvent>): boolean => {
+    // Only the skin (material group 0) has UVs; the rounded ends do not.
+    if (!e.uv || e.face?.materialIndex !== 0) return false;
+    const p = textureToLayout(profile, e.uv.x, e.uv.y);
+    if (!p || !samples.current) return false;
+    const next = addSample(profile, samples.current, p);
+    if (next === samples.current) return true;
+    samples.current = next;
+    // Just above the skin, so the preview is not hidden in it.
+    const n = e.face.normal;
+    const at: [number, number, number] = [
+      e.point.x + n.x * 0.15,
+      e.point.y + n.y * 0.15,
+      e.point.z + n.z * 0.15,
+    ];
+    setPreview((pts) => [...pts, at]);
+    return true;
+  };
+
+  return {
+    preview,
+    down: (e: ThreeEvent<PointerEvent>) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      samples.current = [];
+      setPreview([]);
+      sample(e);
+    },
+    move: (e: ThreeEvent<PointerEvent>) => {
+      if (samples.current) {
+        e.stopPropagation();
+        sample(e);
+      }
+    },
+  };
+}
+
 function CameraRig(props: {
   profile: ArmProfile;
   bounds?: Bounds;
   state: ViewState;
   sync?: { bus: CameraSync; id: string };
+  rotate?: boolean;
 }) {
-  const { profile, bounds, state, sync } = props;
+  const { profile, bounds, state, sync, rotate = true } = props;
   const { view, request, free, setFree } = state;
   // What the last framing was for: a new pose re-frames a fixed view, but not a hand-rotated camera.
   const framedFor = useRef<{ key: string; profile: ArmProfile | null }>({ key: "", profile: null });
@@ -201,6 +275,13 @@ function CameraRig(props: {
   };
 
   return (
-    <OrbitControls ref={controls} makeDefault enableDamping={false} onStart={setFree} onChange={publish} />
+    <OrbitControls
+      ref={controls}
+      makeDefault
+      enableDamping={false}
+      enableRotate={rotate}
+      onStart={setFree}
+      onChange={publish}
+    />
   );
 }

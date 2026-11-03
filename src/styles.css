@@ -744,3 +744,13 @@ button.link {
   min-width: 2.6em;
   font-variant-numeric: tabular-nums;
 }
+
+.canvas-wrap.drawing {
+  cursor: crosshair;
+  outline: 2px solid var(--accent);
+}
+
+.draw-toolbar {
+  align-items: center;
+  min-height: 34px;
+}

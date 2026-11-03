@@ -6,15 +6,15 @@ A local tool for planning a tattoo sleeve: a parametric 3D model of the arm, a 2
 
 ## Status
 
-| Phase                               | State                                                    |
-| ----------------------------------- | -------------------------------------------------------- |
-| 0 Bootstrap                         | done                                                     |
-| 1 Stack check and scaffold          | done                                                     |
-| 2 Parametric arm and viewer         | done                                                     |
-| 3 Unwrap editor and blockout mode   | done                                                     |
-| 4 Assets, ideas PDF, reference mode | done                                                     |
-| 5 Export for the artist             | done                                                     |
-| 6 Iteration and polish              | in progress: variant comparison and elbow-bent pose done |
+| Phase                               | State                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| 0 Bootstrap                         | done                                                                     |
+| 1 Stack check and scaffold          | done                                                                     |
+| 2 Parametric arm and viewer         | done                                                                     |
+| 3 Unwrap editor and blockout mode   | done                                                                     |
+| 4 Assets, ideas PDF, reference mode | done                                                                     |
+| 5 Export for the artist             | done                                                                     |
+| 6 Iteration and polish              | in progress: variant comparison, elbow-bent pose and red-line brush done |
 
 Decisions Claude made without Jan are listed in `docs/claude-decisions.md` for review.
 
@@ -61,6 +61,7 @@ npm run dev       # http://127.0.0.1:4320 (local only)
 ```
 
 - **Layout** (start page): pick a variant from `config/layouts/`, edit it on the 2D unwrap and see it live on the 3D arm in blockout mode (figures dark grey, fillers light grey, bands striped, red lines red, existing tattoo outlined). Click to select, drag to move, corner handle to scale, round handle to rotate; the side panel edits every field, the layer order, lock, duplicate and delete. "Inner side centred" puts the palm-side line in the middle of the editor for pieces on the seam (Anubis, Pegasus). **Save** writes the YAML back, keeping comments; **Save as…** duplicates what you see into a new variant (a free name like `v1-baseline-2` is suggested; the new file keeps the comments of the one it came from, under a line saying so; the open variant stays as saved). Unsaved edits survive a visit to another tab; the variant list marks them with `*`. The coverage table shows the share of figures, fillers, bands, lines and open skin per zone. Figures without a height are drawn 10 cm tall and listed in a warning; the Anubis takes its size from `measurements.yaml` when the layout leaves it empty.
+- **Draw red line** (Layout tab, above the 3D arm): while it is on, dragging on the 3D arm draws a red stroke on the skin (rotation is off; right-drag pans, scroll zooms; works on the bent arm too). Each stroke becomes a new `line` element (`red-stroke-2`, `red-stroke-3`, …, red, as wide as the layout's first red line, else 1.5 cm), selected and editable like any line in the 2D editor, and saved to the YAML with **Save**. The stroke is simplified to the fewest points that stay within 0.3 cm of what was drawn (also across the inner seam); clicks without a stroke are ignored. With a line selected, **continue <id>** extends that line instead, at its nearer end; its existing points are kept as they are.
 - **Modes** (toolbar, the number next to them is the texture render time): **Blockout** as above; **Reference** draws the same layout with the reference images (PROJECT_BRIEF.md §10.1 F6): figures and existing tattoos show their asset's cut-out inside their box, multiplied onto the skin so white paper and pale skin vanish; fillers and bands are the procedural patterns below, clipped exactly to their shape (also across the inner seam); red lines lie on top of everything (§4.3). A figure whose image is missing shows a labelled placeholder box with the reason (no asset, not in the manifest, file missing, no data folder, cannot be shown). **cm grid** shows the bare unwrap grid. Images are decoded once per page load and cached, so switching modes is instant.
 - **Assets** panel (Layout tab, right column): thumbnails of every `manifest.yaml` entry, filterable by kind and tag, with a search over id, notes, source and file. Select a figure or existing tattoo in the editor, then click an image to assign it (`asset:`). Missing files are greyed out, manifest problems are listed as warnings. **Reload** re-reads the manifest and the images. The element panel shows the assigned image with its cut-out marked and edits the reference fields below.
 - **Export** (Layout toolbar): one click writes the handout for the tattoo artist and PNGs of every picture into the data folder (details below). Disabled, with the reason as tooltip, while there are unsaved changes, layout errors or images still loading, and when `TATTOO_DATA_DIR` is not set.

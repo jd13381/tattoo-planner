@@ -93,3 +93,10 @@ Details in `docs/adr/0005-elbow-bend.md`.
 - **Limit accepted:** beyond about 100° the forearm and upper-arm flesh overlap in the inner crease instead of pressing together. The outer side and elbow tip (skull area) stay clean.
 - **Export not bent (follow-up):** the PDF and PNGs still show the straight arm only; a bent page in the handout needs a pose parameter for the offscreen renderer and a new page, left for later.
 - **Framing:** a fixed view re-frames as the pose changes; a camera rotated by hand keeps its place.
+
+### Phase 6: brush for red lines on the 3D arm
+
+- **Each stroke is a new line element** (`red-stroke-N`, smallest free N), red, with the width of the layout's first red line (1.5 cm from `red-stroke-1`), placed on top. With a line selected, the opt-in checkbox "continue <id>" appends the stroke at the line's nearer end instead. _Alternative:_ always appending to the selected line (too easy to change a line by accident).
+- **Simplification:** Ramer–Douglas–Peucker with a 0.3 cm tolerance on the skin, measured exactly as lines are rendered (u scaled by the local circumference, the short way round the arm), so strokes across the inner seam stay intact. Samples closer than 0.2 cm are skipped while drawing; strokes under 1 cm count as a click and are dropped. Existing points of a continued line are never simplified away. _Change:_ constants at the top of `src/editor/stroke.ts`.
+- **Drawing mode turns off rotation** (left-drag draws; right-drag pans, scroll zooms). The live preview is a thin line just above the skin; the real stroke appears in the texture when released.
+- **YAML key order for new elements:** new elements are now written with `id` first, then `type` (as in the hand-written files); before, the schema's order put `type` first. Existing elements keep their order.
