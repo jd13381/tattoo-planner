@@ -1,0 +1,37 @@
+# OS and editor
+.DS_Store
+.idea/
+.vscode/
+
+# Local config: TATTOO_DATA_DIR and anything personal (CLAUDE.md, PROJECT_BRIEF.md §12)
+.env
+.env.*
+!.env.example
+
+# Node and build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Exports are written to <TATTOO_DATA_DIR>/exports, never into the repo.
+# These entries are defence in depth in case an export lands here by mistake.
+exports/
+**/exports/
+
+# Images and PDFs never go into git (PROJECT_BRIEF.md §12.5).
+# Character classes make the patterns case-insensitive (photo.JPEG, scan.PDF).
+# The pre-commit guard (scripts/check-binaries.mjs) enforces the same rule for force-added files.
+*.[pP][nN][gG]
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[wW][eE][bB][pP]
+*.[hH][eE][iI][cC]
+*.[hH][eE][iI][fF]
+*.[gG][iI][fF]
+*.[aA][vV][iI][fF]
+*.[tT][iI][fF]
+*.[tT][iI][fF][fF]
+*.[bB][mM][pP]
+*.[pP][sS][dD]
+*.[pP][dD][fF]

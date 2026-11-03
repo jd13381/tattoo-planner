@@ -1,0 +1,7 @@
+dist
+coverage
+node_modules
+package-lock.json
+# The brief and the YAML configs are hand-edited; keep their formatting as Jan writes it.
+PROJECT_BRIEF.md
+config/

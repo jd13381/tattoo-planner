@@ -1,0 +1,23 @@
+# Left-arm measurements (PROJECT_BRIEF.md §13.1). Numbers only: photos stay on Seafile.
+# All values in cm, arm relaxed and straight. null = not measured yet; the viewer uses flagged placeholders.
+arm: left
+units: cm
+lengths:
+  shoulder_to_elbow: null      # acromion (shoulder point) to elbow tip
+  elbow_to_wrist: null         # elbow tip to wrist crease
+circumferences:
+  wrist: null
+  forearm_mid: null
+  forearm_max: null            # thickest point just below the elbow
+  elbow: null
+  above_elbow: null
+  biceps_mid: null             # relaxed
+  armpit_level: null
+  shoulder: null               # around the deltoid, as far as measurable
+existing:
+  anubis:
+    distance_from_wrist: null  # wrist crease to the lowest point of the tattoo
+    height: null
+    width: null
+    side: inner
+notes: ""

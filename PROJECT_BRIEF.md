@@ -1,6 +1,8 @@
-# Sleeve Planner — Project Brief
+# Tattoo Planner — Project Brief
 
-> **Purpose of this document:** This is the founding document of the `sleeve-planner` repository. It summarises a long planning conversation (held in German, 2026-11-03) about a full left-arm tattoo sleeve and describes the plan for a small software tool that lets us visualise the sleeve on a 3D model of the arm. It is written for two readers: Jan (the owner) and Claude Code (the agent that will build the tool). Treat it as the single source of truth until it is split into `docs/`.
+> **Purpose of this document:** This is the founding document of the `tattoo-planner` repository. It summarises a long planning conversation (held in German, 2026-11-03) about a full left-arm tattoo sleeve and describes the plan for a small software tool that lets us visualise the sleeve on a 3D model of the arm. It is written for two readers: Jan (the owner) and Claude Code (the agent that will build the tool). Treat it as the single source of truth until it is split into `docs/`.
+>
+> **Naming (Jan, 2026-11-03):** the project and tool are called **Tattoo Planner** and the data folder variable is **`TATTOO_DATA_DIR`**. The left-arm sleeve is the first use case; the scope may grow later.
 
 ---
 
@@ -318,11 +320,11 @@ The tool should make it cheap to try answers to all of these.
 
 ### 11.4 Suggested repository layout
 ```
-sleeve-planner/
+tattoo-planner/
 ├── PROJECT_BRIEF.md          # this file (later: split into docs/)
 ├── CLAUDE.md                 # agent rules (see §15)
 ├── README.md                 # setup + usage
-├── .env.example              # SLEEVE_DATA_DIR=...
+├── .env.example              # TATTOO_DATA_DIR=...
 ├── .gitignore                # .env, exports/, any image formats, node_modules
 ├── docs/
 │   ├── concept.md            # §3–§7 split out
@@ -341,7 +343,7 @@ sleeve-planner/
 │   ├── render/               # blockout + reference renderers
 │   ├── metrics/              # coverage calculation
 │   ├── export/               # PNG + PDF
-│   └── data/                 # asset resolution via SLEEVE_DATA_DIR, schemas
+│   └── data/                 # asset resolution via TATTOO_DATA_DIR, schemas
 ├── scripts/
 │   └── ingest-ideas-pdf.*    # split ideas.pdf into images + notes
 └── tests/
@@ -361,12 +363,12 @@ This is the same pattern as Jan's **Job Radar** project (data on Seafile, code o
 
 ### 12.2 Seafile location
 - Jan created the Seafile data folder under **`Your Secure Cloud/Protected Jan`** (exact local mount path depends on the OS and the Seafile/SeaDrive client — **to be resolved in Phase 1**).
-- The repo reads it via **`SLEEVE_DATA_DIR`** in a git-ignored `.env`.
+- The repo reads it via **`TATTOO_DATA_DIR`** in a git-ignored `.env`.
 - `ideas.pdf` is **already in that folder**.
 
 ### 12.3 Suggested folder structure on Seafile
 ```
-<SLEEVE_DATA_DIR>/
+<TATTOO_DATA_DIR>/
 ├── ideas.pdf                 # Jan's collected ideas (exists)
 ├── ideas/                    # generated: images + notes extracted from ideas.pdf
 │   ├── page-03-img-01.png
@@ -500,7 +502,7 @@ Each phase ends with a working state, a commit, and an update of `README.md`.
 ### Phase 1 — Stack check & scaffold
 - Inspect Jan's existing projects (Job Radar first, for the Seafile pattern; Is it cool / Porcellano for frontend conventions) — Jan provides paths or repo names.
 - Decide stack (ADR 0001), scaffold Vite + TS (+ React/R3F if chosen), lint/format/test tooling.
-- Implement `SLEEVE_DATA_DIR` resolution + a sanity page listing assets found on Seafile.
+- Implement `TATTOO_DATA_DIR` resolution + a sanity page listing assets found on Seafile.
 - Add pre-commit image guard.
 - **Acceptance:** `npm run dev` shows a page listing Seafile assets; committing an image is rejected.
 
@@ -518,7 +520,7 @@ Each phase ends with a working state, a commit, and an update of `README.md`.
 - **Acceptance:** `v1-baseline.yaml` (§13.2) renders as blockout on the 3D arm; metrics panel shows figure/filler/open-skin %.
 
 ### Phase 4 — Assets, ideas PDF, reference mode
-- Ingestion script: split `ideas.pdf` into individual images (+ page text) into `<SLEEVE_DATA_DIR>/ideas/`, write/update the manifest. Keep page/position info so images can be traced back.
+- Ingestion script: split `ideas.pdf` into individual images (+ page text) into `<TATTOO_DATA_DIR>/ideas/`, write/update the manifest. Keep page/position info so images can be traced back.
 - Asset browser in the UI (by tag/kind).
 - Reference renderer: images with masks/cut-outs (simple rectangle + feather first; optional background removal later), optional grayscale/hatching filter, red overlay.
 - Anubis placed from photo.
@@ -528,7 +530,7 @@ Each phase ends with a working state, a commit, and an update of `README.md`.
 ### Phase 5 — Export for the artist
 - PNG export of all views + unwrap at high resolution.
 - PDF handout: cover note, four views (blockout + reference side by side), unwrap with cm grid, legend, element notes (from YAML), open questions.
-- Exports go to `<SLEEVE_DATA_DIR>/exports/<layout>-<date>.pdf`.
+- Exports go to `<TATTOO_DATA_DIR>/exports/<layout>-<date>.pdf`.
 - **Acceptance:** one-click PDF for any layout, nothing written into the repo.
 
 ### Phase 6 — Iteration & polish (open-ended)
@@ -544,8 +546,8 @@ Each phase ends with a working state, a commit, and an update of `README.md`.
 To be copied into `CLAUDE.md`:
 
 - **Documentation, code comments, commit messages: English.** (Conversation with Jan may be German.)
-- **Never commit images, PDFs or exports.** All binary/visual data lives in `SLEEVE_DATA_DIR` (Seafile). Respect the pre-commit guard; never bypass it.
-- Read paths only via `SLEEVE_DATA_DIR`; never hard-code Jan's absolute paths in committed files.
+- **Never commit images, PDFs or exports.** All binary/visual data lives in `TATTOO_DATA_DIR` (Seafile). Respect the pre-commit guard; never bypass it.
+- Read paths only via `TATTOO_DATA_DIR`; never hard-code Jan's absolute paths in committed files.
 - No public deployment, no uploading assets to third-party services.
 - Prefer small, reviewable commits per phase step; keep `README.md` current.
 - Record significant technical choices as ADRs in `docs/adr/`.
