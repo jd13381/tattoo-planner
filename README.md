@@ -6,15 +6,15 @@ A local tool for planning a tattoo sleeve: a parametric 3D model of the arm, a 2
 
 ## Status
 
-| Phase                               | State   |
-| ----------------------------------- | ------- |
-| 0 Bootstrap                         | done    |
-| 1 Stack check and scaffold          | done    |
-| 2 Parametric arm and viewer         | done    |
-| 3 Unwrap editor and blockout mode   | done    |
-| 4 Assets, ideas PDF, reference mode | done    |
-| 5 Export for the artist             | next    |
-| 6 Iteration and polish              | planned |
+| Phase                               | State |
+| ----------------------------------- | ----- |
+| 0 Bootstrap                         | done  |
+| 1 Stack check and scaffold          | done  |
+| 2 Parametric arm and viewer         | done  |
+| 3 Unwrap editor and blockout mode   | done  |
+| 4 Assets, ideas PDF, reference mode | done  |
+| 5 Export for the artist             | done  |
+| 6 Iteration and polish              | next  |
 
 Decisions Claude made without Jan are listed in `docs/claude-decisions.md` for review.
 
@@ -63,6 +63,7 @@ npm run dev       # http://127.0.0.1:4320 (local only)
 - **Layout** (start page): pick a variant from `config/layouts/`, edit it on the 2D unwrap and see it live on the 3D arm in blockout mode (figures dark grey, fillers light grey, bands striped, red lines red, existing tattoo outlined). Click to select, drag to move, corner handle to scale, round handle to rotate; the side panel edits every field, the layer order, lock, duplicate and delete. "Inner side centred" puts the palm-side line in the middle of the editor for pieces on the seam (Anubis, Pegasus). **Save** writes the YAML back, keeping comments; **Save as…** creates a new variant. The coverage table shows the share of figures, fillers, bands, lines and open skin per zone. Figures without a height are drawn 10 cm tall and listed in a warning; the Anubis takes its size from `measurements.yaml` when the layout leaves it empty.
 - **Modes** (toolbar, the number next to them is the texture render time): **Blockout** as above; **Reference** draws the same layout with the reference images (PROJECT_BRIEF.md §10.1 F6): figures and existing tattoos show their asset's cut-out inside their box, multiplied onto the skin so white paper and pale skin vanish; fillers and bands are the procedural patterns below, clipped exactly to their shape (also across the inner seam); red lines lie on top of everything (§4.3). A figure whose image is missing shows a labelled placeholder box with the reason (no asset, not in the manifest, file missing, no data folder, cannot be shown). **cm grid** shows the bare unwrap grid. Images are decoded once per page load and cached, so switching modes is instant.
 - **Assets** panel (Layout tab, right column): thumbnails of every `manifest.yaml` entry, filterable by kind and tag, with a search over id, notes, source and file. Select a figure or existing tattoo in the editor, then click an image to assign it (`asset:`). Missing files are greyed out, manifest problems are listed as warnings. **Reload** re-reads the manifest and the images. The element panel shows the assigned image with its cut-out marked and edits the reference fields below.
+- **Export** (Layout toolbar): one click writes the handout for the tattoo artist and PNGs of every picture into the data folder (details below). Disabled, with the reason as tooltip, while there are unsaved changes, layout errors or images still loading, and when `TATTOO_DATA_DIR` is not set.
 - **Arm & measurements**: the parametric left arm built from `config/measurements.yaml`, with a 1 cm grid on the skin (bold every 5 cm, red centre lines for outer, lateral, inner and medial). Buttons switch between the four fixed views (front = inner side, back = outer side, medial, lateral); drag to rotate, scroll to zoom. **Screenshot** saves a PNG to the browser's download folder. The panel shows every measurement; values not measured yet use flagged placeholders, and typing a value previews it immediately (edits are not saved: write final numbers into the YAML, which reloads the page).
 - **Data folder**: lists the files found in `TATTOO_DATA_DIR` and checks the expected entries (`ideas.pdf`, `refs/`, …). If the variable is missing or wrong, it says so.
 
@@ -79,6 +80,22 @@ Geometry and unwrap conventions: `docs/adr/0002-arm-geometry-and-unwrap.md`.
 | `lotus` (`lotus-frieze`) | band   | lotus flowers alternating with papyrus umbels, linked by garland arcs                      |
 
 Bands fit a whole number of repeats around the arm, so they meet at the inner seam. Fillers are seeded from the element `id`: the same layout always looks the same. Any other name draws a faint diagonal placeholder hatch.
+
+### Export for the artist
+
+**Export** in the Layout toolbar renders the saved layout and writes, only into the data folder:
+
+```
+<TATTOO_DATA_DIR>/exports/
+├── v1-baseline-2026-11-03.pdf      the handout
+└── v1-baseline-2026-11-03/         PNGs: {front,back,medial,lateral,unwrap}-{blockout,reference}.png
+```
+
+A second export of the same layout on the same day gets `-2`, then `-3`; nothing is ever overwritten. The toolbar shows the progress and, when done, the paths written (about 15–20 s).
+
+The PDF (A4, English): a cover with the note that this is a sketch and the artist has creative freedom, the layout's name, description and date, and a legend; all four views (front = inner, back = outer, medial, lateral) at a glance with blockout and reference side by side; one page per view with the elements facing that side; the unwrap with cm grid in both modes; a table of every element (type, reference image, size in cm, position, style or pattern, `notes:` from the YAML); coverage per zone; open questions (unset heights, missing images, placeholder measurements, and the design questions of PROJECT_BRIEF.md §9, listed in `src/export/strings.ts`). All handout wording lives in `src/export/strings.ts`, ready for a German version. Give an element a `notes: "…"` line in the YAML to pass a remark to the artist.
+
+The dev server endpoint behind it (`src/export/server/exportsApi.ts`): `GET /api/exports` (enabled or why not), `POST /api/exports` (reserve a name), `PUT /api/exports/<base>.pdf` or `/<base>/<name>.png` (write one file; type, signature, size and path are checked; nothing outside `exports/`). Decisions: `docs/adr/0004-export.md`.
 
 ### Ideas PDF and assets
 
@@ -141,4 +158,4 @@ Size: when `size_cm.w` is not set, the box takes the proportions of the upright 
 | `npm run build`     | Static production bundle (without data-folder access)      |
 | `npm run check`     | lint, typecheck, tests and the binary guard over all files |
 
-Layout: `src/arm/` builds the profile, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures (blockout, reference, patterns), `src/layout/` holds the layout schema, shapes and image-fit rules, `src/assets/` the manifest schema and the asset browser, `src/viewer/` holds the 3D view and panels, `src/data/` resolves and lists the data folder and serves assets (`server/` runs in the dev server only), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
+Layout: `src/arm/` builds the profile, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures (blockout, reference, patterns), `src/layout/` holds the layout schema, shapes and image-fit rules, `src/assets/` the manifest schema and the asset browser, `src/viewer/` holds the 3D view and panels, `src/data/` resolves and lists the data folder and serves assets (`server/` runs in the dev server only), `src/export/` builds the handout and the PNGs (`server/` writes them into the data folder), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
