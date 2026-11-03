@@ -12,7 +12,7 @@ A local tool for planning a tattoo sleeve: a parametric 3D model of the arm, a 2
 | 1 Stack check and scaffold          | done    |
 | 2 Parametric arm and viewer         | done    |
 | 3 Unwrap editor and blockout mode   | done    |
-| 4 Assets, ideas PDF, reference mode | next    |
+| 4 Assets, ideas PDF, reference mode | review  |
 | 5 Export for the artist             | planned |
 | 6 Iteration and polish              | planned |
 
@@ -59,6 +59,8 @@ npm run dev       # http://127.0.0.1:4320 (local only)
 ```
 
 - **Layout** (start page): pick a variant from `config/layouts/`, edit it on the 2D unwrap and see it live on the 3D arm in blockout mode (figures dark grey, fillers light grey, bands striped, red lines red, existing tattoo outlined). Click to select, drag to move, corner handle to scale, round handle to rotate; the side panel edits every field, the layer order, lock, duplicate and delete. "Inner side centred" puts the palm-side line in the middle of the editor for pieces on the seam (Anubis, Pegasus). **Save** writes the YAML back, keeping comments; **Save as…** creates a new variant. The coverage table shows the share of figures, fillers, bands, lines and open skin per zone. Figures without a height are drawn 10 cm tall and listed in a warning; the Anubis takes its size from `measurements.yaml` when the layout leaves it empty.
+- **Modes** (toolbar, the number next to them is the texture render time): **Blockout** as above; **Reference** draws the same layout with the reference images (PROJECT_BRIEF.md §10.1 F6): figures and existing tattoos show their asset's cut-out inside their box, multiplied onto the skin so white paper and pale skin vanish; fillers and bands are the procedural patterns below, clipped exactly to their shape (also across the inner seam); red lines lie on top of everything (§4.3). A figure whose image is missing shows a labelled placeholder box with the reason (no asset, not in the manifest, file missing, no data folder, cannot be shown). **cm grid** shows the bare unwrap grid. Images are decoded once per page load and cached, so switching modes is instant.
+- **Assets** panel (Layout tab, right column): thumbnails of every `manifest.yaml` entry, filterable by kind and tag, with a search over id, notes, source and file. Select a figure or existing tattoo in the editor, then click an image to assign it (`asset:`). Missing files are greyed out, manifest problems are listed as warnings. **Reload** re-reads the manifest and the images. The element panel shows the assigned image with its cut-out marked and edits the reference fields below.
 - **Arm & measurements**: the parametric left arm built from `config/measurements.yaml`, with a 1 cm grid on the skin (bold every 5 cm, red centre lines for outer, lateral, inner and medial). Buttons switch between the four fixed views (front = inner side, back = outer side, medial, lateral); drag to rotate, scroll to zoom. **Screenshot** saves a PNG to the browser's download folder. The panel shows every measurement; values not measured yet use flagged placeholders, and typing a value previews it immediately (edits are not saved: write final numbers into the YAML, which reloads the page).
 - **Data folder**: lists the files found in `TATTOO_DATA_DIR` and checks the expected entries (`ideas.pdf`, `refs/`, …). If the variable is missing or wrong, it says so.
 
@@ -90,6 +92,36 @@ Both read `TATTOO_DATA_DIR` (shell or `.env`) and write only into the data folde
 
 Running them again is safe: they only add entries for new files and refresh `page`/`bbox` of extracted images. Your edits to `manifest.yaml` (ids, notes, tags, comments, order) are kept; a manifest with errors is never overwritten. If you change `ideas.pdf` so that pages or images move, check the manifest afterwards: ids follow page and position. Details: `docs/adr/0003-ideas-pdf-ingestion.md`.
 
+### Asset manifest and the dev server
+
+The dev server reads `<TATTOO_DATA_DIR>/manifest.yaml` (schema: `src/assets/manifest.ts`) and serves, on `127.0.0.1` only:
+
+- `GET /api/assets`: the manifest entries, each with `exists`; invalid entries become warnings instead of hiding the rest; no manifest yet = an empty list.
+- `GET /api/assets/image/<id>`: the image of one manifest entry, nothing else. Only `png`, `jpg`/`jpeg`, `webp`, `gif` and `avif`; HEIC/HEIF answer 415 (export them as JPEG). Paths must be relative, without `..`, and stay inside the data folder after resolving symlinks.
+
+`v1-baseline.yaml` uses these asset ids: `anubis-photo` (must point at `arm-photos/anubis1_nr.JPG`, because the layout's crop is fitted to that photo), `rhonas-card` (the Rhonas card image from ideas.pdf; the layout's crop is fitted to the full card), `medusa-ref-01`, `skull-ref-01` and `pegasus-ref-01`. An id that is not in the manifest renders as a placeholder. The entry for the Anubis photo:
+
+```yaml
+- id: anubis-photo
+  file: arm-photos/anubis1_nr.JPG
+  kind: existing
+  tags: [anubis, existing]
+```
+
+### Reference fields in a layout
+
+Figures and existing tattoos take these optional fields (rules in `src/layout/imageFit.ts`):
+
+| Field                | Meaning                                                                                                                                                                                                          |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crop`               | `{ x, y, w, h }`, 0–1 from the left/top edge of the image as stored (before turning). Overrides the asset's `crop` in the manifest; without either, the whole image.                                             |
+| `image_rotation_deg` | `90`, `180` or `270`: turns the cut-out clockwise, e.g. for a photo of the arm lying sideways.                                                                                                                   |
+| `flip`               | `true` mirrors the image left-right (after turning).                                                                                                                                                             |
+| `feather_cm`         | soft edge of the cut-out in cm, default `1`; `0` for a hard edge.                                                                                                                                                |
+| `filter`             | `none`, `grayscale` or `hatching` (grayscale with an engraving line screen). Default: `grayscale` when the element's centre is on the forearm, `none` above the elbow. Photos are stretched so skin turns white. |
+
+Size: when `size_cm.w` is not set, the box takes the proportions of the upright cut-out (in every mode, so blockout, metrics and picture agree; until the image has loaded, or without a data folder, the old 0.55 × height is used). When both `h` and `w` are set, the image is fitted inside the box without distortion and centred.
+
 ## Configuration
 
 - `config/measurements.yaml`: left-arm measurements in cm (PROJECT_BRIEF.md §13.1). `null` means not measured yet. How to measure and photograph the arm: `docs/measuring.md`.
@@ -107,4 +139,4 @@ Running them again is safe: they only add entries for new files and refresh `pag
 | `npm run build`     | Static production bundle (without data-folder access)      |
 | `npm run check`     | lint, typecheck, tests and the binary guard over all files |
 
-Layout: `src/arm/` builds the profile, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures, `src/viewer/` holds the 3D view and panels, `src/data/` resolves and lists the data folder (`server/` runs in the dev server only), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
+Layout: `src/arm/` builds the profile, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures (blockout, reference, patterns), `src/layout/` holds the layout schema, shapes and image-fit rules, `src/assets/` the manifest schema and the asset browser, `src/viewer/` holds the 3D view and panels, `src/data/` resolves and lists the data folder and serves assets (`server/` runs in the dev server only), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
