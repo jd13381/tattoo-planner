@@ -10,8 +10,8 @@ A local tool for planning a tattoo sleeve: a parametric 3D model of the arm, a 2
 | ----------------------------------- | ------- |
 | 0 Bootstrap                         | done    |
 | 1 Stack check and scaffold          | done    |
-| 2 Parametric arm and viewer         | next    |
-| 3 Unwrap editor and blockout mode   | planned |
+| 2 Parametric arm and viewer         | done    |
+| 3 Unwrap editor and blockout mode   | next    |
 | 4 Assets, ideas PDF, reference mode | planned |
 | 5 Export for the artist             | planned |
 | 6 Iteration and polish              | planned |
@@ -58,7 +58,10 @@ A variable set in the shell wins over `.env`.
 npm run dev       # http://127.0.0.1:4320 (local only)
 ```
 
-The start page currently lists the files found in the data folder and checks the expected entries (`ideas.pdf`, `refs/`, …). If `TATTOO_DATA_DIR` is missing or wrong, it says so.
+- **Arm**: the parametric left arm built from `config/measurements.yaml`, with a 1 cm grid on the skin (bold every 5 cm, red centre lines for outer, lateral, inner and medial). Buttons switch between the four fixed views (front = inner side, back = outer side, medial, lateral); drag to rotate, scroll to zoom. **Screenshot** saves a PNG to the browser's download folder. The panel shows every measurement; values not measured yet use flagged placeholders, and typing a value previews it immediately (edits are not saved: write final numbers into the YAML, which reloads the page).
+- **Data folder**: lists the files found in `TATTOO_DATA_DIR` and checks the expected entries (`ideas.pdf`, `refs/`, …). If the variable is missing or wrong, it says so.
+
+Geometry and unwrap conventions: `docs/adr/0002-arm-geometry-and-unwrap.md`.
 
 ## Configuration
 
@@ -77,4 +80,4 @@ The start page currently lists the files found in the data folder and checks the
 | `npm run build`     | Static production bundle (without data-folder access)      |
 | `npm run check`     | lint, typecheck, tests and the binary guard over all files |
 
-Layout: `src/data/` resolves and lists the data folder (`server/` runs in the dev server only), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
+Layout: `src/arm/` builds the profile, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures, `src/viewer/` holds the 3D view and panels, `src/data/` resolves and lists the data folder (`server/` runs in the dev server only), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
