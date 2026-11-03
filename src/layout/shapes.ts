@@ -2,6 +2,7 @@
 // Unwrap cm: x from the outer centre line (lateral positive, as src/arm/uv.ts), y from the wrist crease.
 import type { ArmProfile } from "../arm/profile.ts";
 import { uToCm, wrapU } from "../arm/uv.ts";
+import type { ElementAspects } from "./imageFit.ts";
 import type { Layout, LayoutElement } from "./schema.ts";
 
 /** Sizes used when a figure has no size yet; the UI lists every element that uses one. */
@@ -28,6 +29,8 @@ export function resolveElement(
   el: LayoutElement,
   profile: ArmProfile,
   existing?: ExistingSize,
+  /** Width / height of the element's upright image cut-out, when known (src/layout/imageFit.ts). */
+  imageAspect?: number,
 ): ResolvedElement {
   const L = profile.length;
   const flags: string[] = [];
@@ -44,6 +47,9 @@ export function resolveElement(
         h = PLACEHOLDER_HEIGHT_CM;
         flags.push("height not set");
       }
+      // Without a width the box takes the image's proportions, in every mode, so the blockout,
+      // the metrics and the reference picture all use the same box.
+      if (w === null && imageAspect !== undefined && imageAspect > 0) w = h * imageAspect;
       if (w === null) {
         w = h * DEFAULT_ASPECT;
         flags.push("width assumed");
@@ -161,8 +167,9 @@ export function classify(
   pxPerCm: number,
   existing?: ExistingSize,
   centerU = 0,
+  aspects?: ElementAspects,
 ): Classification {
-  const resolved = layout.elements.map((el) => resolveElement(el, profile, existing));
+  const resolved = layout.elements.map((el) => resolveElement(el, profile, existing, aspects?.get(el.id)));
   const width = Math.ceil(profile.maxCircumference * pxPerCm);
   const height = Math.ceil(profile.length * pxPerCm);
   const cells = new Uint8Array(width * height);

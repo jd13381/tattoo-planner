@@ -490,3 +490,155 @@ textarea,
 .metrics th:first-child {
   width: 34%;
 }
+
+/* Reference mode and assets (Phase 4) */
+.unwrap-image-host {
+  pointer-events: none;
+}
+
+.unwrap-image-host div,
+.unwrap-image-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.render-ms {
+  min-width: 3.5em;
+  font-variant-numeric: tabular-nums;
+}
+
+.error-text {
+  color: var(--accent);
+}
+
+.asset-browser {
+  align-self: stretch;
+}
+
+.asset-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+.asset-filters select,
+.asset-filters input {
+  min-width: 0;
+  width: 100%;
+}
+
+.asset-filters input[type="search"] {
+  grid-column: 1 / -1;
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.asset-grid {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.asset-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 4px;
+  gap: 2px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.asset-card img,
+.asset-missing {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: #2a2725;
+  border-radius: 5px;
+}
+
+.asset-missing {
+  display: grid;
+  place-items: center;
+  color: var(--warn);
+  font-size: 0.75rem;
+}
+
+.asset-card.current {
+  outline: 2px solid #ffc400;
+}
+
+.asset-card.missing {
+  opacity: 0.7;
+}
+
+.asset-id {
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-thumb {
+  position: relative;
+  line-height: 0;
+  background: #2a2725;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Image and overlay share the box exactly, so the crop rectangle lines up. */
+.asset-thumb img {
+  width: 100%;
+  height: auto;
+}
+
+.asset-thumb svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.crop-shade {
+  fill: rgba(0, 0, 0, 0.5);
+}
+
+.crop-rect {
+  fill: none;
+  stroke: #ffc400;
+  stroke-width: 0.006;
+}
+
+.image-fields {
+  display: grid;
+  gap: 6px;
+}
+
+.crop-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.props label.crop-field {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.props label.crop-field input {
+  width: 5em;
+}

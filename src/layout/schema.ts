@@ -2,8 +2,14 @@
 // Coordinates: u around the arm (0 outer, 0.25 lateral, 0.5 inner, 0.75 medial), v along it (0 wrist, 1 shoulder).
 // Array order is layer order: later elements are drawn on top.
 import { z } from "zod";
+import { rectSchema } from "../assets/manifest.ts";
 
 const unit = z.number().min(0).max(1);
+
+/** Image looks in reference mode: hatching = grayscale with a line screen (engraving style, §4.2). */
+export const IMAGE_FILTERS = ["none", "grayscale", "hatching"] as const;
+export type ImageFilter = (typeof IMAGE_FILTERS)[number];
+export const IMAGE_ROTATIONS = [0, 90, 180, 270] as const;
 const point = z.strictObject({ u: z.number(), v: unit });
 const cm = z.number().positive();
 
@@ -24,6 +30,17 @@ const figureFields = {
   rotation_deg: z.number().optional(),
   style: z.string().optional(),
   red_accents: z.boolean().optional(),
+  // Reference mode (PROJECT_BRIEF.md §10.1 F6), all optional; how they combine: src/layout/imageFit.ts.
+  /** Cut-out of the asset image, normalised to the image as stored (before image_rotation_deg). */
+  crop: rectSchema.optional(),
+  /** Quarter turn of the cut-out, clockwise, so a sideways photo stands upright (wrist down). */
+  image_rotation_deg: z.union(IMAGE_ROTATIONS.map((d) => z.literal(d))).optional(),
+  /** Mirror the image left-right (after the quarter turn). */
+  flip: z.boolean().optional(),
+  /** Soft edge of the cut-out in cm; default 1 cm, 0 = hard edge. */
+  feather_cm: z.number().min(0).optional(),
+  /** Image look; default grayscale on the forearm, none elsewhere. */
+  filter: z.enum(IMAGE_FILTERS).optional(),
 };
 
 export const figureSchema = z.strictObject({ type: z.literal("figure"), ...figureFields });
@@ -73,6 +90,16 @@ export const layoutSchema = z
       if (seen.has(el.id))
         ctx.addIssue({ code: "custom", path: ["elements", i, "id"], message: `duplicate id ${el.id}` });
       seen.add(el.id);
+      if (
+        (el.type === "figure" || el.type === "existing") &&
+        el.crop &&
+        (el.crop.x + el.crop.w > 1 + 1e-9 || el.crop.y + el.crop.h > 1 + 1e-9)
+      )
+        ctx.addIssue({
+          code: "custom",
+          path: ["elements", i, "crop"],
+          message: "crop must stay inside the image (x + w ≤ 1, y + h ≤ 1)",
+        });
       if (el.type === "filler" && el.region.v[0] >= el.region.v[1])
         ctx.addIssue({
           code: "custom",
