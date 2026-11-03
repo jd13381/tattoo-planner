@@ -642,3 +642,27 @@ textarea,
 .props label.crop-field input {
   width: 5em;
 }
+
+.export-status {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.export-status code {
+  word-break: break-all;
+}
+
+.export-status .error {
+  color: var(--accent);
+}
+
+button.link {
+  border: none;
+  background: none;
+  padding: 0 4px;
+  color: var(--muted);
+  text-decoration: underline;
+}

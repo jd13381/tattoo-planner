@@ -17,9 +17,11 @@ import { coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
 import type { ReferenceSources } from "../render/reference.ts";
 import { renderUnwrap, timed, type RenderMode } from "../render/unwrapCanvas.ts";
+import { ExportButton } from "../export/ExportButton.tsx";
+import type { ExportInput } from "../export/runExport.ts";
 import { PlaceholderNotice } from "../viewer/ArmPage.tsx";
 import { ArmViewer } from "../viewer/ArmViewer.tsx";
-import { anubisSize, type ArmState } from "../viewer/useArm.ts";
+import { anubisSize, INPUT_COUNT, type ArmState } from "../viewer/useArm.ts";
 import { newElement, reorder, uniqueId } from "./edit.ts";
 import { ElementPanel } from "./ElementPanel.tsx";
 import { UnwrapEditor } from "./UnwrapEditor.tsx";
@@ -162,6 +164,37 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
   const flagged =
     layout?.elements.filter((_, i) => flagsFor[i]?.includes("height not set")).map((e) => e.id) ?? [];
 
+  // Export: the saved layout exactly as shown, once every image it uses has loaded.
+  const exportInput = useMemo<ExportInput | null>(
+    () =>
+      layout
+        ? {
+            layout,
+            profile,
+            existing: anubisSize,
+            aspects,
+            sources,
+            placeholderMeasurements: arm.placeholders,
+            measurementCount: INPUT_COUNT,
+          }
+        : null,
+    [layout, profile, aspects, sources, arm.placeholders],
+  );
+  // An image the manifest lists but the cache has not started on yet counts as loading too.
+  const loadingImages =
+    listing === null ||
+    usedAssets.some((id) => {
+      const img = images.get(id);
+      return img ? img.status === "loading" : !!assetMap?.get(id)?.exists;
+    });
+  const exportBlocked = validationError
+    ? "Fix the layout errors first."
+    : dirty
+      ? "Save first, so the handout matches the YAML."
+      : loadingImages
+        ? "Waiting for the reference images to load."
+        : null;
+
   const update = (fn: (l: Layout) => Layout) => setLayout((l) => (l ? fn(l) : l));
   const setElement = (index: number, el: LayoutElement) =>
     update((l) => ({ ...l, elements: l.elements.map((e, i) => (i === index ? el : e)) }));
@@ -247,6 +280,7 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
         <button type="button" onClick={saveAs} disabled={!layout || !!validationError}>
           Save as…
         </button>
+        <ExportButton input={exportInput} blocked={exportBlocked} />
         <span className="spacer" />
         <span className="segmented" role="group" aria-label="Mode">
           {MODES.map((m) => (
