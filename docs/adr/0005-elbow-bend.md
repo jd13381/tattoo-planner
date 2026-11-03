@@ -21,7 +21,7 @@
 
 - **Rotation about one fixed joint axis** (rigid skinning, no zone): a sharp kink at the elbow and a gap or overlap on both sides.
 - **Linear blend skinning with two bones:** the classic "candy wrapper" collapse at strong angles; needs weights tuned per vertex.
-- **Neutral line in the middle of the arm:** the outer skin would stretch about twice as much (≈ 6 cm at 90°), which overstates how a tattoo on the elbow distorts.
+- **Neutral line in the middle of the arm:** the outer skin would stretch about 2.5 times as much (≈ 6.5 cm at 90°), which overstates how a tattoo on the elbow distorts.
 - **A physical skin simulation:** far beyond a sketch tool.
 
 ## Known limits
