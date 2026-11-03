@@ -64,6 +64,18 @@ npm run dev       # http://127.0.0.1:4320 (local only)
 
 Geometry and unwrap conventions: `docs/adr/0002-arm-geometry-and-unwrap.md`.
 
+**Patterns** for `pattern:` in a layout (drawn in reference mode, `src/render/patterns/`; sizes are real cm on the skin):
+
+| Name                     | Kind   | Look                                                                                       |
+| ------------------------ | ------ | ------------------------------------------------------------------------------------------ |
+| `snake-scales`           | filler | overlapping scale rows (≈ 1.2 cm); `density` scatters them out into open skin              |
+| `hatching`               | filler | diagonal engraving lines; `density` tightens the spacing and adds cross-hatching above 0.5 |
+| `starfield`              | filler | sparse dots and small four-point stars                                                     |
+| `meander`                | band   | Greek key spirals between two border lines, module ≈ band height                           |
+| `lotus` (`lotus-frieze`) | band   | lotus flowers alternating with papyrus umbels, linked by garland arcs                      |
+
+Bands fit a whole number of repeats around the arm, so they meet at the inner seam. Fillers are seeded from the element `id`: the same layout always looks the same. Any other name draws a faint diagonal placeholder hatch.
+
 ### Ideas PDF and assets
 
 ```sh
