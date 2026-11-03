@@ -83,3 +83,13 @@ Details in `docs/adr/0004-export.md`.
 - **Element differences** are matched by id and list the changed fields (e.g. `rhonas changed: position`). A renamed element shows as "only in A" plus "only in B".
 - **Unsaved edits can be compared:** while the Layout tab has unsaved changes, Compare offers "<name> (unsaved edits)" and preselects it against the saved file. The Layout tab now stays mounted when another tab is open, so unsaved edits are no longer lost by switching tabs.
 - **Duplicating a variant = Save as…**, improved instead of adding a second button: it suggests a free name (`v1-baseline-2`, `try-3` → `try-4`) and copies the source file's comments into the new file under the line `# Variant <new>, duplicated from <old>; the comments below come from <old>.` (before, a new variant lost all comments). _Not added:_ deleting or renaming variants in the UI; delete the YAML file instead (git keeps the history).
+
+### Phase 6: elbow-bent pose
+
+Details in `docs/adr/0005-elbow-bend.md`.
+
+- **Pose control** in every 3D view (Arm, Layout, Compare): Straight, Bent 90° and a 0–120° slider in 5° steps, one pose shared by all tabs. _Alternative:_ only a fixed 90° preset.
+- **Bend model:** forearm swings towards the palm side, upper arm fixed; the bend is spread over ±6 cm around the elbow tip with a smooth (raised-cosine) curvature; the neutral line sits at 20 % of the elbow's depth from the outer skin, so the outer skin stretches only 2.7 cm at 90° and the inner side creases without folding over. Only vertices move: unwrap, editor, metrics and textures are unchanged. _Change:_ `BEND_DEFAULTS` in `src/arm/bend.ts`.
+- **Limit accepted:** beyond about 100° the forearm and upper-arm flesh overlap in the inner crease instead of pressing together. The outer side and elbow tip (skull area) stay clean.
+- **Export not bent (follow-up):** the PDF and PNGs still show the straight arm only; a bent page in the handout needs a pose parameter for the offscreen renderer and a new page, left for later.
+- **Framing:** a fixed view re-frames as the pose changes; a camera rotated by hand keeps its place.

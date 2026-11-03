@@ -21,7 +21,7 @@ import { ExportButton } from "../export/ExportButton.tsx";
 import type { ExportInput } from "../export/runExport.ts";
 import { PlaceholderNotice } from "../viewer/ArmPage.tsx";
 import { ArmViewer } from "../viewer/ArmViewer.tsx";
-import { anubisSize, INPUT_COUNT, type ArmState } from "../viewer/useArm.ts";
+import { anubisSize, INPUT_COUNT, type ArmState, type Pose } from "../viewer/useArm.ts";
 import { newElement, reorder, suggestVariantName, uniqueId } from "./edit.ts";
 import { ElementPanel } from "./ElementPanel.tsx";
 import { UnwrapEditor } from "./UnwrapEditor.tsx";
@@ -46,11 +46,12 @@ const METRICS_PX_PER_CM = 6;
 
 type Props = {
   arm: ArmState;
+  pose: Pose;
   /** Reports the open variant and its unsaved state (the Compare tab offers unsaved edits). */
   onWorking?: (w: WorkingLayout | null) => void;
 };
 
-export function LayoutPage({ arm, onWorking }: Props) {
+export function LayoutPage({ arm, pose, onWorking }: Props) {
   const { profile } = arm;
   const [name, setName] = useState<string | null>(null);
   const [layout, setLayout] = useState<Layout | null>(null);
@@ -351,7 +352,14 @@ export function LayoutPage({ arm, onWorking }: Props) {
             />
           </div>
           <div className="viewer-col">
-            <ArmViewer profile={profile} canvas={texture} version={0} hint={HINTS[mode]} />
+            <ArmViewer
+              profile={profile}
+              canvas={texture}
+              version={0}
+              hint={HINTS[mode]}
+              bendDeg={pose.bendDeg}
+              onBendDeg={pose.setBendDeg}
+            />
           </div>
           <div className="side-col">
             {sel && selected !== null ? (

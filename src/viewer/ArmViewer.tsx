@@ -1,13 +1,14 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ArmProfile } from "../arm/profile.ts";
 import { ArmModel } from "./ArmModel.tsx";
 import type { CameraSync } from "./cameraSync.ts";
-import { LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
+import { MAX_FLEXION_DEG } from "../arm/bend.ts";
+import { armGeometry, LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
 import { useViewState, type ViewState } from "./useViewState.ts";
-import { CAMERA_FOV, VIEWS, viewCamera } from "./views.ts";
+import { CAMERA_FOV, VIEWS, viewCamera, type Bounds } from "./views.ts";
 
 type Props = {
   profile: ArmProfile;
@@ -22,11 +23,23 @@ type Props = {
   sync?: { bus: CameraSync; id: string };
   /** Shown in the corner of the canvas, e.g. the variant name. */
   label?: string;
+  /** Elbow flexion in degrees (0 = straight). */
+  bendDeg?: number;
+  /** When set, the toolbar shows the pose control. */
+  onBendDeg?: (deg: number) => void;
 };
 
-export function ArmViewer({ profile, canvas, version, hint, viewState, toolbar = true, sync, label }: Props) {
+export function ArmViewer(props: Props) {
+  const { profile, canvas, version, hint, viewState, toolbar = true, sync, label } = props;
+  const bendDeg = props.bendDeg ?? 0;
   const own = useViewState();
   const vs = viewState ?? own;
+  const geometry = useMemo(() => armGeometry(profile, bendDeg), [profile, bendDeg]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  const bounds = useMemo<Bounds | undefined>(() => {
+    const box = geometry.boundingBox;
+    return bendDeg > 0 && box ? { min: box.min.toArray(), max: box.max.toArray() } : undefined;
+  }, [geometry, bendDeg]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const screenshot = () => {
@@ -48,6 +61,7 @@ export function ArmViewer({ profile, canvas, version, hint, viewState, toolbar =
       {toolbar && (
         <div className="toolbar" role="toolbar" aria-label="Views">
           <ViewButtons state={vs} />
+          {props.onBendDeg && <PoseControl bendDeg={bendDeg} onChange={props.onBendDeg} />}
           <span className="spacer" />
           <button type="button" onClick={screenshot}>
             Screenshot
@@ -68,8 +82,8 @@ export function ArmViewer({ profile, canvas, version, hint, viewState, toolbar =
           />
           <directionalLight position={LIGHTS.key.position} intensity={LIGHTS.key.intensity} />
           <directionalLight position={LIGHTS.fill.position} intensity={LIGHTS.fill.intensity} />
-          <ArmModel profile={profile} canvas={canvas} version={version} />
-          <CameraRig profile={profile} state={vs} sync={sync} />
+          <ArmModel geometry={geometry} canvas={canvas} version={version} />
+          <CameraRig profile={profile} bounds={bounds} state={vs} sync={sync} />
         </Canvas>
       </div>
       {toolbar && (
@@ -102,24 +116,67 @@ export function ViewButtons({ state }: { state: ViewState }) {
   );
 }
 
-function CameraRig(props: { profile: ArmProfile; state: ViewState; sync?: { bus: CameraSync; id: string } }) {
-  const { profile, state, sync } = props;
-  const { view, request, setFree } = state;
+/** Elbow pose: a flexion slider with presets (the same texture bends with the skin). */
+export function PoseControl({ bendDeg, onChange }: { bendDeg: number; onChange: (deg: number) => void }) {
+  return (
+    <span className="pose-control" role="group" aria-label="Elbow pose">
+      <span className="segmented">
+        <button type="button" className={bendDeg === 0 ? "active" : ""} onClick={() => onChange(0)}>
+          Straight
+        </button>
+        <button type="button" className={bendDeg === 90 ? "active" : ""} onClick={() => onChange(90)}>
+          Bent 90°
+        </button>
+      </span>
+      <input
+        type="range"
+        min={0}
+        max={MAX_FLEXION_DEG}
+        step={5}
+        value={bendDeg}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label="Elbow flexion in degrees"
+        title="Elbow flexion"
+      />
+      <span className="muted small pose-value">{bendDeg}°</span>
+    </span>
+  );
+}
+
+function CameraRig(props: {
+  profile: ArmProfile;
+  bounds?: Bounds;
+  state: ViewState;
+  sync?: { bus: CameraSync; id: string };
+}) {
+  const { profile, bounds, state, sync } = props;
+  const { view, request, free, setFree } = state;
+  // What the last framing was for: a new pose re-frames a fixed view, but not a hand-rotated camera.
+  const framedFor = useRef<{ key: string; profile: ArmProfile | null }>({ key: "", profile: null });
   const controls = useRef<OrbitControlsImpl>(null);
   // Set while a camera from another viewer is applied, so it is not sent back.
   const applying = useRef(false);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
 
-  // Re-frame on a view request and whenever the arm changes size.
+  // Re-frame on a view request and whenever the arm or the canvas changes size.
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
-    const { position, target } = viewCamera(profile, view, size.width / Math.max(size.height, 1));
+    const key = `${view}:${request}:${size.width}x${size.height}`;
+    if (free && framedFor.current.key === key && framedFor.current.profile === profile) return;
+    framedFor.current = { key, profile };
+    const { position, target } = viewCamera(
+      profile,
+      view,
+      size.width / Math.max(size.height, 1),
+      1.25,
+      bounds,
+    );
     camera.position.set(...position);
     c.target.set(...target);
     c.update();
-  }, [profile, view, request, camera, size.width, size.height]);
+  }, [profile, bounds, view, request, free, camera, size.width, size.height]);
 
   useEffect(() => {
     if (!sync) return;

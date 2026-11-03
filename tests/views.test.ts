@@ -22,3 +22,19 @@ describe("fixed views", () => {
     expect(narrow).toBeGreaterThan(wide);
   });
 });
+
+describe("fixed views of a bent arm", () => {
+  const profile = buildProfile(PLACEHOLDERS);
+  const box = { min: [-5, 20, -5] as [number, number, number], max: [5, 60, 35] as [number, number, number] };
+
+  it("centres on the box and keeps the forearm in front of the camera", () => {
+    const front = viewCamera(profile, "front", 1, 1.25, box);
+    expect(front.target).toEqual([0, 40, 15]);
+    // Far enough that the forearm pointing at the camera stays well beyond the near plane.
+    expect(front.position[2] - box.max[2]).toBeGreaterThan(40);
+    const lateral = viewCamera(profile, "lateral", 1, 1.25, box);
+    expect(lateral.position[0]).toBeGreaterThan(0);
+    // From the side the 40 cm of forearm is across the screen: a narrow screen backs off further.
+    expect(viewCamera(profile, "lateral", 0.3, 1.25, box).position[0]).toBeGreaterThan(lateral.position[0]);
+  });
+});

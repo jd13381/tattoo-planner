@@ -19,6 +19,9 @@ export function App() {
   const [tab, setTab] = useState<TabId>("layout");
   const arm = useArm();
   const [working, setWorking] = useState<WorkingLayout | null>(null);
+  // Elbow flexion in degrees, shared by every 3D view (Arm, Layout, Compare).
+  const [bendDeg, setBendDeg] = useState(0);
+  const pose = { bendDeg, setBendDeg };
   return (
     <main className="page">
       <header className="page-header">
@@ -39,10 +42,10 @@ export function App() {
       </header>
       {/* The Layout tab stays mounted (hidden), so unsaved edits survive a look at another tab. */}
       <div hidden={tab !== "layout"}>
-        <LayoutPage arm={arm} onWorking={setWorking} />
+        <LayoutPage arm={arm} pose={pose} onWorking={setWorking} />
       </div>
-      {tab === "compare" && <ComparePage arm={arm} working={working} />}
-      {tab === "arm" && <ArmPage arm={arm} />}
+      {tab === "compare" && <ComparePage arm={arm} pose={pose} working={working} />}
+      {tab === "arm" && <ArmPage arm={arm} pose={pose} />}
       {tab === "data" && <DataFolderPage />}
     </main>
   );

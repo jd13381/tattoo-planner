@@ -1,6 +1,7 @@
 // The 3D arm scene shared by the live viewer (ArmViewer.tsx) and the offscreen export renderer
 // (src/export/renderViews.ts), so exported views look exactly like the screen.
 import { BufferAttribute, BufferGeometry, CanvasTexture, SRGBColorSpace } from "three";
+import { bendArmMesh } from "../arm/bend.ts";
 import { buildArmMesh } from "../arm/geometry.ts";
 import type { ArmProfile } from "../arm/profile.ts";
 
@@ -14,9 +15,12 @@ export const SKIN_ROUGHNESS = 0.85;
 export const CAP_COLOR = "#d9cfc4";
 export const CAP_ROUGHNESS = 0.9;
 
-/** Arm mesh with two material groups: 0 = textured skin, 1 = the rounded end caps. */
-export function armGeometry(profile: ArmProfile): BufferGeometry {
-  const mesh = buildArmMesh(profile);
+/**
+ * Arm mesh with two material groups: 0 = textured skin, 1 = the rounded end caps. `bendDeg` flexes
+ * the elbow (src/arm/bend.ts); the UVs stay the same, so the texture bends with the skin.
+ */
+export function armGeometry(profile: ArmProfile, bendDeg = 0): BufferGeometry {
+  const mesh = bendArmMesh(buildArmMesh(profile), profile, bendDeg);
   const g = new BufferGeometry();
   g.setAttribute("position", new BufferAttribute(mesh.positions, 3));
   g.setAttribute("normal", new BufferAttribute(mesh.normals, 3));
@@ -27,6 +31,8 @@ export function armGeometry(profile: ArmProfile): BufferGeometry {
   g.setIndex(new BufferAttribute(index, 1));
   g.addGroup(0, mesh.skinIndices.length, 0);
   g.addGroup(mesh.skinIndices.length, mesh.capIndices.length, 1);
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
   return g;
 }
 

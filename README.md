@@ -6,15 +6,15 @@ A local tool for planning a tattoo sleeve: a parametric 3D model of the arm, a 2
 
 ## Status
 
-| Phase                               | State                                |
-| ----------------------------------- | ------------------------------------ |
-| 0 Bootstrap                         | done                                 |
-| 1 Stack check and scaffold          | done                                 |
-| 2 Parametric arm and viewer         | done                                 |
-| 3 Unwrap editor and blockout mode   | done                                 |
-| 4 Assets, ideas PDF, reference mode | done                                 |
-| 5 Export for the artist             | done                                 |
-| 6 Iteration and polish              | in progress: variant comparison done |
+| Phase                               | State                                                    |
+| ----------------------------------- | -------------------------------------------------------- |
+| 0 Bootstrap                         | done                                                     |
+| 1 Stack check and scaffold          | done                                                     |
+| 2 Parametric arm and viewer         | done                                                     |
+| 3 Unwrap editor and blockout mode   | done                                                     |
+| 4 Assets, ideas PDF, reference mode | done                                                     |
+| 5 Export for the artist             | done                                                     |
+| 6 Iteration and polish              | in progress: variant comparison and elbow-bent pose done |
 
 Decisions Claude made without Jan are listed in `docs/claude-decisions.md` for review.
 
@@ -65,7 +65,8 @@ npm run dev       # http://127.0.0.1:4320 (local only)
 - **Assets** panel (Layout tab, right column): thumbnails of every `manifest.yaml` entry, filterable by kind and tag, with a search over id, notes, source and file. Select a figure or existing tattoo in the editor, then click an image to assign it (`asset:`). Missing files are greyed out, manifest problems are listed as warnings. **Reload** re-reads the manifest and the images. The element panel shows the assigned image with its cut-out marked and edits the reference fields below.
 - **Export** (Layout toolbar): one click writes the handout for the tattoo artist and PNGs of every picture into the data folder (details below). Disabled, with the reason as tooltip, while there are unsaved changes, layout errors or images still loading, and when `TATTOO_DATA_DIR` is not set.
 - **Compare**: two variants side by side on the 3D arm, read-only (edit in the Layout tab). Pick A and B (⇄ swaps them), Blockout or Reference, and one of the four views; both arms share the camera, so rotating or zooming either one moves both. Under each arm its coverage table, with every cell tinted that differs from the other variant by at least 2 points (red = more, blue = less; the tooltip gives the difference). Below, the elements that exist in only one variant or whose values differ (by id, with the changed fields). While the Layout tab has unsaved edits, they can be compared too ("(unsaved edits)", preselected against the saved file). Variants are the files in `config/layouts/`; make one with **Save as…**.
-- **Arm & measurements**: the parametric left arm built from `config/measurements.yaml`, with a 1 cm grid on the skin (bold every 5 cm, red centre lines for outer, lateral, inner and medial). Buttons switch between the four fixed views (front = inner side, back = outer side, medial, lateral); drag to rotate, scroll to zoom. **Screenshot** saves a PNG to the browser's download folder. The panel shows every measurement; values not measured yet use flagged placeholders, and typing a value previews it immediately (edits are not saved: write final numbers into the YAML, which reloads the page).
+- **Arm & measurements**: the parametric left arm built from `config/measurements.yaml`, with a 1 cm grid on the skin (bold every 5 cm, red centre lines for outer, lateral, inner and medial). Buttons switch between the four fixed views (front = inner side, back = outer side, medial, lateral); drag to rotate, scroll to zoom.
+- **Elbow pose** (every 3D view: Arm, Layout, Compare): **Straight**, **Bent 90°** or the slider (0–120°) flexes the elbow; the forearm swings towards the palm side, the skin bends over about ±6 cm around the elbow tip, stretching a little on the outer side and creasing on the inner side. The texture and the unwrap stay the same, so it shows how the elbow and skull area deform. The pose is shared by all tabs; the medial and lateral views show the bend best. Exports still show the straight arm. Model and limits: `docs/adr/0005-elbow-bend.md`. **Screenshot** saves a PNG to the browser's download folder. The panel shows every measurement; values not measured yet use flagged placeholders, and typing a value previews it immediately (edits are not saved: write final numbers into the YAML, which reloads the page).
 - **Data folder**: lists the files found in `TATTOO_DATA_DIR` and checks the expected entries (`ideas.pdf`, `refs/`, …). If the variable is missing or wrong, it says so.
 
 Geometry and unwrap conventions: `docs/adr/0002-arm-geometry-and-unwrap.md`.

@@ -13,10 +13,10 @@ import { coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
 import type { AssetInfo } from "../assets/types.ts";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
-import { ArmViewer, ViewButtons } from "../viewer/ArmViewer.tsx";
+import { ArmViewer, PoseControl, ViewButtons } from "../viewer/ArmViewer.tsx";
 import { createCameraSync } from "../viewer/cameraSync.ts";
 import { useViewState } from "../viewer/useViewState.ts";
-import { anubisSize, type ArmState } from "../viewer/useArm.ts";
+import { anubisSize, type ArmState, type Pose } from "../viewer/useArm.ts";
 import { diffLayouts } from "./diff.ts";
 
 type Mode = "blockout" | "reference";
@@ -37,7 +37,9 @@ function pick(key: string, files: StoredLayout[] | null, working: WorkingLayout 
     : { key, label: key, layout: null, error: r.error };
 }
 
-export function ComparePage({ arm, working }: { arm: ArmState; working: WorkingLayout | null }) {
+type Props = { arm: ArmState; pose: Pose; working: WorkingLayout | null };
+
+export function ComparePage({ arm, pose, working }: Props) {
   const { profile } = arm;
   const [keys, setKeys] = useState<{ a: string; b: string } | null>(null);
   const { files, error: loadError } = useLayouts((list) => {
@@ -118,6 +120,7 @@ export function ComparePage({ arm, working }: { arm: ArmState; working: WorkingL
         <span className="toolbar" role="toolbar" aria-label="Views">
           <ViewButtons state={viewState} />
         </span>
+        <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} />
       </div>
       {loadError && <p className="card notice error">{loadError}</p>}
       {files && files.length < 2 && !working?.dirty && (
@@ -139,6 +142,7 @@ export function ComparePage({ arm, working }: { arm: ArmState; working: WorkingL
             assetMap={assetMap}
             listingLoaded={listing !== null}
             viewState={viewState}
+            bendDeg={pose.bendDeg}
             sync={{ bus, id: "a" }}
           />
           <CompareSide
@@ -150,6 +154,7 @@ export function ComparePage({ arm, working }: { arm: ArmState; working: WorkingL
             assetMap={assetMap}
             listingLoaded={listing !== null}
             viewState={viewState}
+            bendDeg={pose.bendDeg}
             sync={{ bus, id: "b" }}
           />
         </div>
@@ -197,9 +202,10 @@ function CompareSide(props: {
   assetMap: ReadonlyMap<string, AssetInfo> | null;
   listingLoaded: boolean;
   viewState: ReturnType<typeof useViewState>;
+  bendDeg: number;
   sync: { bus: ReturnType<typeof createCameraSync>; id: string };
 }) {
-  const { side, picked, other, mode, profile, assetMap, listingLoaded, viewState, sync } = props;
+  const { side, picked, other, mode, profile, assetMap, listingLoaded, viewState, bendDeg, sync } = props;
   const { layout } = picked;
   const { aspects, sources, loading } = useLayoutSources(layout, assetMap, listingLoaded);
   const otherSources = useLayoutSources(other.layout, assetMap, listingLoaded);
@@ -245,6 +251,7 @@ function CompareSide(props: {
         version={0}
         toolbar={false}
         viewState={viewState}
+        bendDeg={bendDeg}
         sync={sync}
         label={`${side}: ${picked.label}${mode === "reference" && loading ? " (loading images…)" : ""}`}
       />

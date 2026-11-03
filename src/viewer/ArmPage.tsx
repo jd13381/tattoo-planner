@@ -2,12 +2,12 @@ import { useMemo } from "react";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
 import { ArmViewer } from "./ArmViewer.tsx";
 import { MeasurementsPanel } from "./MeasurementsPanel.tsx";
-import { fileValues, INPUT_COUNT, loadedMeasurements, type ArmState } from "./useArm.ts";
+import { fileValues, INPUT_COUNT, loadedMeasurements, type ArmState, type Pose } from "./useArm.ts";
 
 /** Grid texture resolution; 24 px per cm keeps the texture under 2048 px for real arms. */
 const PX_PER_CM = 24;
 
-export function ArmPage({ arm }: { arm: ArmState }) {
+export function ArmPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
   const { profile, placeholders } = arm;
   const canvas = useMemo(() => {
     const c = document.createElement("canvas");
@@ -25,7 +25,13 @@ export function ArmPage({ arm }: { arm: ArmState }) {
       )}
       <PlaceholderNotice count={placeholders.length} />
       <div className="arm-layout">
-        <ArmViewer profile={profile} canvas={canvas} version={0} />
+        <ArmViewer
+          profile={profile}
+          canvas={canvas}
+          version={0}
+          bendDeg={pose.bendDeg}
+          onBendDeg={pose.setBendDeg}
+        />
         <MeasurementsPanel
           fileValues={fileValues}
           overrides={arm.overrides}
