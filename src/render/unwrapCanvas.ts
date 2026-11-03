@@ -9,6 +9,13 @@ import { renderReference, type ReferenceSources } from "./reference.ts";
 
 export type RenderMode = "grid" | "blockout" | "reference";
 
+/** Milliseconds a render call takes (shown in the UI to keep mode switching honest). */
+export function timed(fn: () => unknown): number {
+  const t0 = performance.now();
+  fn();
+  return performance.now() - t0;
+}
+
 export type UnwrapRender = { canvas: HTMLCanvasElement; classification: Classification | null };
 
 export function renderUnwrap(

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { ArmProfile } from "../arm/profile.ts";
 import { wrapU } from "../arm/uv.ts";
+import type { ElementAspects } from "../layout/imageFit.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import { resolveElement, wrapDelta, type ExistingSize, type Shape } from "../layout/shapes.ts";
 import { moveElement, movePoint, scaleFigure } from "./edit.ts";
@@ -9,6 +10,8 @@ type Props = {
   profile: ArmProfile;
   layout: Layout;
   existing: ExistingSize;
+  /** Image proportions per element id (figures without a width take them). */
+  aspects?: ElementAspects;
   /** Rendered unwrap for `centerU`; bumped `version` when it changes. */
   image: HTMLCanvasElement;
   version: number;
@@ -29,7 +32,7 @@ type ViewBox = { x: number; y: number; w: number; h: number };
 
 /** 2D editor on the skin unwrap. SVG units are cm; x grows towards medial (right), y from the shoulder down. */
 export function UnwrapEditor(props: Props) {
-  const { profile, layout, existing, image, version, centerU, selected, onSelect, onChange } = props;
+  const { profile, layout, existing, aspects, image, version, centerU, selected, onSelect, onChange } = props;
   const L = profile.length;
   const half = profile.maxCircumference / 2;
   const fullView = useMemo<ViewBox>(() => ({ x: -half - 1, y: -1, w: 2 * half + 2, h: L + 2 }), [half, L]);
@@ -44,8 +47,8 @@ export function UnwrapEditor(props: Props) {
   );
 
   const resolved = useMemo(
-    () => layout.elements.map((el) => resolveElement(el, profile, existing)),
-    [layout, profile, existing],
+    () => layout.elements.map((el) => resolveElement(el, profile, existing, aspects?.get(el.id))),
+    [layout, profile, existing, aspects],
   );
 
   /** Screen (SVG) position of a skin point. */
