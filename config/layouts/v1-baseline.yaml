@@ -1,0 +1,53 @@
+# Layout variant v1-baseline (PROJECT_BRIEF.md §13.2), copied as proposed in the brief.
+# u = around the arm (0.5 = inner centre line, 0 = outer centre line), v = along the arm (0 = wrist, 1 = shoulder).
+# Asset ids refer to the asset manifest (PROJECT_BRIEF.md §12.4); positions and sizes are Jan's to change.
+name: v1-baseline
+description: "Rhonas outer forearm, skull at elbow, Medusa upper arm, Pegasus inner upper arm"
+elements:
+  - id: anubis
+    type: existing
+    asset: anubis-photo
+    locked: true
+    position: { u: 0.50, v: 0.12 }   # u = around (0.5 = inner centre line), v = along (0 = wrist)
+    size_cm: { h: null, w: null }
+
+  - id: rhonas
+    type: figure
+    asset: rhonas-card
+    position: { u: 0.00, v: 0.18 }   # outer centre line
+    size_cm: { h: 22 }
+    rotation_deg: 0
+    style: hatching
+
+  - id: skull
+    type: figure
+    asset: skull-ref-01
+    position: { u: 0.85, v: 0.50 }
+    size_cm: { h: 12 }
+    style: realistic
+
+  - id: medusa
+    type: figure
+    asset: medusa-ref-01
+    position: { u: 0.10, v: 0.72 }
+    size_cm: { h: 18 }
+    style: realistic
+    red_accents: true
+
+  - id: scales-forearm
+    type: filler
+    pattern: snake-scales
+    region: { u: [0.25, 0.35], v: [0.05, 0.45] }
+    density: 0.3
+
+  - id: wrist-band
+    type: band
+    pattern: meander
+    v: 0.02
+    width_cm: 2
+
+  - id: red-stroke-1
+    type: line
+    color: red
+    points: [ {u: 0.05, v: 0.0}, {u: 0.15, v: 0.4}, {u: 0.10, v: 1.0} ]
+    width_cm: 1.5
