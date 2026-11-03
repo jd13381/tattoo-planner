@@ -20,3 +20,13 @@ Format: date, phase, the decision, the alternatives, how to change it.
 - **Pattern names** for `pattern:` in layouts: `snake-scales`, `hatching`, `starfield` (fillers), `meander`, `lotus` / `lotus-frieze` (bands). Unknown names render as a faint diagonal hatch instead of failing.
 - **Look:** snake scales about 1.2 cm wide, scattering out into open skin at low density (§4.4); hatching at 45° with cross-hatching above density 0.5; starfield at most about 0.45 marks per cm². Band repeats are stretched slightly so a whole number fits around the arm and meets at the seam. These are sketch placeholders for balance checks, not designs.
 - **Filler density default 0.3** when a layout leaves `density` out (same as the editor's default for new fillers).
+
+### Phase 4: ideas.pdf ingestion and asset scan
+
+Details in `docs/adr/0003-ideas-pdf-ingestion.md`.
+
+- **Library:** mupdf.js (official MuPDF WebAssembly build, AGPL-3.0) as a dev dependency, run by `npm run ingest` / `npm run assets:scan` with Node's built-in TypeScript support. No Python, no native builds. AGPL is fine for a private tool that is never distributed. _Alternative:_ pdfjs-dist (more manual work, re-encodes JPEGs).
+- **Ids and files:** `ideas-pNN-MM` and `ideas/page-NN-img-MM.png|jpg`, numbered in reading order (top to bottom, left to right). JPEGs are copied unchanged; everything else becomes sRGB PNG. Page text goes to `ideas/page-NN.txt`.
+- **Notes and source:** headings (large text) and short labels above images ("Charon", "Skull") go into `source` and tags; captions go into `notes` of the nearest image (within about 1.3 cm, text above an image preferred). Pages 7–11 (MTG cards) have no heading of their own, so their `source` reads "after heading "Skull" on p.6": retag them as cards if you like.
+- **Scan ids:** the file path as a slug (`arm-photos/anubis1_nr.JPG` → `arm-photos-anubis1-nr`), kind from the folder (`cards/` card-art, `refs/` reference, `existing/` existing, `arm-photos/` arm-photo). HEIC/TIFF/PSD files are reported but not catalogued (the browser can't show them).
+- **Manifest merge:** your edits always win. Re-running only adds entries for new files and refreshes `page`/`bbox`. Entries are matched by file path; a deleted entry comes back while its file exists, so hide images with a tag instead of deleting the entry. A manifest with errors is never overwritten.
