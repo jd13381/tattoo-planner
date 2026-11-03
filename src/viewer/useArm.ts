@@ -50,3 +50,6 @@ export function useArm(): ArmState {
     resetOverrides: () => setOverrides({}),
   };
 }
+
+/** Elbow pose shared by the 3D views (src/arm/bend.ts). */
+export type Pose = { bendDeg: number; setBendDeg: (deg: number) => void };

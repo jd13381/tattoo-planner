@@ -1,27 +1,54 @@
-import { OrbitControls } from "@react-three/drei";
-import { Canvas, useThree } from "@react-three/fiber";
-import { useEffect, useRef, useState } from "react";
+import { Line, OrbitControls } from "@react-three/drei";
+import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ArmProfile } from "../arm/profile.ts";
 import { ArmModel } from "./ArmModel.tsx";
-import { LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
-import { CAMERA_FOV, VIEWS, viewCamera, type ViewName } from "./views.ts";
+import type { CameraSync } from "./cameraSync.ts";
+import { MAX_FLEXION_DEG } from "../arm/bend.ts";
+import { addSample, textureToLayout, type UV } from "../editor/stroke.ts";
+import { armGeometry, LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
+import { useViewState, type ViewState } from "./useViewState.ts";
+import { CAMERA_FOV, VIEWS, viewCamera, type Bounds } from "./views.ts";
 
-type Props = { profile: ArmProfile; canvas: HTMLCanvasElement; version: number; hint?: string };
+type Props = {
+  profile: ArmProfile;
+  canvas: HTMLCanvasElement;
+  version: number;
+  hint?: string;
+  /** Fixed-view state shared with other viewers; without it the viewer keeps its own. */
+  viewState?: ViewState;
+  /** false hides the view buttons and the hint (the Compare tab has one toolbar for both arms). */
+  toolbar?: boolean;
+  /** Keeps the camera in step with other viewers on the same bus. */
+  sync?: { bus: CameraSync; id: string };
+  /** Shown in the corner of the canvas, e.g. the variant name. */
+  label?: string;
+  /** Elbow flexion in degrees (0 = straight). */
+  bendDeg?: number;
+  /** When set, the toolbar shows the pose control. */
+  onBendDeg?: (deg: number) => void;
+  /**
+   * Brush tool: while active, dragging on the skin draws instead of rotating (zoom and right-drag pan
+   * still work); every finished stroke arrives as layout points, thinned to the minimum step.
+   */
+  draw?: { active: boolean; onStroke: (samples: UV[]) => void };
+};
 
-export function ArmViewer({ profile, canvas, version, hint }: Props) {
-  const [view, setView] = useState<ViewName>("front");
-  // True once the user rotates by hand; the last fixed view stays the one to return to.
-  const [free, setFree] = useState(false);
-  // Bumped on every view button press, so pressing the current view again resets the camera.
-  const [viewRequest, setViewRequest] = useState(0);
+export function ArmViewer(props: Props) {
+  const { profile, canvas, version, hint, viewState, toolbar = true, sync, label } = props;
+  const bendDeg = props.bendDeg ?? 0;
+  const own = useViewState();
+  const vs = viewState ?? own;
+  const geometry = useMemo(() => armGeometry(profile, bendDeg), [profile, bendDeg]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  const bounds = useMemo<Bounds | undefined>(() => {
+    const box = geometry.boundingBox;
+    return bendDeg > 0 && box ? { min: box.min.toArray(), max: box.max.toArray() } : undefined;
+  }, [geometry, bendDeg]);
+  const drawing = !!props.draw?.active;
+  const brush = useBrush(profile, props.draw);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const select = (name: ViewName) => {
-    setView(name);
-    setFree(false);
-    setViewRequest((n) => n + 1);
-  };
 
   const screenshot = () => {
     const canvas = canvasRef.current;
@@ -31,7 +58,7 @@ export function ArmViewer({ profile, canvas, version, hint }: Props) {
       if (!blob) return;
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `tattoo-planner-${free ? "free" : view}-${new Date().toISOString().slice(0, 10)}.png`;
+      a.download = `tattoo-planner-${vs.free ? "free" : vs.view}-${new Date().toISOString().slice(0, 10)}.png`;
       a.click();
       URL.revokeObjectURL(a.href);
     }, "image/png");
@@ -39,24 +66,18 @@ export function ArmViewer({ profile, canvas, version, hint }: Props) {
 
   return (
     <div className="viewer">
-      <div className="toolbar" role="toolbar" aria-label="Views">
-        {VIEWS.map((v) => (
-          <button
-            key={v.name}
-            type="button"
-            className={!free && view === v.name ? "active" : ""}
-            title={v.hint}
-            onClick={() => select(v.name)}
-          >
-            {v.label}
+      {toolbar && (
+        <div className="toolbar" role="toolbar" aria-label="Views">
+          <ViewButtons state={vs} />
+          {props.onBendDeg && <PoseControl bendDeg={bendDeg} onChange={props.onBendDeg} />}
+          <span className="spacer" />
+          <button type="button" onClick={screenshot}>
+            Screenshot
           </button>
-        ))}
-        <span className="spacer" />
-        <button type="button" onClick={screenshot}>
-          Screenshot
-        </button>
-      </div>
-      <div className="canvas-wrap">
+        </div>
+      )}
+      <div className={`canvas-wrap${drawing ? " drawing" : ""}`}>
+        {label && <span className="viewer-label">{label}</span>}
         <Canvas
           ref={canvasRef}
           camera={{ fov: CAMERA_FOV, near: 1, far: 2000 }}
@@ -69,33 +90,198 @@ export function ArmViewer({ profile, canvas, version, hint }: Props) {
           />
           <directionalLight position={LIGHTS.key.position} intensity={LIGHTS.key.intensity} />
           <directionalLight position={LIGHTS.fill.position} intensity={LIGHTS.fill.intensity} />
-          <ArmModel profile={profile} canvas={canvas} version={version} />
-          <CameraRig profile={profile} view={view} request={viewRequest} onFree={() => setFree(true)} />
+          <ArmModel
+            geometry={geometry}
+            canvas={canvas}
+            version={version}
+            onPointerDown={drawing ? brush.down : undefined}
+            onPointerMove={drawing ? brush.move : undefined}
+          />
+          {brush.preview.length >= 2 && (
+            <Line points={brush.preview} color="#d01810" lineWidth={4} depthTest={false} />
+          )}
+          <CameraRig profile={profile} bounds={bounds} state={vs} sync={sync} rotate={!drawing} />
         </Canvas>
       </div>
-      <p className="muted small">
-        Drag to rotate, scroll to zoom, right-drag to pan.{" "}
-        {hint ?? "Grid: 1 cm, bold every 5 cm; red lines mark outer, lateral, inner and medial centre lines."}
-      </p>
+      {toolbar && (
+        <p className="muted small">
+          Drag to rotate, scroll to zoom, right-drag to pan.{" "}
+          {hint ??
+            "Grid: 1 cm, bold every 5 cm; red lines mark outer, lateral, inner and medial centre lines."}
+        </p>
+      )}
     </div>
   );
 }
 
-function CameraRig(props: { profile: ArmProfile; view: ViewName; request: number; onFree: () => void }) {
-  const { profile, view, request, onFree } = props;
+/** The four fixed view buttons (front = inner, back = outer, medial, lateral). */
+export function ViewButtons({ state }: { state: ViewState }) {
+  return (
+    <>
+      {VIEWS.map((v) => (
+        <button
+          key={v.name}
+          type="button"
+          className={!state.free && state.view === v.name ? "active" : ""}
+          title={v.hint}
+          onClick={() => state.select(v.name)}
+        >
+          {v.label}
+        </button>
+      ))}
+    </>
+  );
+}
+
+/** Elbow pose: a flexion slider with presets (the same texture bends with the skin). */
+export function PoseControl({ bendDeg, onChange }: { bendDeg: number; onChange: (deg: number) => void }) {
+  return (
+    <span className="pose-control" role="group" aria-label="Elbow pose">
+      <span className="segmented">
+        <button type="button" className={bendDeg === 0 ? "active" : ""} onClick={() => onChange(0)}>
+          Straight
+        </button>
+        <button type="button" className={bendDeg === 90 ? "active" : ""} onClick={() => onChange(90)}>
+          Bent 90°
+        </button>
+      </span>
+      <input
+        type="range"
+        min={0}
+        max={MAX_FLEXION_DEG}
+        step={5}
+        value={bendDeg}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label="Elbow flexion in degrees"
+        title="Elbow flexion"
+      />
+      <span className="muted small pose-value">{bendDeg}°</span>
+    </span>
+  );
+}
+
+/** Records a stroke on the skin: raycast hit → texture UV → layout point, with a live preview line. */
+function useBrush(profile: ArmProfile, draw: Props["draw"]) {
+  const samples = useRef<UV[] | null>(null);
+  const [preview, setPreview] = useState<[number, number, number][]>([]);
+  const onStroke = draw?.onStroke;
+
+  // Finish on any pointer release, also when it happens beside the arm.
+  useEffect(() => {
+    if (!onStroke) return;
+    const up = () => {
+      const s = samples.current;
+      samples.current = null;
+      setPreview([]);
+      if (s && s.length >= 2) onStroke(s);
+    };
+    window.addEventListener("pointerup", up);
+    return () => window.removeEventListener("pointerup", up);
+  }, [onStroke]);
+
+  const sample = (e: ThreeEvent<PointerEvent>): boolean => {
+    // Only the skin (material group 0) has UVs; the rounded ends do not.
+    if (!e.uv || e.face?.materialIndex !== 0) return false;
+    const p = textureToLayout(profile, e.uv.x, e.uv.y);
+    if (!p || !samples.current) return false;
+    const next = addSample(profile, samples.current, p);
+    if (next === samples.current) return true;
+    samples.current = next;
+    // Just above the skin, so the preview is not hidden in it.
+    const n = e.face.normal;
+    const at: [number, number, number] = [
+      e.point.x + n.x * 0.15,
+      e.point.y + n.y * 0.15,
+      e.point.z + n.z * 0.15,
+    ];
+    setPreview((pts) => [...pts, at]);
+    return true;
+  };
+
+  return {
+    preview,
+    down: (e: ThreeEvent<PointerEvent>) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      samples.current = [];
+      setPreview([]);
+      sample(e);
+    },
+    move: (e: ThreeEvent<PointerEvent>) => {
+      if (samples.current) {
+        e.stopPropagation();
+        sample(e);
+      }
+    },
+  };
+}
+
+function CameraRig(props: {
+  profile: ArmProfile;
+  bounds?: Bounds;
+  state: ViewState;
+  sync?: { bus: CameraSync; id: string };
+  rotate?: boolean;
+}) {
+  const { profile, bounds, state, sync, rotate = true } = props;
+  const { view, request, free, setFree } = state;
+  // What the last framing was for: a new pose re-frames a fixed view, but not a hand-rotated camera.
+  const framedFor = useRef<{ key: string; profile: ArmProfile | null }>({ key: "", profile: null });
   const controls = useRef<OrbitControlsImpl>(null);
+  // Set while a camera from another viewer is applied, so it is not sent back.
+  const applying = useRef(false);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
 
-  // Re-frame on a view request and whenever the arm changes size.
+  // Re-frame on a view request and whenever the arm or the canvas changes size.
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
-    const { position, target } = viewCamera(profile, view, size.width / Math.max(size.height, 1));
+    const key = `${view}:${request}:${size.width}x${size.height}`;
+    if (free && framedFor.current.key === key && framedFor.current.profile === profile) return;
+    framedFor.current = { key, profile };
+    const { position, target } = viewCamera(
+      profile,
+      view,
+      size.width / Math.max(size.height, 1),
+      1.25,
+      bounds,
+    );
     camera.position.set(...position);
     c.target.set(...target);
     c.update();
-  }, [profile, view, request, camera, size.width, size.height]);
+  }, [profile, bounds, view, request, free, camera, size.width, size.height]);
 
-  return <OrbitControls ref={controls} makeDefault enableDamping={false} onStart={onFree} />;
+  useEffect(() => {
+    if (!sync) return;
+    return sync.bus.subscribe(sync.id, (s) => {
+      const c = controls.current;
+      if (!c) return;
+      applying.current = true;
+      camera.position.set(...s.position);
+      c.target.set(...s.target);
+      c.update();
+      applying.current = false;
+    });
+  }, [sync, camera]);
+
+  const publish = () => {
+    const c = controls.current;
+    if (!sync || !c || applying.current) return;
+    sync.bus.publish(sync.id, {
+      position: [camera.position.x, camera.position.y, camera.position.z],
+      target: [c.target.x, c.target.y, c.target.z],
+    });
+  };
+
+  return (
+    <OrbitControls
+      ref={controls}
+      makeDefault
+      enableDamping={false}
+      enableRotate={rotate}
+      onStart={setFree}
+      onChange={publish}
+    />
+  );
 }

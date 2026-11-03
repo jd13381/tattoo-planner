@@ -1,18 +1,21 @@
 import { useEffect, useMemo } from "react";
-import type { ArmProfile } from "../arm/profile.ts";
-import { armGeometry, CAP_COLOR, CAP_ROUGHNESS, SKIN_ROUGHNESS, skinTexture } from "./scene.ts";
+import type { ThreeEvent } from "@react-three/fiber";
+import type { BufferGeometry } from "three";
+import { CAP_COLOR, CAP_ROUGHNESS, SKIN_ROUGHNESS, skinTexture } from "./scene.ts";
 
 type Props = {
-  profile: ArmProfile;
+  /** The arm mesh (src/viewer/scene.ts armGeometry), straight or bent; owned by the caller. */
+  geometry: BufferGeometry;
   /** The unwrap texture (outer-centred, shoulder at the top), see src/render/unwrapCanvas.ts. */
   canvas: HTMLCanvasElement;
   /** Bumped whenever the canvas content changes. */
   version: number;
+  /** Pointer handlers on the mesh (the brush tool); hits carry the skin's UV. */
+  onPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
+  onPointerMove?: (e: ThreeEvent<PointerEvent>) => void;
 };
 
-export function ArmModel({ profile, canvas, version }: Props) {
-  const geometry = useMemo(() => armGeometry(profile), [profile]);
-
+export function ArmModel({ geometry, canvas, version, onPointerDown, onPointerMove }: Props) {
   const texture = useMemo(
     () => skinTexture(canvas),
     // A new texture per content version: the canvas may have changed size, which needsUpdate cannot handle.
@@ -20,11 +23,10 @@ export function ArmModel({ profile, canvas, version }: Props) {
     [canvas, version],
   );
 
-  useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => texture.dispose(), [texture]);
 
   return (
-    <mesh geometry={geometry}>
+    <mesh geometry={geometry} onPointerDown={onPointerDown} onPointerMove={onPointerMove}>
       <meshStandardMaterial attach="material-0" map={texture} roughness={SKIN_ROUGHNESS} />
       <meshStandardMaterial attach="material-1" color={CAP_COLOR} roughness={CAP_ROUGHNESS} />
     </mesh>

@@ -666,3 +666,91 @@ button.link {
   color: var(--muted);
   text-decoration: underline;
 }
+
+/* Compare tab and viewer extras (Phase 6) */
+.canvas-wrap {
+  position: relative;
+}
+
+.viewer-label {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 1;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 8px;
+}
+
+@media (max-width: 860px) {
+  .compare-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.compare-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.compare-side .canvas-wrap {
+  height: min(70vh, 760px);
+}
+
+.compare-diff {
+  margin-top: 16px;
+}
+
+.compare-diff ul {
+  margin: 8px 0;
+  padding-left: 1.2em;
+}
+
+.metrics td.diff {
+  font-weight: 600;
+}
+
+.metrics td.diff.more {
+  background: rgba(179, 38, 30, 0.16);
+}
+
+.metrics td.diff.less {
+  background: rgba(40, 100, 200, 0.16);
+}
+
+.pose-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pose-control input[type="range"] {
+  width: 110px;
+}
+
+.pose-value {
+  min-width: 2.6em;
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-wrap.drawing {
+  cursor: crosshair;
+  outline: 2px solid var(--accent);
+}
+
+.draw-toolbar {
+  align-items: center;
+  min-height: 34px;
+}

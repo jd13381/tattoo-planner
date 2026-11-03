@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { AssetBrowser } from "../assets/AssetBrowser.tsx";
 import type { AssetInfo } from "../assets/types.ts";
-import { requestImage, useAssetImages, useAssetListing } from "../assets/useAssets.ts";
-import { defaultFilter, elementAspects, isFigureLike, type ImageDims } from "../layout/imageFit.ts";
+import { useAssetListing } from "../assets/useAssets.ts";
+import { useLayoutSources } from "../assets/useLayoutSources.ts";
+import { defaultFilter, isFigureLike } from "../layout/imageFit.ts";
 import {
   layoutSchema,
   ELEMENT_TYPES,
@@ -11,18 +12,18 @@ import {
   type LayoutElement,
 } from "../layout/schema.ts";
 import { classify } from "../layout/shapes.ts";
-import { useLayouts, type StoredLayout } from "../layout/useLayouts.ts";
+import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
 import { parseLayout } from "../layout/yamlDoc.ts";
 import { coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
-import type { ReferenceSources } from "../render/reference.ts";
 import { renderUnwrap, timed, type RenderMode } from "../render/unwrapCanvas.ts";
 import { ExportButton } from "../export/ExportButton.tsx";
 import type { ExportInput } from "../export/runExport.ts";
 import { PlaceholderNotice } from "../viewer/ArmPage.tsx";
 import { ArmViewer } from "../viewer/ArmViewer.tsx";
-import { anubisSize, INPUT_COUNT, type ArmState } from "../viewer/useArm.ts";
-import { newElement, reorder, uniqueId } from "./edit.ts";
+import { anubisSize, INPUT_COUNT, type ArmState, type Pose } from "../viewer/useArm.ts";
+import { newElement, reorder, suggestVariantName, uniqueId } from "./edit.ts";
+import { applyStroke, type UV } from "./stroke.ts";
 import { ElementPanel } from "./ElementPanel.tsx";
 import { UnwrapEditor } from "./UnwrapEditor.tsx";
 
@@ -44,7 +45,14 @@ const PX_PER_CM = 12;
 /** Metrics resolution: 6 px per cm gives areas within a fraction of a percent. */
 const METRICS_PX_PER_CM = 6;
 
-export function LayoutPage({ arm }: { arm: ArmState }) {
+type Props = {
+  arm: ArmState;
+  pose: Pose;
+  /** Reports the open variant and its unsaved state (the Compare tab offers unsaved edits). */
+  onWorking?: (w: WorkingLayout | null) => void;
+};
+
+export function LayoutPage({ arm, pose, onWorking }: Props) {
   const { profile } = arm;
   const [name, setName] = useState<string | null>(null);
   const [layout, setLayout] = useState<Layout | null>(null);
@@ -55,6 +63,9 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
   const [mode, setMode] = useState<RenderMode>("blockout");
   const [grid, setGrid] = useState(true);
   const [centerU, setCenterU] = useState(0);
+  // Brush tool (Phase 6): draw red lines on the 3D arm.
+  const [drawing, setDrawing] = useState(false);
+  const [appendStrokes, setAppendStrokes] = useState(false);
 
   const open = (fileName: string, list: StoredLayout[] | null) => {
     const file = list?.find((f) => f.name === fileName);
@@ -83,35 +94,18 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
     if (first) open(first.name, list);
   });
 
-  // Assets: the manifest listing and the decoded images of every asset the layout uses. Images load
-  // in every mode, because a figure without a width takes its image's proportions (imageFit.ts).
+  // Assets: the manifest listing and the decoded images of every asset the layout uses.
   const { listing, reload: reloadAssets } = useAssetListing();
-  const { images, version: imagesVersion } = useAssetImages();
   const assetMap = useMemo(
     () => (listing?.status === "ok" ? new Map(listing.assets.map((a) => [a.id, a])) : null),
     [listing],
   );
-  const usedAssets = useMemo(
-    () => [
-      ...new Set((layout?.elements ?? []).flatMap((e) => (isFigureLike(e) && e.asset ? [e.asset] : []))),
-    ],
-    [layout],
-  );
-  useEffect(() => {
-    for (const id of usedAssets) if (assetMap?.get(id)?.exists) requestImage(id);
-  }, [usedAssets, assetMap]);
-  const aspects = useMemo(() => {
-    void imagesVersion; // the image map is mutated in place; the version marks a change
-    const dims = new Map<string, ImageDims>();
-    for (const [id, img] of images) if (img.status === "ready") dims.set(id, img);
-    return elementAspects(layout?.elements ?? [], assetMap ?? new Map(), dims);
-  }, [layout, assetMap, images, imagesVersion]);
-  const sources = useMemo<ReferenceSources>(() => {
-    void imagesVersion;
-    return { assets: assetMap, images, aspects };
-  }, [assetMap, images, aspects, imagesVersion]);
+  const { aspects, sources, loading: loadingImages } = useLayoutSources(layout, assetMap, listing !== null);
 
   const dirty = layout !== null && JSON.stringify(layout) !== savedJson;
+  useEffect(() => {
+    onWorking?.(name && layout ? { name, layout, dirty } : null);
+  }, [onWorking, name, layout, dirty]);
   const validation = useMemo(() => (layout ? layoutSchema.safeParse(layout) : null), [layout]);
   const validationError =
     validation && !validation.success
@@ -180,13 +174,6 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
         : null,
     [layout, profile, aspects, sources, arm.placeholders],
   );
-  // An image the manifest lists but the cache has not started on yet counts as loading too.
-  const loadingImages =
-    listing === null ||
-    usedAssets.some((id) => {
-      const img = images.get(id);
-      return img ? img.status === "loading" : !!assetMap?.get(id)?.exists;
-    });
   const exportBlocked = validationError
     ? "Fix the layout errors first."
     : dirty
@@ -211,10 +198,10 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
     setSelected(layout.elements.length);
   };
 
-  const doSave = async (target: Layout) => {
+  const doSave = async (target: Layout, from?: string) => {
     setSaveError(null);
     try {
-      await save(target);
+      await save(target, from);
       setName(target.name);
       setLayout(target);
       setSavedJson(JSON.stringify(target));
@@ -226,13 +213,17 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
   const saveAs = () => {
     if (!layout) return;
     const input = window.prompt(
-      "Name of the new variant (lowercase letters, digits, dashes):",
-      `${layout.name}-copy`,
+      "Name of the new variant (lowercase letters, digits, dashes). It starts as a copy of what you see now, comments included; the open variant stays as saved.",
+      suggestVariantName(
+        layout.name,
+        (files ?? []).map((f) => f.name),
+      ),
     );
     if (!input) return;
     const newName = input.trim().toLowerCase();
     if (files?.some((f) => f.name === newName) && !window.confirm(`${newName} exists. Overwrite?`)) return;
-    void doSave({ ...layout, name: newName });
+    // Comments come from the file the variant was opened from.
+    void doSave({ ...layout, name: newName }, name ?? undefined);
   };
 
   const switchTo = (next: string) => {
@@ -241,6 +232,14 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
   };
 
   const sel = selected !== null && layout ? layout.elements[selected] : undefined;
+  const appendTarget = appendStrokes && sel?.type === "line" && !sel.locked ? selected : null;
+  const onStroke = (samples: UV[]) => {
+    if (!layout) return;
+    const r = applyStroke(profile, layout, samples, appendTarget);
+    if (!r) return;
+    setLayout(r.layout);
+    setSelected(r.index);
+  };
   const selAsset: AssetInfo | null | undefined =
     sel && isFigureLike(sel) && sel.asset && assetMap ? (assetMap.get(sel.asset) ?? null) : undefined;
   const assignBlocked = !sel
@@ -266,6 +265,7 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
             {(files ?? []).map((f) => (
               <option key={f.name} value={f.name}>
                 {f.name}
+                {f.name === name && dirty ? " *" : ""}
               </option>
             ))}
           </select>
@@ -277,7 +277,12 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
         >
           Save{dirty ? " *" : ""}
         </button>
-        <button type="button" onClick={saveAs} disabled={!layout || !!validationError}>
+        <button
+          type="button"
+          onClick={saveAs}
+          disabled={!layout || !!validationError}
+          title="Duplicate: save what you see as a new variant to try an alternative"
+        >
           Save as…
         </button>
         <ExportButton input={exportInput} blocked={exportBlocked} />
@@ -359,7 +364,44 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
             />
           </div>
           <div className="viewer-col">
-            <ArmViewer profile={profile} canvas={texture} version={0} hint={HINTS[mode]} />
+            <div className="toolbar draw-toolbar">
+              <button
+                type="button"
+                className={drawing ? "active" : ""}
+                aria-pressed={drawing}
+                onClick={() => setDrawing((d) => !d)}
+                title="Drag on the 3D arm to draw a red line; it becomes a line element you can edit in the 2D editor"
+              >
+                Draw red line
+              </button>
+              {drawing && sel?.type === "line" && !sel.locked && (
+                <label className="inline check small">
+                  <input
+                    type="checkbox"
+                    checked={appendStrokes}
+                    onChange={(e) => setAppendStrokes(e.target.checked)}
+                  />{" "}
+                  continue {sel.id}
+                </label>
+              )}
+              {drawing && (
+                <span className="muted small">
+                  {appendTarget !== null
+                    ? `Strokes extend ${sel?.id} at its nearer end.`
+                    : "Each stroke becomes a new red line."}{" "}
+                  Rotation is off while drawing (right-drag pans, scroll zooms).
+                </span>
+              )}
+            </div>
+            <ArmViewer
+              profile={profile}
+              canvas={texture}
+              version={0}
+              hint={HINTS[mode]}
+              bendDeg={pose.bendDeg}
+              onBendDeg={pose.setBendDeg}
+              draw={{ active: drawing, onStroke }}
+            />
           </div>
           <div className="side-col">
             {sel && selected !== null ? (

@@ -74,3 +74,29 @@ Details in `docs/adr/0004-export.md`.
 - **"Facing this side"** lists an element on a view page when it reaches within a fifth of the circumference of that view's centre line; bands count for every side.
 - **Open questions** in the handout: the nine questions of PROJECT_BRIEF.md §9 as of today (copied into `strings.ts`; remove answered ones there) plus what the layout leaves open: unset heights, guessed widths, missing images and placeholder measurements.
 - **Fix on the way:** the blockout drew the existing tattoo's outline along the inner seam, which showed as a line down the middle of Anubis on the 3D arm (and in the export). The seam no longer counts as an edge.
+
+### Phase 6: comparing variants
+
+- **Compare is its own tab** (read-only), not a split mode inside the Layout tab, so the editor keeps its space. _Alternative:_ a "compare with…" toggle in the Layout tab.
+- **One shared camera:** both arms use the same view buttons, and rotating, zooming or panning either arm moves the other (two WebGL canvases, a small camera bus). _Alternative:_ one canvas with two viewports (more code, no gain).
+- **Coverage highlighting threshold 2 percentage points** (both values rounded first, as shown); red = more than the other variant, blue = less, difference in the tooltip. Smaller differences are rounding noise. _Change:_ `DIFF_THRESHOLD_PCT` in `src/metrics/coverage.ts`.
+- **Element differences** are matched by id and list the changed fields (e.g. `rhonas changed: position`). A renamed element shows as "only in A" plus "only in B".
+- **Unsaved edits can be compared:** while the Layout tab has unsaved changes, Compare offers "<name> (unsaved edits)" and preselects it against the saved file. The Layout tab now stays mounted when another tab is open, so unsaved edits are no longer lost by switching tabs.
+- **Duplicating a variant = Save as…**, improved instead of adding a second button: it suggests a free name (`v1-baseline-2`, `try-3` → `try-4`) and copies the source file's comments into the new file under the line `# Variant <new>, duplicated from <old>; the comments below come from <old>.` (before, a new variant lost all comments). _Not added:_ deleting or renaming variants in the UI; delete the YAML file instead (git keeps the history).
+
+### Phase 6: elbow-bent pose
+
+Details in `docs/adr/0005-elbow-bend.md`.
+
+- **Pose control** in every 3D view (Arm, Layout, Compare): Straight, Bent 90° and a 0–120° slider in 5° steps, one pose shared by all tabs. _Alternative:_ only a fixed 90° preset.
+- **Bend model:** forearm swings towards the palm side, upper arm fixed; the bend is spread over ±6 cm around the elbow tip with a smooth (raised-cosine) curvature; the neutral line sits at 20 % of the elbow's depth from the outer skin, so the outer skin stretches only 2.7 cm at 90° and the inner side creases without folding over. Only vertices move: unwrap, editor, metrics and textures are unchanged. _Change:_ `BEND_DEFAULTS` in `src/arm/bend.ts`.
+- **Limit accepted:** beyond about 100° the forearm and upper-arm flesh overlap in the inner crease instead of pressing together. The outer side and elbow tip (skull area) stay clean.
+- **Export not bent (follow-up):** the PDF and PNGs still show the straight arm only; a bent page in the handout needs a pose parameter for the offscreen renderer and a new page, left for later.
+- **Framing:** a fixed view re-frames as the pose changes; a camera rotated by hand keeps its place.
+
+### Phase 6: brush for red lines on the 3D arm
+
+- **Each stroke is a new line element** (`red-stroke-N`, smallest free N), red, with the width of the layout's first red line (1.5 cm from `red-stroke-1`), placed on top. With a line selected, the opt-in checkbox "continue <id>" appends the stroke at the line's nearer end instead. _Alternative:_ always appending to the selected line (too easy to change a line by accident).
+- **Simplification:** Ramer–Douglas–Peucker with a 0.3 cm tolerance on the skin, measured exactly as lines are rendered (u scaled by the local circumference, the short way round the arm), so strokes across the inner seam stay intact. Samples closer than 0.2 cm are skipped while drawing; strokes under 1 cm count as a click and are dropped. Existing points of a continued line are never simplified away. _Change:_ constants at the top of `src/editor/stroke.ts`.
+- **Drawing mode turns off rotation** (left-drag draws; right-drag pans, scroll zooms). The live preview is a thin line just above the skin; the real stroke appears in the texture when released.
+- **YAML key order for new elements:** new elements are now written with `id` first, then `type` (as in the hand-written files); before, the schema's order put `type` first. Existing elements keep their order.

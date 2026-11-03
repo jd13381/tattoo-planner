@@ -28,6 +28,9 @@ function valueNode(doc: Document, key: string, value: unknown) {
   return node;
 }
 
+/** Leading keys of a new element, in reverse (unlisted keys keep their order after them). */
+const KEY_FIRST = ["type", "id"];
+
 function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -61,6 +64,8 @@ function updateElement(doc: Document, node: YAMLMap | undefined, el: LayoutEleme
   const target = node ?? new YAMLMap();
   if (!node) target.spaceBefore = true; // blank line between elements, as in the hand-written files
   const entries = Object.entries(el).filter(([, v]) => v !== undefined);
+  // A new element starts with id and type, as in the hand-written files (schema output puts type first).
+  if (!node) entries.sort(([a], [b]) => KEY_FIRST.indexOf(b) - KEY_FIRST.indexOf(a));
   const keep = new Set(entries.map(([k]) => k));
   for (const pair of [...target.items]) {
     const k = String((pair.key as { value?: unknown })?.value ?? pair.key);

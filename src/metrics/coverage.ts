@@ -62,3 +62,28 @@ export function coverage(cls: Classification, profile: ArmProfile): Coverage {
   }
   return { total, zones };
 }
+
+/** Share of a zone's skin taken by a category, in whole percent (as the coverage table shows it). */
+export function sharePct(z: ZoneCoverage, c: Category): number {
+  return z.area > 0 ? Math.round((100 * z.byCategory[c]) / z.area) : 0;
+}
+
+/** Percentage points from which the comparison highlights a difference. */
+export const DIFF_THRESHOLD_PCT = 2;
+
+export type ZoneKey = ZoneId | "total";
+export type CoverageDelta = Record<ZoneKey, Record<Category, number>>;
+
+/** Per zone and category: other − this, in whole percentage points (both rounded first, as shown). */
+export function coverageDelta(self: Coverage, other: Coverage): CoverageDelta {
+  const pick = (c: Coverage, k: ZoneKey) => (k === "total" ? c.total : c.zones[k]);
+  const keys: ZoneKey[] = [...ZONES.map((z) => z.id), "total"];
+  return Object.fromEntries(
+    keys.map((k) => [
+      k,
+      Object.fromEntries(
+        CATEGORIES.map((c) => [c, sharePct(pick(other, k), c) - sharePct(pick(self, k), c)]),
+      ),
+    ]),
+  ) as CoverageDelta;
+}
