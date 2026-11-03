@@ -30,3 +30,14 @@ Details in `docs/adr/0003-ideas-pdf-ingestion.md`.
 - **Notes and source:** headings (large text) and short labels above images ("Charon", "Skull") go into `source` and tags; captions go into `notes` of the nearest image (within about 1.3 cm, text above an image preferred). Pages 7–11 (MTG cards) have no heading of their own, so their `source` reads "after heading "Skull" on p.6": retag them as cards if you like.
 - **Scan ids:** the file path as a slug (`arm-photos/anubis1_nr.JPG` → `arm-photos-anubis1-nr`), kind from the folder (`cards/` card-art, `refs/` reference, `existing/` existing, `arm-photos/` arm-photo). HEIC/TIFF/PSD files are reported but not catalogued (the browser can't show them).
 - **Manifest merge:** your edits always win. Re-running only adds entries for new files and refreshes `page`/`bbox`. Entries are matched by file path; a deleted entry comes back while its file exists, so hide images with a tag instead of deleting the entry. A manifest with errors is never overwritten.
+
+### Phase 4: which images the baseline layout uses
+
+Written into `manifest.yaml` on Seafile (ids renamed, so `v1-baseline.yaml` stays as in the brief). Change by pointing an element's `asset:` at another id in the asset browser, or by renaming ids in the manifest.
+
+- `medusa-ref-01` = ideas p.1 (the drawing you called "the closest I've found to what I have in mind").
+- `skull-ref-01` = ideas p.6 image 2 (skull with snake and dagger), because the brief links skull, snake and dagger.
+- `rhonas-card` = ideas p.7 (Rhonas the Indomitable card), default crop to the art box. The alternate frame on p.11 is also catalogued.
+- `pegasus-ref-01` has no image yet: ideas.pdf contains no Pegasus. Reference mode shows a labelled placeholder.
+- `anubis-photo` = `arm-photos/anubis1_nr.JPG` (palm up, no tape measure).
+- Pages 7–11 recatalogued as `card-art` with the card names as tags (`rhonas`, `hazoret`, `athreos`, `polukranos`, `mtg`, `egyptian`/`greek`).
