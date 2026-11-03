@@ -1,72 +1,133 @@
-# Measuring and photographing the arm
+# Arm vermessen und fotografieren
 
-How to collect the numbers for `config/measurements.yaml` (PROJECT_BRIEF.md §13.1) and the photos for `arm-photos/` and `existing/` in the data folder. The planner builds the 3D arm from the numbers; the photos are for checking the shape and placing the Anubis.
+<!-- Exception to the English-docs rule: Jan asked for this guide in German (2026-11-03). -->
 
-**You need:** a soft tape measure (tailor's tape), a skin-safe pen or small stickers, a helper (most measurements can't be taken one-handed), a phone camera, a plain wall.
+Anleitung für die Zahlen in `config/measurements.yaml` (PROJECT_BRIEF.md §13.1) und die Fotos für `arm-photos/` und `existing/` im Datenordner. Aus den Zahlen baut der Planner den 3D-Arm; die Fotos dienen zum Abgleich der Form und zum Platzieren des Anubis.
 
-## Landmarks
+Die Messwerte trägst du ganz unten unter [Eintragen](#eintragen) ein, dort steht auch die [Foto-Checkliste](#foto-checkliste). Claude überträgt die Werte dann in `config/measurements.yaml`.
 
-Mark these on the left arm first. Every length and position below starts from one of them.
+**Du brauchst:** ein weiches Maßband (Schneidermaßband), einen hautfreundlichen Stift oder kleine Aufkleber, eine zweite Person (die meisten Maße gehen nicht einhändig), eine Handykamera und eine ruhige, einfarbige Wand.
 
-| Landmark       | Where                                                                                                    |
-| -------------- | -------------------------------------------------------------------------------------------------------- |
-| Shoulder point | The bony tip at the outer top of the shoulder (acromion). Feel along the collarbone outwards to its end. |
-| Elbow tip      | The bony point at the back of the elbow (olecranon), arm straight.                                       |
-| Wrist crease   | The skin crease where hand and forearm meet, palm side.                                                  |
+## Messpunkte
 
-## Posture
+Markiere zuerst diese Punkte am linken Arm. Alle Längen und Positionen unten gehen von einem davon aus.
 
-Stand upright, left arm hanging relaxed and straight, slightly away from the body, palm facing forward. Muscles relaxed (no flexing), for every measurement.
+| Messpunkt        | Wo                                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Schulterspitze   | Der knöcherne Punkt außen oben an der Schulter (Akromion). Das Schlüsselbein nach außen bis zu seinem Ende ertasten. |
+| Ellbogenspitze   | Der knöcherne Punkt hinten am Ellbogen (Olekranon), Arm gestreckt.                                                   |
+| Handgelenksfalte | Die Hautfalte zwischen Hand und Unterarm, auf der Handflächenseite.                                                  |
 
-## Lengths
+## Haltung
 
-Measure along the outside of the arm, tape lying on the skin, not pulled tight.
+Aufrecht stehen, linker Arm hängt locker und gestreckt, leicht vom Körper weg, Handfläche zeigt nach vorne. Bei jeder Messung Muskeln entspannt lassen (nicht anspannen).
 
-| Field               | From → to                                                                   |
-| ------------------- | --------------------------------------------------------------------------- |
-| `shoulder_to_elbow` | shoulder point → elbow tip                                                  |
-| `elbow_to_wrist`    | elbow tip → wrist crease (around the outer forearm edge to the crease line) |
+## Längen
 
-## Circumferences
+Außen am Arm entlang messen, das Band liegt auf der Haut und wird nicht straff gezogen.
 
-Tape horizontal (at a right angle to the arm), snug on the skin without pressing in. Read the value where the tape overlaps. Measure each twice; if the two readings differ by more than 0.5 cm, take a third and use the middle value.
+| Feld                | Von → bis                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| `shoulder_to_elbow` | Schulterspitze → Ellbogenspitze                                                           |
+| `elbow_to_wrist`    | Ellbogenspitze → Handgelenksfalte (über die Außenkante des Unterarms bis zur Faltenlinie) |
 
-| Field          | Where                                                                                                                                    |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `wrist`        | at the wrist crease                                                                                                                      |
-| `forearm_mid`  | halfway between wrist crease and elbow tip                                                                                               |
-| `forearm_max`  | the thickest point of the forearm, a few cm below the elbow; also note `positions.forearm_max_below_elbow` (elbow tip down to the tape)  |
-| `elbow`        | over the elbow tip                                                                                                                       |
-| `above_elbow`  | 5 cm above the elbow tip                                                                                                                 |
-| `biceps_mid`   | halfway between elbow tip and shoulder point, relaxed                                                                                    |
-| `armpit_level` | at the height of the armpit fold; also note `positions.armpit_level_below_shoulder` (shoulder point down to the tape, along the outside) |
-| `shoulder`     | as high around the deltoid as the tape still sits horizontally; also note `positions.shoulder_below_shoulder`                            |
+## Umfänge
+
+Band waagrecht (im rechten Winkel zum Arm), eng auf der Haut, ohne einzudrücken. Den Wert dort ablesen, wo sich das Band überlappt. Jeden Umfang zweimal messen; weichen die beiden Werte um mehr als 0,5 cm ab, ein drittes Mal messen und den mittleren Wert nehmen.
+
+| Feld           | Wo                                                                                                                                                 |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wrist`        | an der Handgelenksfalte                                                                                                                            |
+| `forearm_mid`  | in der Mitte zwischen Handgelenksfalte und Ellbogenspitze                                                                                          |
+| `forearm_max`  | an der dicksten Stelle des Unterarms, ein paar cm unter dem Ellbogen; dazu `forearm_max_below_elbow` notieren (Ellbogenspitze runter bis zum Band) |
+| `elbow`        | über der Ellbogenspitze                                                                                                                            |
+| `above_elbow`  | 5 cm über der Ellbogenspitze                                                                                                                       |
+| `biceps_mid`   | in der Mitte zwischen Ellbogenspitze und Schulterspitze, entspannt                                                                                 |
+| `armpit_level` | auf Höhe der Achselfalte; dazu `armpit_level_below_shoulder` notieren (Schulterspitze runter bis zum Band, außen am Arm gemessen)                  |
+| `shoulder`     | so hoch um den Deltamuskel, wie das Band gerade noch waagrecht sitzt; dazu `shoulder_below_shoulder` notieren (Schulterspitze runter bis zum Band) |
 
 ## Anubis
 
-Lay the tape along the forearm, palm up.
+Das Band längs auf den Unterarm legen, Handfläche nach oben.
 
-| Field                 | What                                                                                |
+| Feld                  | Was                                                                                 |
 | --------------------- | ----------------------------------------------------------------------------------- |
-| `distance_from_wrist` | wrist crease → lowest point of the tattoo (ribbons included)                        |
-| `height`              | lowest → highest point of the tattoo, along the arm                                 |
-| `width`               | widest extent across the arm, measured over the skin (not straight through the air) |
+| `distance_from_wrist` | Handgelenksfalte → tiefster Punkt des Tattoos (Stoffbänder mitgerechnet)            |
+| `height`              | tiefster → höchster Punkt des Tattoos, entlang des Arms                             |
+| `width`               | breiteste Stelle quer zum Arm, über die Haut gemessen (nicht gerade durch die Luft) |
 
-## Photos
+## Fotos
 
-Save them in the data folder, never in the repo:
+Im Datenordner speichern, nie im Repo:
 
 - `arm-photos/front.jpg`, `back.jpg`, `lateral.jpg`, `medial.jpg`
 - `existing/anubis-front.jpg`
 
-**For all photos:** plain wall, even light without hard shadows, sleeveless shirt. The helper stands about 2 m away and zooms in (2× on most phones) instead of walking closer: this keeps the perspective flat. Camera at elbow height, held straight (not tilted). Lay a tape measure along the arm or stick it next to it, so the scale is readable in the picture. Keep the whole arm from shoulder to wrist in frame.
+**Für alle Fotos:** einfarbige Wand, gleichmäßiges Licht ohne harte Schatten, ärmelloses Shirt. Die zweite Person steht etwa 2 m entfernt und zoomt heran (bei den meisten Handys 2×), statt näher zu kommen: So bleibt die Perspektive flach. Kamera auf Ellbogenhöhe, gerade gehalten (nicht gekippt). Ein Maßband längs an den Arm legen oder daneben kleben, damit der Maßstab im Bild lesbar ist. Der ganze Arm von der Schulter bis zum Handgelenk muss drauf sein.
 
-| Photo          | Pose                                                                     | Camera                                                            |
-| -------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `front`        | facing the camera, arm hanging slightly away from the body, palm forward | in front                                                          |
-| `back`         | back to the camera, same arm pose                                        | behind                                                            |
-| `lateral`      | left side to the camera, arm hanging, palm towards the thigh             | to the left                                                       |
-| `medial`       | arm stretched forward to horizontal, palm up                             | to the right of the arm, at arm height, looking at its inner side |
-| `anubis-front` | forearm resting palm up on a table, tape measure next to the tattoo      | straight above the tattoo, lens parallel to the skin              |
+| Foto           | Haltung                                                                               | Kamera                                                      |
+| -------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `front`        | Gesicht zur Kamera, Arm hängt leicht vom Körper weg, Handfläche nach vorne            | vorne                                                       |
+| `back`         | Rücken zur Kamera, gleiche Armhaltung                                                 | hinten                                                      |
+| `lateral`      | linke Seite zur Kamera, Arm hängt, Handfläche zum Oberschenkel                        | links                                                       |
+| `medial`       | Arm waagrecht nach vorne gestreckt, Handfläche nach oben                              | rechts neben dem Arm, auf Armhöhe, Blick auf die Innenseite |
+| `anubis-front` | Unterarm liegt mit der Handfläche nach oben auf einem Tisch, Maßband neben dem Tattoo | senkrecht über dem Tattoo, Linse parallel zur Haut          |
 
-If you take more photos (bent elbow, close-ups), any extra file names are fine.
+Weitere Fotos (gebeugter Ellbogen, Nahaufnahmen) dürfen beliebig heißen.
+
+## Eintragen
+
+Werte in cm in die Spalte „Wert“ schreiben, Dezimalstellen mit Punkt oder Komma. Bei Umfängen den Endwert eintragen (Mittelwert bzw. mittlerer von drei). Leere Felder bleiben im Planner Platzhalter.
+
+Gemessen am: \_\_\_\_\_\_\_\_\_\_
+
+### Längen
+
+| Feld                | Beschreibung                    | Wert (cm) |
+| ------------------- | ------------------------------- | --------- |
+| `shoulder_to_elbow` | Schulterspitze → Ellbogenspitze |           |
+| `elbow_to_wrist`    | Ellbogenspitze → Handgelenk     |           |
+
+### Umfänge
+
+| Feld           | Beschreibung                               | 1. Messung | 2. Messung | Wert (cm) |
+| -------------- | ------------------------------------------ | ---------- | ---------- | --------- |
+| `wrist`        | Handgelenksfalte                           |            |            |           |
+| `forearm_mid`  | Mitte Unterarm                             |            |            |           |
+| `forearm_max`  | dickste Stelle Unterarm                    |            |            |           |
+| `elbow`        | über der Ellbogenspitze                    |            |            |           |
+| `above_elbow`  | 5 cm über der Ellbogenspitze               |            |            |           |
+| `biceps_mid`   | Mitte Oberarm, entspannt                   |            |            |           |
+| `armpit_level` | Höhe Achselfalte                           |            |            |           |
+| `shoulder`     | Deltamuskel, so hoch wie waagrecht möglich |            |            |           |
+
+### Positionen
+
+| Feld                          | Beschreibung                             | Wert (cm) |
+| ----------------------------- | ---------------------------------------- | --------- |
+| `forearm_max_below_elbow`     | Ellbogenspitze → Band bei `forearm_max`  |           |
+| `armpit_level_below_shoulder` | Schulterspitze → Band bei `armpit_level` |           |
+| `shoulder_below_shoulder`     | Schulterspitze → Band bei `shoulder`     |           |
+
+### Anubis
+
+| Feld                  | Beschreibung                         | Wert (cm) |
+| --------------------- | ------------------------------------ | --------- |
+| `distance_from_wrist` | Handgelenksfalte → tiefster Punkt    |           |
+| `height`              | Höhe entlang des Arms                |           |
+| `width`               | breiteste Stelle quer, über die Haut |           |
+
+### Foto-Checkliste
+
+Abhaken, was im Datenordner liegt. Wie die Fotos aufgenommen werden, steht oben unter [Fotos](#fotos).
+
+- [ ] `arm-photos/front.jpg`: Gesicht zur Kamera, Arm hängt, Handfläche nach vorne (Innenseite)
+- [ ] `arm-photos/back.jpg`: Rücken zur Kamera, gleiche Haltung (Außenseite)
+- [ ] `arm-photos/lateral.jpg`: linke Seite zur Kamera, Handfläche zum Oberschenkel (Daumenseite)
+- [ ] `arm-photos/medial.jpg`: Arm waagrecht nach vorne, Handfläche nach oben, Kamera rechts daneben (Körperseite)
+- [ ] `existing/anubis-front.jpg`: Unterarm auf dem Tisch, Kamera senkrecht über dem Anubis
+- [ ] Auf jedem Foto ist ein Maßband zu sehen
+
+### Notizen
+
+<!-- Alles, was beim Messen auffällt (z. B. Ellbogen nicht ganz gestreckt, Band verrutscht). -->
