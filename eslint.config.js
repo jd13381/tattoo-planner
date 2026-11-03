@@ -10,12 +10,17 @@ export default tseslint.config(
     files: ["src/**/*.{ts,tsx}"],
     languageOptions: { globals: globals.browser },
     plugins: { "react-hooks": reactHooks },
-    rules: reactHooks.configs.recommended.rules,
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      // With noUncheckedIndexedAccess, index access in the geometry maths needs `!` where bounds are known.
+      "@typescript-eslint/no-non-null-assertion": "off",
+    },
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.strict],
     files: ["src/**/server/**/*.ts", "tests/**/*.ts", "*.config.ts"],
     languageOptions: { globals: globals.node },
+    rules: { "@typescript-eslint/no-non-null-assertion": "off" },
   },
   {
     extends: [js.configs.recommended],
