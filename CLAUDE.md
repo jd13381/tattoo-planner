@@ -10,6 +10,8 @@ Local web tool that previews Jan's left-arm tattoo sleeve on a parametric 3D arm
 ## Conventions (from PROJECT_BRIEF.md §15)
 
 - **Documentation, code comments, commit messages: English.** Conversation with Jan is in German.
+  Exception: `docs/measuring.md` (measuring guide and entry sheet) is in German at Jan's request.
+  When Jan fills in its "Eintragen" tables, transfer the final values into `config/measurements.yaml`.
 - **Never commit images, PDFs or exports.** All binary/visual data lives in `TATTOO_DATA_DIR` (Seafile). Respect the pre-commit guard; never bypass it (no `--no-verify`, no editing the allow-list to sneak a file in).
 - Read paths only via `TATTOO_DATA_DIR`; never hard-code Jan's absolute paths in committed files. Jan's real path lives only in the git-ignored `.env`.
 - No public deployment, no uploading assets to third-party services. The dev server binds to `127.0.0.1` only.
