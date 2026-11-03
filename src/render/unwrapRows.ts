@@ -61,6 +61,35 @@ export function shapeYRange(shape: Shape, profile: ArmProfile): [number, number]
 }
 
 /**
+ * Screen x range (cm) a line can touch in the row at y, so masks skip the rest of the row:
+ * "none" = the row is clear, null = test the whole row (other shapes, or a segment at the seam).
+ */
+export function columnSpan(
+  shape: Shape,
+  y: number,
+  c: number,
+  centerU: number,
+): [number, number] | null | "none" {
+  if (shape.kind !== "line") return null;
+  let lo = Infinity;
+  let hi = -Infinity;
+  const pts = shape.points;
+  for (let k = 0; k < pts.length - 1; k++) {
+    const a = pts[k]!;
+    const b = pts[k + 1]!;
+    if (y < Math.min(a.y, b.y) - shape.half || y > Math.max(a.y, b.y) + shape.half) continue;
+    const xa = screenX(a.u, centerU, c);
+    // The segment is unwrapped from its first point, as in hits().
+    const xb = xa - wrapDelta(b.u - a.u) * c;
+    lo = Math.min(lo, xa, xb) - shape.half;
+    hi = Math.max(hi, xa, xb) + shape.half;
+  }
+  if (lo === Infinity) return "none";
+  if (lo < -c / 2 || hi > c / 2) return null;
+  return [lo, hi];
+}
+
+/**
  * Coverage mask of one shape on the unwrap (exact per pixel, seam included): 255 inside, 0 outside.
  * Only rows [rowStart, rowStart + rows) are returned, `width` pixels each.
  */
@@ -79,7 +108,14 @@ export function shapeMask(
     const j = first + r;
     const y = profile.length - (j + 0.5) / pxPerCm;
     const c = profile.circumferenceAt(y);
-    for (let i = 0; i < width; i++) {
+    // Only test the columns the shape can reach in this row (a whole row near the seam).
+    const span = columnSpan(shape, y, c, centerU);
+    if (span === "none") continue;
+    const i0 = span ? Math.max(0, Math.floor((span[0] + profile.maxCircumference / 2) * pxPerCm) - 1) : 0;
+    const i1 = span
+      ? Math.min(width - 1, Math.ceil((span[1] + profile.maxCircumference / 2) * pxPerCm) + 1)
+      : width - 1;
+    for (let i = i0; i <= i1; i++) {
       const sx = (i + 0.5) / pxPerCm - profile.maxCircumference / 2;
       if (Math.abs(sx) > c / 2) continue;
       // Screen x grows to the right; u grows towards lateral, which is on the left.

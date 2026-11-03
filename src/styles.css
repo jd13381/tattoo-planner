@@ -492,6 +492,16 @@ textarea,
 }
 
 /* Reference mode and assets (Phase 4) */
+.unwrap-image-host {
+  pointer-events: none;
+}
+
+.unwrap-image-host div,
+.unwrap-image-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .render-ms {
   min-width: 3.5em;
   font-variant-numeric: tabular-nums;
@@ -510,6 +520,12 @@ textarea,
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   margin: 8px 0 4px;
+}
+
+.asset-filters select,
+.asset-filters input {
+  min-width: 0;
+  width: 100%;
 }
 
 .asset-filters input[type="search"] {

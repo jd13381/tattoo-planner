@@ -57,17 +57,25 @@ describe("unwrap rows", () => {
       { id: "anubis", type: "existing", position: { u: 0.5, v: 0.2 }, size_cm: { h: 20, w: 10 } },
       { id: "s", type: "filler", pattern: "x", region: { u: [0.45, 0.6], v: [0.1, 0.4] } },
       { id: "b", type: "band", pattern: "meander", v: 0.02, width_cm: 2 },
+      {
+        id: "l",
+        type: "line",
+        // Crosses the inner seam between the last two points.
+        points: [
+          { u: 0.05, v: 0 },
+          { u: 0.15, v: 0.4 },
+          { u: 0.45, v: 0.6 },
+          { u: 0.55, v: 0.9 },
+        ],
+        width_cm: 1.5,
+      },
     ];
     for (const centerU of [0, 0.5]) {
       const ppc = 3;
-      const cls = classify({ name: "t", elements: [elements[0]!] }, profile, ppc, undefined, centerU);
       for (const el of elements) {
+        const cls = classify({ name: "t", elements: [el] }, profile, ppc, undefined, centerU);
         const shape = resolveElement(el, profile).shape;
         const mask = shapeMask(shape, profile, ppc, centerU);
-        if (el.id !== "anubis") {
-          expect(mask.alpha.some((a) => a === 255)).toBe(true);
-          continue;
-        }
         let diff = 0;
         let inside = 0;
         for (let r = 0; r < mask.rows; r++)

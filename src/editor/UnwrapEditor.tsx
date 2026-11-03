@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { ArmProfile } from "../arm/profile.ts";
 import { wrapU } from "../arm/uv.ts";
 import type { ElementAspects } from "../layout/imageFit.ts";
@@ -40,11 +40,14 @@ export function UnwrapEditor(props: Props) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const href = useMemo(
-    () => image.toDataURL(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [image, version],
-  );
+  // The rendered canvas is shown as it is, inside a foreignObject: encoding it as a PNG data URL
+  // on every change cost seconds per mode switch with reference images (Phase 4 acceptance).
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    host.replaceChildren(image);
+  }, [image, version]);
 
   const resolved = useMemo(
     () => layout.elements.map((el) => resolveElement(el, profile, existing, aspects?.get(el.id))),
@@ -149,7 +152,9 @@ export function UnwrapEditor(props: Props) {
         role="application"
         aria-label="Unwrap editor"
       >
-        <image href={href} x={-half} y={0} width={2 * half} height={L} preserveAspectRatio="none" />
+        <foreignObject x={-half} y={0} width={2 * half} height={L} className="unwrap-image-host">
+          <div ref={hostRef} />
+        </foreignObject>
         <text className="edge-label" x={-half + 0.3} y={-0.3}>
           {centerU === 0 ? "lateral ←" : "medial ←"}
         </text>
