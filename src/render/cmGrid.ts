@@ -72,6 +72,16 @@ export type GridStyle = {
   text: string;
 };
 
+/** Faint grid drawn over the blockout. */
+export const OVERLAY_GRID_STYLE: GridStyle = {
+  background: "transparent",
+  skin: "transparent",
+  minor: "rgba(40, 30, 25, 0.10)",
+  major: "rgba(40, 30, 25, 0.35)",
+  axis: "rgba(179, 38, 30, 0.55)",
+  text: "rgba(40, 30, 25, 0.7)",
+};
+
 export const DEFAULT_GRID_STYLE: GridStyle = {
   background: "#8a8580",
   skin: "#efe6dc",
@@ -87,24 +97,27 @@ export function paintGrid(
   profile: ArmProfile,
   pxPerCm: number,
   style: GridStyle = DEFAULT_GRID_STYLE,
+  opts: { background?: boolean } = {},
 ): void {
   const W = profile.maxCircumference * pxPerCm;
   const H = profile.length * pxPerCm;
   // Lateral (positive x) is drawn on the left: the unwrap is seen from outside the arm (src/arm/uv.ts).
   const toPx = (p: { x: number; y: number }) => [W / 2 - p.x * pxPerCm, H - p.y * pxPerCm] as const;
 
-  ctx.fillStyle = style.background;
-  ctx.fillRect(0, 0, W, H);
+  if (opts.background !== false) {
+    ctx.fillStyle = style.background;
+    ctx.fillRect(0, 0, W, H);
 
-  // Skin region: the vase outline.
-  ctx.beginPath();
-  for (let y = 0; y <= profile.length; y += ROW_STEP_CM)
-    ctx.lineTo(...toPx({ x: -profile.circumferenceAt(y) / 2, y }));
-  for (let y = profile.length; y >= 0; y -= ROW_STEP_CM)
-    ctx.lineTo(...toPx({ x: profile.circumferenceAt(y) / 2, y }));
-  ctx.closePath();
-  ctx.fillStyle = style.skin;
-  ctx.fill();
+    // Skin region: the vase outline.
+    ctx.beginPath();
+    for (let y = 0; y <= profile.length; y += ROW_STEP_CM)
+      ctx.lineTo(...toPx({ x: -profile.circumferenceAt(y) / 2, y }));
+    for (let y = profile.length; y >= 0; y -= ROW_STEP_CM)
+      ctx.lineTo(...toPx({ x: profile.circumferenceAt(y) / 2, y }));
+    ctx.closePath();
+    ctx.fillStyle = style.skin;
+    ctx.fill();
+  }
 
   ctx.lineCap = "round";
   ctx.font = `${Math.round(pxPerCm * 0.9)}px system-ui, sans-serif`;

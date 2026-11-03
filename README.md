@@ -11,8 +11,8 @@ A local tool for planning a tattoo sleeve: a parametric 3D model of the arm, a 2
 | 0 Bootstrap                         | done    |
 | 1 Stack check and scaffold          | done    |
 | 2 Parametric arm and viewer         | done    |
-| 3 Unwrap editor and blockout mode   | next    |
-| 4 Assets, ideas PDF, reference mode | planned |
+| 3 Unwrap editor and blockout mode   | done    |
+| 4 Assets, ideas PDF, reference mode | next    |
 | 5 Export for the artist             | planned |
 | 6 Iteration and polish              | planned |
 
@@ -58,7 +58,8 @@ A variable set in the shell wins over `.env`.
 npm run dev       # http://127.0.0.1:4320 (local only)
 ```
 
-- **Arm**: the parametric left arm built from `config/measurements.yaml`, with a 1 cm grid on the skin (bold every 5 cm, red centre lines for outer, lateral, inner and medial). Buttons switch between the four fixed views (front = inner side, back = outer side, medial, lateral); drag to rotate, scroll to zoom. **Screenshot** saves a PNG to the browser's download folder. The panel shows every measurement; values not measured yet use flagged placeholders, and typing a value previews it immediately (edits are not saved: write final numbers into the YAML, which reloads the page).
+- **Layout** (start page): pick a variant from `config/layouts/`, edit it on the 2D unwrap and see it live on the 3D arm in blockout mode (figures dark grey, fillers light grey, bands striped, red lines red, existing tattoo outlined). Click to select, drag to move, corner handle to scale, round handle to rotate; the side panel edits every field, the layer order, lock, duplicate and delete. "Inner side centred" puts the palm-side line in the middle of the editor for pieces on the seam (Anubis, Pegasus). **Save** writes the YAML back, keeping comments; **Save as…** creates a new variant. The coverage table shows the share of figures, fillers, bands, lines and open skin per zone. Figures without a height are drawn 10 cm tall and listed in a warning; the Anubis takes its size from `measurements.yaml` when the layout leaves it empty.
+- **Arm & measurements**: the parametric left arm built from `config/measurements.yaml`, with a 1 cm grid on the skin (bold every 5 cm, red centre lines for outer, lateral, inner and medial). Buttons switch between the four fixed views (front = inner side, back = outer side, medial, lateral); drag to rotate, scroll to zoom. **Screenshot** saves a PNG to the browser's download folder. The panel shows every measurement; values not measured yet use flagged placeholders, and typing a value previews it immediately (edits are not saved: write final numbers into the YAML, which reloads the page).
 - **Data folder**: lists the files found in `TATTOO_DATA_DIR` and checks the expected entries (`ideas.pdf`, `refs/`, …). If the variable is missing or wrong, it says so.
 
 Geometry and unwrap conventions: `docs/adr/0002-arm-geometry-and-unwrap.md`.

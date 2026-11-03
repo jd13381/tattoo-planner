@@ -6,9 +6,9 @@ import type { ArmProfile } from "../arm/profile.ts";
 import { ArmModel } from "./ArmModel.tsx";
 import { CAMERA_FOV, VIEWS, viewCamera, type ViewName } from "./views.ts";
 
-type Props = { profile: ArmProfile };
+type Props = { profile: ArmProfile; canvas: HTMLCanvasElement; version: number; hint?: string };
 
-export function ArmViewer({ profile }: Props) {
+export function ArmViewer({ profile, canvas, version, hint }: Props) {
   const [view, setView] = useState<ViewName>("front");
   // True once the user rotates by hand; the last fixed view stays the one to return to.
   const [free, setFree] = useState(false);
@@ -66,13 +66,13 @@ export function ArmViewer({ profile }: Props) {
           <hemisphereLight args={["#ffffff", "#4a4440", 1.2]} />
           <directionalLight position={[60, 120, 90]} intensity={1.6} />
           <directionalLight position={[-80, 40, -60]} intensity={0.5} />
-          <ArmModel profile={profile} />
+          <ArmModel profile={profile} canvas={canvas} version={version} />
           <CameraRig profile={profile} view={view} request={viewRequest} onFree={() => setFree(true)} />
         </Canvas>
       </div>
       <p className="muted small">
-        Drag to rotate, scroll to zoom, right-drag to pan. Grid: 1 cm, bold every 5 cm; red lines mark outer,
-        lateral, inner and medial centre lines.
+        Drag to rotate, scroll to zoom, right-drag to pan.{" "}
+        {hint ?? "Grid: 1 cm, bold every 5 cm; red lines mark outer, lateral, inner and medial centre lines."}
       </p>
     </div>
   );

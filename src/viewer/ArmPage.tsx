@@ -1,60 +1,54 @@
-import { useMemo, useState } from "react";
-import measurementsText from "../../config/measurements.yaml?raw";
-import { measuredValues, PLACEHOLDERS, resolveInputs, type ArmInputKey } from "../arm/inputs.ts";
-import { buildProfile } from "../arm/profile.ts";
-import { parseMeasurements } from "../config/loadMeasurements.ts";
+import { useMemo } from "react";
+import { renderUnwrap } from "../render/unwrapCanvas.ts";
 import { ArmViewer } from "./ArmViewer.tsx";
 import { MeasurementsPanel } from "./MeasurementsPanel.tsx";
+import { fileValues, INPUT_COUNT, loadedMeasurements, type ArmState } from "./useArm.ts";
 
-const loaded = parseMeasurements(measurementsText);
-const INPUT_COUNT = Object.keys(PLACEHOLDERS).length;
-const fileValues: Record<ArmInputKey, number | null> = loaded.ok
-  ? measuredValues(loaded.measurements)
-  : (Object.fromEntries(Object.keys(PLACEHOLDERS).map((k) => [k, null])) as Record<ArmInputKey, null>);
+/** Grid texture resolution; 24 px per cm keeps the texture under 2048 px for real arms. */
+const PX_PER_CM = 24;
 
-export function ArmPage() {
-  const [overrides, setOverrides] = useState<Partial<Record<ArmInputKey, number>>>({});
-
-  const { profile, placeholders } = useMemo(() => {
-    const { inputs, placeholders } = resolveInputs({ ...fileValues, ...overrides });
-    return { profile: buildProfile(inputs), placeholders };
-  }, [overrides]);
+export function ArmPage({ arm }: { arm: ArmState }) {
+  const { profile, placeholders } = arm;
+  const canvas = useMemo(() => {
+    const c = document.createElement("canvas");
+    renderUnwrap(c, profile, "grid", null, { pxPerCm: PX_PER_CM, grid: true });
+    return c;
+  }, [profile]);
 
   return (
     <div className="arm-page">
-      {!loaded.ok && (
+      {!loadedMeasurements.ok && (
         <section className="card notice error" role="alert">
           <h2>config/measurements.yaml is invalid</h2>
-          <p>{loaded.error}. Showing placeholders.</p>
+          <p>{loadedMeasurements.error}. Showing placeholders.</p>
         </section>
       )}
-      {placeholders.length > 0 && (
-        <section className="card notice warn" role="status">
-          <h2>
-            Placeholder arm: {placeholders.length} of {INPUT_COUNT} values not measured yet
-          </h2>
-          <p>
-            Proportions are generic until <code>config/measurements.yaml</code> is filled in (see{" "}
-            <code>docs/measuring.md</code>).
-          </p>
-        </section>
-      )}
+      <PlaceholderNotice count={placeholders.length} />
       <div className="arm-layout">
-        <ArmViewer profile={profile} />
+        <ArmViewer profile={profile} canvas={canvas} version={0} />
         <MeasurementsPanel
           fileValues={fileValues}
-          overrides={overrides}
+          overrides={arm.overrides}
           warnings={profile.warnings}
-          onChange={(key, value) =>
-            setOverrides((o) => {
-              const next = Object.entries(o).filter(([k]) => k !== key);
-              if (value !== undefined) next.push([key, value]);
-              return Object.fromEntries(next);
-            })
-          }
-          onReset={() => setOverrides({})}
+          onChange={arm.setOverride}
+          onReset={arm.resetOverrides}
         />
       </div>
     </div>
+  );
+}
+
+export function PlaceholderNotice({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <section className="card notice warn" role="status">
+      <h2>
+        Placeholder arm: {count} of {INPUT_COUNT} values not measured yet
+      </h2>
+      <p>
+        Proportions are generic until <code>config/measurements.yaml</code> is filled in (see{" "}
+        <code>docs/measuring.md</code>).
+      </p>
+    </section>
   );
 }

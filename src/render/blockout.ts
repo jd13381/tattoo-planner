@@ -1,0 +1,71 @@
+// Blockout mode (PROJECT_BRIEF.md §10.1 F5): every element as a flat shape coloured by type.
+import { OUTSIDE, type Classification } from "../layout/shapes.ts";
+import type { ElementType } from "../layout/schema.ts";
+
+type RGB = [number, number, number];
+
+export const BLOCKOUT_COLORS: Record<ElementType | "open" | "outside", RGB> = {
+  figure: [74, 70, 67], // dark grey
+  existing: [120, 112, 105], // outline drawn darker, see below
+  filler: [196, 190, 184], // light grey
+  band: [140, 134, 128], // mid grey, hatched
+  line: [198, 40, 40], // red
+  open: [239, 230, 220], // skin
+  outside: [138, 133, 128],
+};
+
+const EXISTING_OUTLINE: RGB = [30, 26, 24];
+const EXISTING_FILL: RGB = [222, 211, 199];
+
+/** Paints the classification into RGBA pixels (row 0 = shoulder, as the texture expects). */
+export function blockoutPixels(cls: Classification, selected?: number): Uint8ClampedArray<ArrayBuffer> {
+  const { width, height, cells, resolved, pxPerCm } = cls;
+  const out = new Uint8ClampedArray(width * height * 4);
+  const outlinePx = Math.max(1, Math.round(pxPerCm * 0.25));
+  for (let j = 0; j < height; j++) {
+    for (let i = 0; i < width; i++) {
+      const idx = j * width + i;
+      const v = cells[idx]!;
+      let color: RGB;
+      if (v === OUTSIDE) color = BLOCKOUT_COLORS.outside;
+      else if (v === 0) color = BLOCKOUT_COLORS.open;
+      else {
+        const type = resolved[v - 1]!.element.type;
+        color = BLOCKOUT_COLORS[type];
+        if (type === "band" && ((i + j) / pxPerCm) % 1 < 0.35) color = BLOCKOUT_COLORS.figure;
+        if (type === "existing")
+          color = isEdge(cells, width, height, i, j, v, outlinePx) ? EXISTING_OUTLINE : EXISTING_FILL;
+        if (selected !== undefined && v === selected + 1 && isEdge(cells, width, height, i, j, v, outlinePx))
+          color = [255, 196, 0];
+      }
+      out[idx * 4] = color[0];
+      out[idx * 4 + 1] = color[1];
+      out[idx * 4 + 2] = color[2];
+      out[idx * 4 + 3] = 255;
+    }
+  }
+  return out;
+}
+
+function isEdge(
+  cells: Uint8Array,
+  w: number,
+  h: number,
+  i: number,
+  j: number,
+  v: number,
+  r: number,
+): boolean {
+  for (const [di, dj] of [
+    [r, 0],
+    [-r, 0],
+    [0, r],
+    [0, -r],
+  ] as const) {
+    const ii = i + di;
+    const jj = j + dj;
+    if (ii < 0 || jj < 0 || ii >= w || jj >= h) return true;
+    if (cells[jj * w + ii] !== v) return true;
+  }
+  return false;
+}
