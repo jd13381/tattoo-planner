@@ -21,6 +21,11 @@ export const measurementsSchema = z.strictObject({
     armpit_level: cm,
     shoulder: cm,
   }),
+  positions: z.strictObject({
+    forearm_max_below_elbow: cm,
+    armpit_level_below_shoulder: cm,
+    shoulder_below_shoulder: cm,
+  }),
   existing: z.strictObject({
     anubis: z.strictObject({
       distance_from_wrist: z.number().nonnegative().nullable(),

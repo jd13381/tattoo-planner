@@ -34,6 +34,15 @@ elements:
     style: realistic
     red_accents: true
 
+  # Added at Jan's request (2026-11-03): inner upper arm, rising from Medusa (§3.2, §3.3).
+  # Height and exact position are placeholders until Jan sets them.
+  - id: pegasus
+    type: figure
+    asset: pegasus-ref-01
+    position: { u: 0.50, v: 0.75 }   # inner centre line, upper arm
+    size_cm: { h: null }
+    style: realistic
+
   - id: scales-forearm
     type: filler
     pattern: snake-scales
