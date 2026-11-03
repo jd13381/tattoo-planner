@@ -3,7 +3,7 @@
 .idea/
 .vscode/
 
-# Local config: SLEEVE_DATA_DIR and anything personal (CLAUDE.md, PROJECT_BRIEF.md §12)
+# Local config: TATTOO_DATA_DIR and anything personal (CLAUDE.md, PROJECT_BRIEF.md §12)
 .env
 .env.*
 !.env.example
@@ -14,7 +14,7 @@ dist/
 coverage/
 *.tsbuildinfo
 
-# Exports are written to <SLEEVE_DATA_DIR>/exports, never into the repo.
+# Exports are written to <TATTOO_DATA_DIR>/exports, never into the repo.
 # These entries are defence in depth in case an export lands here by mistake.
 exports/
 **/exports/

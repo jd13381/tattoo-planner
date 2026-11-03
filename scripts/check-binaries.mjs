@@ -41,7 +41,7 @@ function main() {
   if (offenders.length === 0) return 0;
   console.error(`check-binaries: ${offenders.length} file(s) must not be committed:`);
   for (const [f, reason] of offenders) console.error(`  ${f}  (${reason})`);
-  console.error("Images, PDFs and exports belong in SLEEVE_DATA_DIR (Seafile), not in git.");
+  console.error("Images, PDFs and exports belong in TATTOO_DATA_DIR (Seafile), not in git.");
   if (!all) console.error("Unstage them with: git restore --staged <file>");
   return 1;
 }
