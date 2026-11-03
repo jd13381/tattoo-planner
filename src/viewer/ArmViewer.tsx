@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ArmProfile } from "../arm/profile.ts";
 import { ArmModel } from "./ArmModel.tsx";
+import { LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
 import { CAMERA_FOV, VIEWS, viewCamera, type ViewName } from "./views.ts";
 
 type Props = { profile: ArmProfile; canvas: HTMLCanvasElement; version: number; hint?: string };
@@ -62,10 +63,12 @@ export function ArmViewer({ profile, canvas, version, hint }: Props) {
           gl={{ preserveDrawingBuffer: true, antialias: true }}
           dpr={[1, 2]}
         >
-          <color attach="background" args={["#2a2725"]} />
-          <hemisphereLight args={["#ffffff", "#4a4440", 1.2]} />
-          <directionalLight position={[60, 120, 90]} intensity={1.6} />
-          <directionalLight position={[-80, 40, -60]} intensity={0.5} />
+          <color attach="background" args={[VIEWER_BACKGROUND]} />
+          <hemisphereLight
+            args={[LIGHTS.hemisphere.sky, LIGHTS.hemisphere.ground, LIGHTS.hemisphere.intensity]}
+          />
+          <directionalLight position={LIGHTS.key.position} intensity={LIGHTS.key.intensity} />
+          <directionalLight position={LIGHTS.fill.position} intensity={LIGHTS.fill.intensity} />
           <ArmModel profile={profile} canvas={canvas} version={version} />
           <CameraRig profile={profile} view={view} request={viewRequest} onFree={() => setFree(true)} />
         </Canvas>

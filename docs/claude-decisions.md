@@ -57,3 +57,20 @@ Written into `manifest.yaml` on Seafile (ids renamed, so `v1-baseline.yaml` stay
 - **Anubis:** cut out of `anubis1_nr.JPG` (crop and quarter turn fitted by Claude), 26 × 12 cm from your measurements, lowest point 2 cm above the wrist crease (v moved from 0.12 to 0.203). The photo is fitted, not stretched, so it is drawn about 11 cm wide instead of 12; stretching it would undo the arm curvature in the photo.
 - **Rhonas:** cut to the figure with hood and staff (crop fitted by Claude); without a crop the whole landscape card would make the box about 30 cm wide. The card background stays visible (background removal is a later optional step).
 - **Overlaps:** Anubis currently overlaps `scales-forearm` and the edge of Rhonas. Not changed: placement is your call.
+
+### Phase 5: export
+
+Details in `docs/adr/0004-export.md`.
+
+- **Browser-side export** (§11.1 left this to Phase 5): views, unwraps and the PDF are made in the running app; a new dev-server endpoint (`/api/exports`) only writes the files. _Alternative:_ a Node script driving a headless browser (large download, renders twice).
+- **PDF library jsPDF 4.2.1** (MIT, pinned, no install script), loaded only when exporting. Its optional helpers (html2canvas, canvg, DOMPurify) come along in `node_modules` but are never loaded. _Alternative:_ pdf-lib (lower level, unmaintained since 2021).
+- **Language English**, every handout text in `src/export/strings.ts` so a German version is one more object. _Change:_ tell Claude and it adds `HANDOUT_DE` and a language switch.
+- **File names:** `exports/<layout>-<YYYY-MM-DD>.pdf` and the PNGs in `exports/<layout>-<YYYY-MM-DD>/`, `-2`, `-3`, … for repeats on the same day (by your local date); never overwritten.
+- **No download fallback without `TATTOO_DATA_DIR`:** the button is disabled and says why, so exports only ever land on Seafile. _Alternative:_ offer a browser download (lands in Downloads).
+- **Export only saved layouts:** disabled while there are unsaved changes, layout errors or images still loading, so every handout matches a YAML in git.
+- **Page plan:** cover with the sketch note, front and back preview and legend; all four views on one landscape page; one page per view (blockout and reference side by side, the elements facing that side); the unwrap with cm grid in each mode; then elements, coverage per zone and open questions. A4, room for printing.
+- **Views on white, no grid,** cropped to the arm with the same scale for all eight pictures; the unwrap pages keep the cm grid and turn the grey around the skin white. Views render at 1000 × 2400 px (the arm ends up about 450 × 2400), unwraps at 40 px per cm.
+- **JPEG inside the PDF** (quality 0.9, about 2 MB per handout), lossless PNG files next to it.
+- **"Facing this side"** lists an element on a view page when it reaches within a fifth of the circumference of that view's centre line; bands count for every side.
+- **Open questions** in the handout: the nine questions of PROJECT_BRIEF.md §9 as of today (copied into `strings.ts`; remove answered ones there) plus what the layout leaves open: unset heights, guessed widths, missing images and placeholder measurements.
+- **Fix on the way:** the blockout drew the existing tattoo's outline along the inner seam, which showed as a line down the middle of Anubis on the 3D arm (and in the export). The seam no longer counts as an edge.

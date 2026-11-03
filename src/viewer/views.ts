@@ -13,11 +13,11 @@ export const VIEWS: { name: ViewName; label: string; hint: string; dir: [number,
 export const CAMERA_FOV = 30;
 
 /** Camera position and target that frame the whole arm for a fixed view. */
-export function viewCamera(profile: ArmProfile, view: ViewName, aspect = 1) {
+export function viewCamera(profile: ArmProfile, view: ViewName, aspect = 1, margin = 1.25) {
   const dir = VIEWS.find((v) => v.name === view)!.dir;
   const target: [number, number, number] = [0, profile.length / 2, 0];
   // Fit the arm's length (plus the rounded ends) into the vertical field of view, with margin.
-  const height = profile.length * 1.25;
+  const height = profile.length * margin;
   const vFov = (CAMERA_FOV * Math.PI) / 180;
   const fitHeight = height / 2 / Math.tan(vFov / 2);
   const fitWidth = ((profile.maxCircumference / Math.PI) * 1.6) / 2 / (Math.tan(vFov / 2) * aspect);

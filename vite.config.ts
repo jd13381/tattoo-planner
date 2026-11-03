@@ -5,6 +5,7 @@ import { assetsPlugin } from "./src/data/server/assetsApi.ts";
 import { resolveDataDir } from "./src/data/server/dataDir.ts";
 import { layoutsPlugin } from "./src/data/server/layoutsApi.ts";
 import { dataFolderPlugin } from "./src/data/server/vitePlugin.ts";
+import { exportsPlugin } from "./src/export/server/exportsApi.ts";
 
 export default defineConfig(({ mode }) => {
   const root = import.meta.dirname;
@@ -17,6 +18,7 @@ export default defineConfig(({ mode }) => {
       react(),
       dataFolderPlugin(dataDir),
       assetsPlugin(dataDir),
+      exportsPlugin(dataDir),
       layoutsPlugin(path.join(root, "config", "layouts")),
     ],
     server: {
