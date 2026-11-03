@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Layout } from "./schema.ts";
 
 export type StoredLayout = { name: string; text: string };
+/** The Layout tab's open variant; the Compare tab offers it while it has unsaved edits. */
+export type WorkingLayout = { name: string; layout: Layout; dirty: boolean };
 const ENDPOINT = "/api/layouts";
 
 /** Layout files from config/layouts via the dev server; `onLoad` runs once with the first list. */
@@ -42,11 +44,12 @@ export function useLayouts(onLoad?: (list: StoredLayout[]) => void) {
     };
   }, []);
 
-  const save = useCallback(async (layout: Layout): Promise<StoredLayout> => {
+  /** Saves a layout; `from` (for a new variant) copies that variant's comments into the new file. */
+  const save = useCallback(async (layout: Layout, from?: string): Promise<StoredLayout> => {
     const r = await fetch(`${ENDPOINT}/${encodeURIComponent(layout.name)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ layout }),
+      body: JSON.stringify(from === undefined ? { layout } : { layout, from }),
     });
     const body = (await r.json()) as StoredLayout & { error?: string };
     if (!r.ok) throw new Error(body.error ?? `HTTP ${r.status}`);

@@ -74,3 +74,12 @@ Details in `docs/adr/0004-export.md`.
 - **"Facing this side"** lists an element on a view page when it reaches within a fifth of the circumference of that view's centre line; bands count for every side.
 - **Open questions** in the handout: the nine questions of PROJECT_BRIEF.md §9 as of today (copied into `strings.ts`; remove answered ones there) plus what the layout leaves open: unset heights, guessed widths, missing images and placeholder measurements.
 - **Fix on the way:** the blockout drew the existing tattoo's outline along the inner seam, which showed as a line down the middle of Anubis on the 3D arm (and in the export). The seam no longer counts as an edge.
+
+### Phase 6: comparing variants
+
+- **Compare is its own tab** (read-only), not a split mode inside the Layout tab, so the editor keeps its space. _Alternative:_ a "compare with…" toggle in the Layout tab.
+- **One shared camera:** both arms use the same view buttons, and rotating, zooming or panning either arm moves the other (two WebGL canvases, a small camera bus). _Alternative:_ one canvas with two viewports (more code, no gain).
+- **Coverage highlighting threshold 2 percentage points** (both values rounded first, as shown); red = more than the other variant, blue = less, difference in the tooltip. Smaller differences are rounding noise. _Change:_ `DIFF_THRESHOLD_PCT` in `src/metrics/coverage.ts`.
+- **Element differences** are matched by id and list the changed fields (e.g. `rhonas changed: position`). A renamed element shows as "only in A" plus "only in B".
+- **Unsaved edits can be compared:** while the Layout tab has unsaved changes, Compare offers "<name> (unsaved edits)" and preselects it against the saved file. The Layout tab now stays mounted when another tab is open, so unsaved edits are no longer lost by switching tabs.
+- **Duplicating a variant = Save as…**, improved instead of adding a second button: it suggests a free name (`v1-baseline-2`, `try-3` → `try-4`) and copies the source file's comments into the new file under the line `# Variant <new>, duplicated from <old>; the comments below come from <old>.` (before, a new variant lost all comments). _Not added:_ deleting or renaming variants in the UI; delete the YAML file instead (git keeps the history).

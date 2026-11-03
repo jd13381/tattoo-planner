@@ -116,3 +116,13 @@ export function reorder<T>(items: T[], index: number, dir: 1 | -1): T[] {
   [next[index], next[j]] = [next[j]!, next[index]!];
   return next;
 }
+
+/** A free name for a copy of variant `base`: v1-baseline → v1-baseline-2, try-3 → try-4. */
+export function suggestVariantName(base: string, taken: Iterable<string>): string {
+  const ids = new Set(taken);
+  const m = /^(.*?)-(\d+)$/.exec(base);
+  const stem = m ? m[1]! : base;
+  let n = m ? Number(m[2]) + 1 : 2;
+  while (ids.has(`${stem}-${n}`)) n++;
+  return `${stem}-${n}`;
+}

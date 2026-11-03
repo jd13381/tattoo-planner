@@ -1,6 +1,7 @@
 // Dev-server API for layout variants in config/layouts/ (text YAML only, inside the repo).
 //   GET  /api/layouts          → [{ name, text }]
-//   PUT  /api/layouts/<name>   body: { layout } → validates, keeps comments, writes atomically
+//   PUT  /api/layouts/<name>   body: { layout, from? } → validates, keeps comments, writes atomically.
+//        `from` (a new variant only): start from that variant's file, so its comments are copied too.
 import { readdir, readFile, rename, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
@@ -23,17 +24,32 @@ export async function listLayouts(dir: string): Promise<StoredLayout[]> {
   );
 }
 
-/** Writes a layout, keeping the comments of an existing file. Returns the new text. */
+async function readOrNull(file: string): Promise<string | null> {
+  try {
+    return await readFile(file, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Writes a layout, keeping the comments of an existing file. A new variant with `from` starts from
+ * the text of that variant (comments included) under a note saying where it came from.
+ * Returns the new text.
+ */
 export async function saveLayout(dir: string, name: string, body: unknown): Promise<string> {
   if (!NAME.test(name)) throw new HttpError(400, "invalid layout name");
   const layout = layoutSchema.parse((body as { layout?: unknown })?.layout);
   if (layout.name !== name) throw new HttpError(400, "layout name must match the file name");
+  const from = (body as { from?: unknown }).from;
+  if (from !== undefined && (typeof from !== "string" || !NAME.test(from)))
+    throw new HttpError(400, "invalid source layout name");
   const file = path.join(dir, `${name}.yaml`);
-  let original: string | null;
-  try {
-    original = await readFile(file, "utf8");
-  } catch {
-    original = null;
+  let original = await readOrNull(file);
+  if (original === null && from !== undefined && from !== name) {
+    const source = await readOrNull(path.join(dir, `${from}.yaml`));
+    if (source !== null)
+      original = `# Variant ${name}, duplicated from ${from}; the comments below come from ${from}.\n${source}`;
   }
   const text = original === null ? newLayoutText(layout) : updateLayoutText(original, layout);
   const tmp = `${file}.tmp-${process.pid}`;
