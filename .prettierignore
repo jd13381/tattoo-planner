@@ -5,3 +5,5 @@ package-lock.json
 # The brief and the YAML configs are hand-edited; keep their formatting as Jan writes it.
 PROJECT_BRIEF.md
 config/
+# Claude Code agent worktrees (local only).
+.claude/

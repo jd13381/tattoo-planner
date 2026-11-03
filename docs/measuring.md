@@ -85,49 +85,51 @@ Gemessen am: \_\_\_\_\_\_\_\_\_\_
 
 | Feld                | Beschreibung                    | Wert (cm) |
 | ------------------- | ------------------------------- | --------- |
-| `shoulder_to_elbow` | Schulterspitze → Ellbogenspitze |           |
-| `elbow_to_wrist`    | Ellbogenspitze → Handgelenk     |           |
+| `shoulder_to_elbow` | Schulterspitze → Ellbogenspitze | 44        |
+| `elbow_to_wrist`    | Ellbogenspitze → Handgelenk     | 30        |
 
 ### Umfänge
 
 | Feld           | Beschreibung                               | 1. Messung | 2. Messung | Wert (cm) |
 | -------------- | ------------------------------------------ | ---------- | ---------- | --------- |
-| `wrist`        | Handgelenksfalte                           |            |            |           |
-| `forearm_mid`  | Mitte Unterarm                             |            |            |           |
-| `forearm_max`  | dickste Stelle Unterarm                    |            |            |           |
-| `elbow`        | über der Ellbogenspitze                    |            |            |           |
-| `above_elbow`  | 5 cm über der Ellbogenspitze               |            |            |           |
-| `biceps_mid`   | Mitte Oberarm, entspannt                   |            |            |           |
-| `armpit_level` | Höhe Achselfalte                           |            |            |           |
-| `shoulder`     | Deltamuskel, so hoch wie waagrecht möglich |            |            |           |
+| `wrist`        | Handgelenksfalte                           |            |            | 19        |
+| `forearm_mid`  | Mitte Unterarm                             |            |            | 25        |
+| `forearm_max`  | dickste Stelle Unterarm                    |            |            | 29        |
+| `elbow`        | über der Ellbogenspitze                    |            |            | 29        |
+| `above_elbow`  | 5 cm über der Ellbogenspitze               |            |            | 33        |
+| `biceps_mid`   | Mitte Oberarm, entspannt                   |            |            | 36        |
+| `armpit_level` | Höhe Achselfalte                           |            |            | 38        |
+| `shoulder`     | Deltamuskel, so hoch wie waagrecht möglich | 50         |            | 40        |
 
 ### Positionen
 
 | Feld                          | Beschreibung                             | Wert (cm) |
 | ----------------------------- | ---------------------------------------- | --------- |
-| `forearm_max_below_elbow`     | Ellbogenspitze → Band bei `forearm_max`  |           |
-| `armpit_level_below_shoulder` | Schulterspitze → Band bei `armpit_level` |           |
-| `shoulder_below_shoulder`     | Schulterspitze → Band bei `shoulder`     |           |
+| `forearm_max_below_elbow`     | Ellbogenspitze → Band bei `forearm_max`  | 10        |
+| `armpit_level_below_shoulder` | Schulterspitze → Band bei `armpit_level` | 17        |
+| `shoulder_below_shoulder`     | Schulterspitze → Band bei `shoulder`     | 10        |
 
 ### Anubis
 
 | Feld                  | Beschreibung                         | Wert (cm) |
 | --------------------- | ------------------------------------ | --------- |
-| `distance_from_wrist` | Handgelenksfalte → tiefster Punkt    |           |
-| `height`              | Höhe entlang des Arms                |           |
-| `width`               | breiteste Stelle quer, über die Haut |           |
+| `distance_from_wrist` | Handgelenksfalte → tiefster Punkt    | 2         |
+| `height`              | Höhe entlang des Arms                | 26        |
+| `width`               | breiteste Stelle quer, über die Haut | 12        |
 
 ### Foto-Checkliste
 
 Abhaken, was im Datenordner liegt. Wie die Fotos aufgenommen werden, steht oben unter [Fotos](#fotos).
 
-- [ ] `arm-photos/front.jpg`: Gesicht zur Kamera, Arm hängt, Handfläche nach vorne (Innenseite)
-- [ ] `arm-photos/back.jpg`: Rücken zur Kamera, gleiche Haltung (Außenseite)
-- [ ] `arm-photos/lateral.jpg`: linke Seite zur Kamera, Handfläche zum Oberschenkel (Daumenseite)
-- [ ] `arm-photos/medial.jpg`: Arm waagrecht nach vorne, Handfläche nach oben, Kamera rechts daneben (Körperseite)
-- [ ] `existing/anubis-front.jpg`: Unterarm auf dem Tisch, Kamera senkrecht über dem Anubis
-- [ ] Auf jedem Foto ist ein Maßband zu sehen
+- [x] `arm-photos/front.jpg`: Gesicht zur Kamera, Arm hängt, Handfläche nach vorne (Innenseite)
+- [x] `arm-photos/back.jpg`: Rücken zur Kamera, gleiche Haltung (Außenseite)
+- [x] `arm-photos/lateral.jpg`: linke Seite zur Kamera, Handfläche zum Oberschenkel (Daumenseite)
+- [x] `arm-photos/medial.jpg`: Arm waagrecht nach vorne, Handfläche nach oben, Kamera rechts daneben (Körperseite)
+- [x] `existing/anubis-front.jpg`: Unterarm auf dem Tisch, Kamera senkrecht über dem Anubis
+- [x] Auf jedem Foto ist ein Maßband zu sehen
 
 ### Notizen
 
 <!-- Alles, was beim Messen auffällt (z. B. Ellbogen nicht ganz gestreckt, Band verrutscht). -->
+
+- `shoulder`: gemessen 50 cm, vermutlich um den Oberkörper statt nur um den Arm. Ersetzt durch den Schätzwert 40 cm (etwas mehr als `armpit_level`), bis neu gemessen wird.

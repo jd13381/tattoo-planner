@@ -1,7 +1,20 @@
-import type { LayoutElement } from "../layout/schema.ts";
+import { AssetThumb } from "../assets/AssetBrowser.tsx";
+import type { AssetInfo } from "../assets/types.ts";
+import { FULL_IMAGE } from "../layout/imageFit.ts";
+import {
+  IMAGE_FILTERS,
+  IMAGE_ROTATIONS,
+  type FigureLike,
+  type ImageFilter,
+  type LayoutElement,
+} from "../layout/schema.ts";
 
 type Props = {
   element: LayoutElement;
+  /** Manifest entry of the element's asset; null = not in the manifest, undefined = no manifest. */
+  asset?: AssetInfo | null;
+  /** The filter used when the element sets none (depends on its position). */
+  autoFilter: ImageFilter;
   flags: string[];
   index: number;
   count: number;
@@ -14,6 +27,8 @@ type Props = {
 /** Properties of the selected element. Every field maps 1:1 to the layout YAML. */
 export function ElementPanel({
   element: el,
+  asset,
+  autoFilter,
   flags,
   index,
   count,
@@ -144,6 +159,7 @@ export function ElementPanel({
               />
               red accents
             </label>
+            <ImageFields el={el} asset={asset} autoFilter={autoFilter} locked={locked} onChange={onChange} />
           </>
         )}
         {el.type === "filler" && (
@@ -234,5 +250,111 @@ export function ElementPanel({
         </label>
       </div>
     </section>
+  );
+}
+
+const CROP_KEYS = ["x", "y", "w", "h"] as const;
+
+/** Reference-mode fields of a figure: the asset preview with its cut-out, turn, flip, feather, filter. */
+function ImageFields(props: {
+  el: FigureLike;
+  asset?: AssetInfo | null;
+  autoFilter: ImageFilter;
+  locked: boolean;
+  onChange: (el: LayoutElement) => void;
+}) {
+  const { el, asset, autoFilter, locked, onChange } = props;
+  const crop = el.crop ?? asset?.crop;
+  return (
+    <fieldset className="image-fields" disabled={locked}>
+      <legend>Reference image</legend>
+      {!el.asset ? (
+        <p className="muted small">No asset: pick one in the asset list.</p>
+      ) : asset === null ? (
+        <p className="warn small">{el.asset} is not in the manifest.</p>
+      ) : asset === undefined ? (
+        <p className="muted small">No asset manifest available.</p>
+      ) : (
+        <AssetThumb asset={asset} crop={crop} />
+      )}
+      <div className="crop-row">
+        <span>crop {el.crop ? "" : asset?.crop ? "(asset)" : "(whole image)"}</span>
+        {CROP_KEYS.map((k) => (
+          <label key={k} className="crop-field">
+            {k}
+            <input
+              type="number"
+              min={0}
+              max={1}
+              step={0.005}
+              value={crop?.[k] ?? FULL_IMAGE[k]}
+              onChange={(e) => {
+                const n = e.target.valueAsNumber;
+                if (!Number.isFinite(n)) return;
+                const next = { ...(crop ?? FULL_IMAGE), [k]: Math.round(n * 1000) / 1000 };
+                onChange({ ...el, crop: next });
+              }}
+            />
+          </label>
+        ))}
+        <button type="button" onClick={() => onChange({ ...el, crop: undefined })} disabled={!el.crop}>
+          Reset
+        </button>
+      </div>
+      <label>
+        turn image
+        <select
+          value={el.image_rotation_deg ?? 0}
+          onChange={(e) => {
+            const deg = Number(e.target.value) as (typeof IMAGE_ROTATIONS)[number];
+            onChange({ ...el, image_rotation_deg: deg === 0 ? undefined : deg });
+          }}
+        >
+          {IMAGE_ROTATIONS.map((d) => (
+            <option key={d} value={d}>
+              {d === 0 ? "upright" : `${d}° clockwise`}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        filter
+        <select
+          value={el.filter ?? ""}
+          onChange={(e) =>
+            onChange({ ...el, filter: (e.target.value || undefined) as ImageFilter | undefined })
+          }
+        >
+          <option value="">auto ({autoFilter})</option>
+          {IMAGE_FILTERS.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        feather cm
+        <input
+          type="number"
+          min={0}
+          step={0.25}
+          value={el.feather_cm ?? ""}
+          placeholder="1 (default)"
+          onChange={(e) => {
+            const n = e.target.valueAsNumber;
+            onChange({ ...el, feather_cm: Number.isFinite(n) && n >= 0 ? n : undefined });
+          }}
+        />
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={!!el.flip}
+          onChange={(e) => onChange({ ...el, flip: e.target.checked || undefined })}
+        />
+        mirror left-right
+      </label>
+    </fieldset>
   );
 }

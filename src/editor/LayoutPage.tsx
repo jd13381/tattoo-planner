@@ -1,4 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { AssetBrowser } from "../assets/AssetBrowser.tsx";
+import type { AssetInfo } from "../assets/types.ts";
+import { requestImage, useAssetImages, useAssetListing } from "../assets/useAssets.ts";
+import { defaultFilter, elementAspects, isFigureLike, type ImageDims } from "../layout/imageFit.ts";
 import {
   layoutSchema,
   ELEMENT_TYPES,
@@ -11,13 +15,27 @@ import { useLayouts, type StoredLayout } from "../layout/useLayouts.ts";
 import { parseLayout } from "../layout/yamlDoc.ts";
 import { coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
-import { renderUnwrap, type RenderMode } from "../render/unwrapCanvas.ts";
+import type { ReferenceSources } from "../render/reference.ts";
+import { renderUnwrap, timed, type RenderMode } from "../render/unwrapCanvas.ts";
 import { PlaceholderNotice } from "../viewer/ArmPage.tsx";
 import { ArmViewer } from "../viewer/ArmViewer.tsx";
 import { anubisSize, type ArmState } from "../viewer/useArm.ts";
 import { newElement, reorder, uniqueId } from "./edit.ts";
 import { ElementPanel } from "./ElementPanel.tsx";
 import { UnwrapEditor } from "./UnwrapEditor.tsx";
+
+const MODES: { id: RenderMode; label: string }[] = [
+  { id: "blockout", label: "Blockout" },
+  { id: "reference", label: "Reference" },
+  { id: "grid", label: "cm grid" },
+];
+
+const HINTS: Record<RenderMode, string | undefined> = {
+  blockout: "Dark grey: figures, light grey: fillers, striped: bands, red: lines, outlined: existing tattoo.",
+  reference:
+    "Reference images cut to their boxes (grayscale on the forearm by default), patterns for fillers and bands, red lines on top.",
+  grid: undefined,
+};
 
 /** Texture and editor resolution; blockout shapes are flat, so 12 px per cm is plenty. */
 const PX_PER_CM = 12;
@@ -63,6 +81,34 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
     if (first) open(first.name, list);
   });
 
+  // Assets: the manifest listing and the decoded images of every asset the layout uses. Images load
+  // in every mode, because a figure without a width takes its image's proportions (imageFit.ts).
+  const { listing, reload: reloadAssets } = useAssetListing();
+  const { images, version: imagesVersion } = useAssetImages();
+  const assetMap = useMemo(
+    () => (listing?.status === "ok" ? new Map(listing.assets.map((a) => [a.id, a])) : null),
+    [listing],
+  );
+  const usedAssets = useMemo(
+    () => [
+      ...new Set((layout?.elements ?? []).flatMap((e) => (isFigureLike(e) && e.asset ? [e.asset] : []))),
+    ],
+    [layout],
+  );
+  useEffect(() => {
+    for (const id of usedAssets) if (assetMap?.get(id)?.exists) requestImage(id);
+  }, [usedAssets, assetMap]);
+  const aspects = useMemo(() => {
+    void imagesVersion; // the image map is mutated in place; the version marks a change
+    const dims = new Map<string, ImageDims>();
+    for (const [id, img] of images) if (img.status === "ready") dims.set(id, img);
+    return elementAspects(layout?.elements ?? [], assetMap ?? new Map(), dims);
+  }, [layout, assetMap, images, imagesVersion]);
+  const sources = useMemo<ReferenceSources>(() => {
+    void imagesVersion;
+    return { assets: assetMap, images, aspects };
+  }, [assetMap, images, aspects, imagesVersion]);
+
   const dirty = layout !== null && JSON.stringify(layout) !== savedJson;
   const validation = useMemo(() => (layout ? layoutSchema.safeParse(layout) : null), [layout]);
   const validationError =
@@ -70,17 +116,21 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
       ? validation.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
       : null;
 
-  // 3D texture: always centred on the outer line.
-  const texture = useMemo(() => {
+  // 3D texture: always centred on the outer line. The render time is shown next to the mode switch.
+  const { canvas: texture, ms: renderMs } = useMemo(() => {
     const canvas = document.createElement("canvas");
-    renderUnwrap(canvas, profile, mode, layout, {
-      pxPerCm: PX_PER_CM,
-      grid,
-      existing: anubisSize,
-      selected: selected ?? undefined,
-    });
-    return canvas;
-  }, [profile, mode, layout, grid, selected]);
+    const ms = timed(() =>
+      renderUnwrap(canvas, profile, mode, layout, {
+        pxPerCm: PX_PER_CM,
+        grid,
+        existing: anubisSize,
+        selected: selected ?? undefined,
+        aspects,
+        sources,
+      }),
+    );
+    return { canvas, ms };
+  }, [profile, mode, layout, grid, selected, aspects, sources]);
 
   // Editor image: centred on the chosen line.
   const editorImage = useMemo(() => {
@@ -92,20 +142,23 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
       existing: anubisSize,
       selected: selected ?? undefined,
       centerU,
+      aspects,
+      sources,
     });
     return canvas;
-  }, [texture, centerU, profile, mode, layout, grid, selected]);
+  }, [texture, centerU, profile, mode, layout, grid, selected, aspects, sources]);
 
   const metrics = useMemo(
-    () => (layout ? coverage(classify(layout, profile, METRICS_PX_PER_CM, anubisSize), profile) : null),
-    [layout, profile],
+    () =>
+      layout ? coverage(classify(layout, profile, METRICS_PX_PER_CM, anubisSize, 0, aspects), profile) : null,
+    [layout, profile, aspects],
   );
 
   const flagsFor = useMemo(() => {
     if (!layout) return [];
-    const cls = classify({ ...layout, elements: layout.elements }, profile, 1, anubisSize);
+    const cls = classify({ ...layout, elements: layout.elements }, profile, 1, anubisSize, 0, aspects);
     return cls.resolved.map((r) => r.flags);
-  }, [layout, profile]);
+  }, [layout, profile, aspects]);
   const flagged =
     layout?.elements.filter((_, i) => flagsFor[i]?.includes("height not set")).map((e) => e.id) ?? [];
 
@@ -155,6 +208,20 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
   };
 
   const sel = selected !== null && layout ? layout.elements[selected] : undefined;
+  const selAsset: AssetInfo | null | undefined =
+    sel && isFigureLike(sel) && sel.asset && assetMap ? (assetMap.get(sel.asset) ?? null) : undefined;
+  const assignBlocked = !sel
+    ? "Select a figure first, then click an image to assign it."
+    : !isFigureLike(sel)
+      ? "Only figures and existing tattoos take an image."
+      : sel.locked
+        ? `${sel.id} is locked: unlock it to change its image.`
+        : null;
+  const pickAsset = (a: AssetInfo) => {
+    if (selected === null || !sel || !isFigureLike(sel) || sel.locked) return;
+    // A new image gets its own cut-out: drop a crop that belonged to the old one.
+    setElement(selected, { ...sel, asset: a.id, crop: sel.asset === a.id ? sel.crop : undefined });
+  };
 
   return (
     <div className="layout-page">
@@ -182,18 +249,30 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
         </button>
         <span className="spacer" />
         <span className="segmented" role="group" aria-label="Mode">
-          {(["blockout", "grid"] as const).map((m) => (
-            <button key={m} type="button" className={mode === m ? "active" : ""} onClick={() => setMode(m)}>
-              {m === "blockout" ? "Blockout" : "cm grid"}
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className={mode === m.id ? "active" : ""}
+              onClick={() => setMode(m.id)}
+            >
+              {m.label}
             </button>
           ))}
+        </span>
+        <span
+          className="muted small render-ms"
+          data-render-ms={renderMs.toFixed(1)}
+          title="Texture render time"
+        >
+          {Math.round(renderMs)} ms
         </span>
         <label className="inline check">
           <input
             type="checkbox"
             checked={grid}
             onChange={(e) => setGrid(e.target.checked)}
-            disabled={mode !== "blockout"}
+            disabled={mode === "grid"}
           />{" "}
           grid overlay
         </label>
@@ -236,6 +315,7 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
               profile={profile}
               layout={layout}
               existing={anubisSize}
+              aspects={aspects}
               image={editorImage}
               version={0}
               centerU={centerU}
@@ -245,17 +325,14 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
             />
           </div>
           <div className="viewer-col">
-            <ArmViewer
-              profile={profile}
-              canvas={texture}
-              version={0}
-              hint="Dark grey: figures, light grey: fillers, striped: bands, red: lines, outlined: existing tattoo."
-            />
+            <ArmViewer profile={profile} canvas={texture} version={0} hint={HINTS[mode]} />
           </div>
           <div className="side-col">
             {sel && selected !== null ? (
               <ElementPanel
                 element={sel}
+                asset={selAsset}
+                autoFilter={isFigureLike(sel) ? defaultFilter(sel, profile) : "none"}
                 flags={flagsFor[selected] ?? []}
                 index={selected}
                 count={layout.elements.length}
@@ -296,6 +373,13 @@ export function LayoutPage({ arm }: { arm: ArmState }) {
                 </p>
               </section>
             )}
+            <AssetBrowser
+              listing={listing}
+              onReload={reloadAssets}
+              current={sel && isFigureLike(sel) ? sel.asset : undefined}
+              assignBlocked={assignBlocked}
+              onPick={pickAsset}
+            />
             {metrics && <MetricsPanel coverage={metrics} />}
           </div>
         </div>

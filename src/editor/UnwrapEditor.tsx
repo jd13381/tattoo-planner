@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { ArmProfile } from "../arm/profile.ts";
 import { wrapU } from "../arm/uv.ts";
+import type { ElementAspects } from "../layout/imageFit.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import { resolveElement, wrapDelta, type ExistingSize, type Shape } from "../layout/shapes.ts";
 import { moveElement, movePoint, scaleFigure } from "./edit.ts";
@@ -9,6 +10,8 @@ type Props = {
   profile: ArmProfile;
   layout: Layout;
   existing: ExistingSize;
+  /** Image proportions per element id (figures without a width take them). */
+  aspects?: ElementAspects;
   /** Rendered unwrap for `centerU`; bumped `version` when it changes. */
   image: HTMLCanvasElement;
   version: number;
@@ -29,7 +32,7 @@ type ViewBox = { x: number; y: number; w: number; h: number };
 
 /** 2D editor on the skin unwrap. SVG units are cm; x grows towards medial (right), y from the shoulder down. */
 export function UnwrapEditor(props: Props) {
-  const { profile, layout, existing, image, version, centerU, selected, onSelect, onChange } = props;
+  const { profile, layout, existing, aspects, image, version, centerU, selected, onSelect, onChange } = props;
   const L = profile.length;
   const half = profile.maxCircumference / 2;
   const fullView = useMemo<ViewBox>(() => ({ x: -half - 1, y: -1, w: 2 * half + 2, h: L + 2 }), [half, L]);
@@ -37,15 +40,18 @@ export function UnwrapEditor(props: Props) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const href = useMemo(
-    () => image.toDataURL(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [image, version],
-  );
+  // The rendered canvas is shown as it is, inside a foreignObject: encoding it as a PNG data URL
+  // on every change cost seconds per mode switch with reference images (Phase 4 acceptance).
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    host.replaceChildren(image);
+  }, [image, version]);
 
   const resolved = useMemo(
-    () => layout.elements.map((el) => resolveElement(el, profile, existing)),
-    [layout, profile, existing],
+    () => layout.elements.map((el) => resolveElement(el, profile, existing, aspects?.get(el.id))),
+    [layout, profile, existing, aspects],
   );
 
   /** Screen (SVG) position of a skin point. */
@@ -146,7 +152,9 @@ export function UnwrapEditor(props: Props) {
         role="application"
         aria-label="Unwrap editor"
       >
-        <image href={href} x={-half} y={0} width={2 * half} height={L} preserveAspectRatio="none" />
+        <foreignObject x={-half} y={0} width={2 * half} height={L} className="unwrap-image-host">
+          <div ref={hostRef} />
+        </foreignObject>
         <text className="edge-label" x={-half + 0.3} y={-0.3}>
           {centerU === 0 ? "lateral ←" : "medial ←"}
         </text>

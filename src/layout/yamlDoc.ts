@@ -17,7 +17,7 @@ export function parseLayout(text: string): ParseResult {
 }
 
 /** Keys whose object values are written in flow style ({ u: 0.5, v: 0.1 }), as in the brief. */
-const FLOW_KEYS = new Set(["position", "size_cm", "region", "points"]);
+const FLOW_KEYS = new Set(["position", "size_cm", "region", "points", "crop"]);
 
 function valueNode(doc: Document, key: string, value: unknown) {
   const node = doc.createNode(value);

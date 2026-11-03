@@ -1,28 +1,29 @@
 # Left-arm measurements (PROJECT_BRIEF.md §13.1). Numbers only: photos stay on Seafile.
 # All values in cm, arm relaxed and straight; how to measure: docs/measuring.md.
 # null = not measured yet; the viewer uses flagged placeholders.
+# Measured by Jan on 2026-11-03 (entry sheet in docs/measuring.md).
 arm: left
 units: cm
 lengths:
-  shoulder_to_elbow: null      # acromion (shoulder point) to elbow tip
-  elbow_to_wrist: null         # elbow tip to wrist crease
+  shoulder_to_elbow: 44        # acromion (shoulder point) to elbow tip
+  elbow_to_wrist: 30           # elbow tip to wrist crease
 circumferences:
-  wrist: null
-  forearm_mid: null
-  forearm_max: null            # thickest point just below the elbow
-  elbow: null
-  above_elbow: null
-  biceps_mid: null             # relaxed
-  armpit_level: null
-  shoulder: null               # around the deltoid, as far as measurable
+  wrist: 19
+  forearm_mid: 25
+  forearm_max: 29              # thickest point just below the elbow
+  elbow: 29
+  above_elbow: 33
+  biceps_mid: 36               # relaxed
+  armpit_level: 38
+  shoulder: 40                 # around the deltoid, as far as measurable. Estimated by Claude: the measured 50 was likely taken around the torso (Jan, 2026-11-03)
 positions:                     # where the circumferences without a fixed landmark were taken (docs/measuring.md)
-  forearm_max_below_elbow: null      # elbow tip down to the forearm_max tape line
-  armpit_level_below_shoulder: null  # shoulder point down to the armpit_level tape line
-  shoulder_below_shoulder: null      # shoulder point down to the shoulder tape line
+  forearm_max_below_elbow: 10        # elbow tip down to the forearm_max tape line
+  armpit_level_below_shoulder: 17    # shoulder point down to the armpit_level tape line
+  shoulder_below_shoulder: 10        # shoulder point down to the shoulder tape line
 existing:
   anubis:
-    distance_from_wrist: null  # wrist crease to the lowest point of the tattoo
-    height: null
-    width: null
+    distance_from_wrist: 2     # wrist crease to the lowest point of the tattoo
+    height: 26
+    width: 12
     side: inner
 notes: ""
