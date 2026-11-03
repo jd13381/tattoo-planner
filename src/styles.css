@@ -286,3 +286,207 @@ legend {
 .field.edited .tag {
   color: var(--accent);
 }
+
+/* Layout editor (Phase 3) */
+.page {
+  max-width: 1600px;
+}
+
+.layout-toolbar {
+  margin-top: 16px;
+  align-items: center;
+}
+
+.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+select,
+textarea,
+.props input {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 0;
+}
+
+.segmented button {
+  border-radius: 0;
+}
+
+.segmented button:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.segmented button:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) 360px;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+@media (max-width: 1200px) {
+  .layout-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .side-col {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .layout-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.editor-col,
+.viewer-col,
+.side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.unwrap-editor svg {
+  width: 100%;
+  height: min(78vh, 820px);
+  min-height: 420px;
+  background: #2a2725;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.unwrap-editor .shape {
+  cursor: move;
+}
+
+.unwrap-editor .shape rect,
+.unwrap-editor .shape polygon {
+  fill: transparent;
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 0.08;
+  stroke-dasharray: 0.3 0.2;
+}
+
+.unwrap-editor .shape .line-hit {
+  fill: none;
+  stroke: transparent;
+}
+
+.unwrap-editor .shape.selected rect,
+.unwrap-editor .shape.selected polygon {
+  stroke: #ffc400;
+  stroke-width: 0.15;
+  stroke-dasharray: none;
+}
+
+.unwrap-editor .shape.locked {
+  cursor: not-allowed;
+}
+
+.unwrap-editor .shape-label,
+.unwrap-editor .edge-label {
+  font-size: 0.85px;
+  fill: #fff;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 0.15px;
+  pointer-events: none;
+}
+
+.unwrap-editor .edge-label {
+  fill: #cfc8c0;
+}
+
+.unwrap-editor .handles line {
+  stroke: #ffc400;
+  stroke-width: 0.08;
+}
+
+.unwrap-editor .handle {
+  fill: #ffc400;
+  stroke: #1d1b19;
+  stroke-width: 0.08;
+}
+
+.unwrap-editor .handle.scale {
+  cursor: nwse-resize;
+}
+
+.unwrap-editor .handle.rotate {
+  cursor: crosshair;
+}
+
+.props {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.props label {
+  display: grid;
+  grid-template-columns: 7em 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.props label.check {
+  display: flex;
+}
+
+.props input,
+.props textarea {
+  width: 100%;
+  color: var(--text);
+}
+
+.element-panel .toolbar {
+  margin-top: 8px;
+}
+
+.metrics table {
+  font-size: 0.78rem;
+}
+
+.metrics th,
+.metrics td {
+  padding: 4px 4px;
+}
+
+.metrics tr.total td {
+  font-weight: 600;
+}
+
+.props input[type="checkbox"] {
+  width: auto;
+}
+
+.metrics table {
+  table-layout: fixed;
+}
+
+.metrics th:first-child {
+  width: 34%;
+}

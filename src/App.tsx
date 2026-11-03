@@ -1,16 +1,20 @@
 import { useState } from "react";
 import { DataFolderPage } from "./data/DataFolderPage.tsx";
+import { LayoutPage } from "./editor/LayoutPage.tsx";
 import { ArmPage } from "./viewer/ArmPage.tsx";
+import { useArm } from "./viewer/useArm.ts";
 
 const TABS = [
-  { id: "arm", label: "Arm" },
+  { id: "layout", label: "Layout" },
+  { id: "arm", label: "Arm & measurements" },
   { id: "data", label: "Data folder" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
 export function App() {
-  const [tab, setTab] = useState<TabId>("arm");
+  const [tab, setTab] = useState<TabId>("layout");
+  const arm = useArm();
   return (
     <main className="page">
       <header className="page-header">
@@ -29,7 +33,9 @@ export function App() {
           ))}
         </nav>
       </header>
-      {tab === "arm" ? <ArmPage /> : <DataFolderPage />}
+      {tab === "layout" && <LayoutPage arm={arm} />}
+      {tab === "arm" && <ArmPage arm={arm} />}
+      {tab === "data" && <DataFolderPage />}
     </main>
   );
 }
