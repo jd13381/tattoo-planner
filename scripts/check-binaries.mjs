@@ -7,7 +7,19 @@ import { pathToFileURL } from "node:url";
 
 /** File extensions that never go into git, compared case-insensitively. */
 export const BLOCKED_EXTENSIONS = [
-  "png", "jpg", "jpeg", "webp", "heic", "heif", "gif", "avif", "tif", "tiff", "bmp", "psd", "pdf",
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "heic",
+  "heif",
+  "gif",
+  "avif",
+  "tif",
+  "tiff",
+  "bmp",
+  "psd",
+  "pdf",
 ];
 
 /**
@@ -27,9 +39,7 @@ export function rejectReason(file) {
 }
 
 function listFiles(all) {
-  const args = all
-    ? ["ls-files", "-z"]
-    : ["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"];
+  const args = all ? ["ls-files", "-z"] : ["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"];
   return execFileSync("git", args, { encoding: "utf8" }).split("\0").filter(Boolean);
 }
 
