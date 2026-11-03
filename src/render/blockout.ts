@@ -47,7 +47,7 @@ export function blockoutPixels(cls: Classification, selected?: number): Uint8Cla
   return out;
 }
 
-function isEdge(
+export function isEdge(
   cells: Uint8Array,
   w: number,
   h: number,
@@ -64,8 +64,12 @@ function isEdge(
   ] as const) {
     const ii = i + di;
     const jj = j + dj;
-    if (ii < 0 || jj < 0 || ii >= w || jj >= h) return true;
-    if (cells[jj * w + ii] !== v) return true;
+    // Beyond the skin's row (the unwrap's curved edge) is the inner seam, not the element's edge: the
+    // element goes on across the seam, so no outline there (it showed as a line down Anubis in 3D).
+    if (ii < 0 || ii >= w) continue;
+    if (jj < 0 || jj >= h) return true;
+    const n = cells[jj * w + ii]!;
+    if (n !== v && n !== OUTSIDE) return true;
   }
   return false;
 }
