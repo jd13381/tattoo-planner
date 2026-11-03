@@ -76,6 +76,20 @@ Geometry and unwrap conventions: `docs/adr/0002-arm-geometry-and-unwrap.md`.
 
 Bands fit a whole number of repeats around the arm, so they meet at the inner seam. Fillers are seeded from the element `id`: the same layout always looks the same. Any other name draws a faint diagonal placeholder hatch.
 
+### Ideas PDF and assets
+
+```sh
+npm run ingest       # split ideas.pdf into images and page text, catalogue them
+npm run assets:scan  # catalogue new images in cards/, refs/, existing/, arm-photos/
+```
+
+Both read `TATTOO_DATA_DIR` (shell or `.env`) and write only into the data folder:
+
+- `ingest` writes `ideas/page-NN-img-MM.png|jpg` (JPEGs stay JPEG, everything else becomes PNG) and `ideas/page-NN.txt`, and adds an entry per image to `manifest.yaml`: id `ideas-pNN-MM`, kind `idea`, the page heading in `source` (and as tags), the caption next to the image in `notes`, `page` and `bbox` (PDF points, origin top-left) to trace it back.
+- `assets:scan` adds an entry for every image no entry references yet, with an id from its path (`cards/rhonas.jpg` → `cards-rhonas`) and the kind from its folder (`card-art`, `reference`, `existing`, `arm-photo`). A text file with the same name next to an image (`refs/medusa.txt`) becomes its `source`.
+
+Running them again is safe: they only add entries for new files and refresh `page`/`bbox` of extracted images. Your edits to `manifest.yaml` (ids, notes, tags, comments, order) are kept; a manifest with errors is never overwritten. If you change `ideas.pdf` so that pages or images move, check the manifest afterwards: ids follow page and position. Details: `docs/adr/0003-ideas-pdf-ingestion.md`.
+
 ## Configuration
 
 - `config/measurements.yaml`: left-arm measurements in cm (PROJECT_BRIEF.md §13.1). `null` means not measured yet. How to measure and photograph the arm: `docs/measuring.md`.

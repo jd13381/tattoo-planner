@@ -11,6 +11,11 @@
     "src/**/server",
     "src/data/types.ts",
     "src/config",
+    "src/assets/manifest.ts",
+    "src/assets/manifestDoc.ts",
+    "src/assets/ideasLayout.ts",
+    "src/assets/scan.ts",
+    "scripts/**/*.ts",
     "tests"
   ]
 }

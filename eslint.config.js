@@ -18,7 +18,7 @@ export default tseslint.config(
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.strict],
-    files: ["src/**/server/**/*.ts", "tests/**/*.ts", "*.config.ts"],
+    files: ["src/**/server/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts", "*.config.ts"],
     languageOptions: { globals: globals.node },
     rules: { "@typescript-eslint/no-non-null-assertion": "off" },
   },
