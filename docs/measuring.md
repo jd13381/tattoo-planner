@@ -99,7 +99,7 @@ Gemessen am: \_\_\_\_\_\_\_\_\_\_
 | `above_elbow`  | 5 cm über der Ellbogenspitze               |            |            | 33        |
 | `biceps_mid`   | Mitte Oberarm, entspannt                   |            |            | 36        |
 | `armpit_level` | Höhe Achselfalte                           |            |            | 38        |
-| `shoulder`     | Deltamuskel, so hoch wie waagrecht möglich |            |            | 50        |
+| `shoulder`     | Deltamuskel, so hoch wie waagrecht möglich | 50         |            | 40        |
 
 ### Positionen
 
@@ -131,3 +131,5 @@ Abhaken, was im Datenordner liegt. Wie die Fotos aufgenommen werden, steht oben 
 ### Notizen
 
 <!-- Alles, was beim Messen auffällt (z. B. Ellbogen nicht ganz gestreckt, Band verrutscht). -->
+
+- `shoulder`: gemessen 50 cm, vermutlich um den Oberkörper statt nur um den Arm. Ersetzt durch den Schätzwert 40 cm (etwas mehr als `armpit_level`), bis neu gemessen wird.
