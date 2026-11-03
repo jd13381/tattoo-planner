@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { PLACEHOLDERS } from "../src/arm/inputs.ts";
+import { measuredValues, PLACEHOLDERS, resolveInputs } from "../src/arm/inputs.ts";
+import { parseMeasurements } from "../src/config/loadMeasurements.ts";
 import { buildProfile } from "../src/arm/profile.ts";
 import {
   croppedAspect,
@@ -131,5 +132,24 @@ describe("image fit", () => {
     // classify passes the aspects through, so metrics see the same box.
     const cls = classify({ name: "t", elements: [el] }, profile, 2, undefined, 0, aspects);
     expect(cls.resolved[0]!.shape).toMatchObject({ w: 10 });
+  });
+});
+
+describe("Anubis in v1-baseline", () => {
+  it("sits with its lowest point at the measured distance from the wrist", () => {
+    const m = parseMeasurements(
+      readFileSync(path.join(import.meta.dirname, "..", "config", "measurements.yaml"), "utf8"),
+    );
+    if (!m.ok) throw new Error(m.error);
+    const arm = buildProfile(resolveInputs(measuredValues(m.measurements)).inputs);
+    const r = parseLayout(baselineText);
+    if (!r.ok) throw new Error(r.error);
+    const anubis = r.layout.elements.find((e) => e.id === "anubis")!;
+    const a = m.measurements.existing.anubis;
+    const { shape } = resolveElement(anubis, arm, { height: a.height, width: a.width });
+    if (shape.kind !== "box") throw new Error("box expected");
+    expect(shape.rot).toBe(0);
+    expect(shape.cy - shape.h / 2).toBeCloseTo(a.distance_from_wrist!, 1);
+    expect(anubis).toMatchObject({ image_rotation_deg: 90, crop: { w: expect.any(Number) } });
   });
 });
