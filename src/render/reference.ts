@@ -331,13 +331,11 @@ function drawPattern(
   let w = W;
   let ringCm: number | undefined;
   if (shape.kind === "band") {
-    // Bands start at the seam so a whole number of repeats can meet itself there.
+    // Exactly one ring wide, starting at the image edge (the seam in the outer-centred texture), so the
+    // painter's whole number of repeats meets itself there.
     ringCm = profile.circumferenceAt(shape.y);
-    let widest = ringCm;
-    for (const y of [shape.y - shape.half, shape.y + shape.half])
-      widest = Math.max(widest, profile.circumferenceAt(Math.min(profile.length, Math.max(0, y))));
-    x = W / 2 - (widest * ppc) / 2;
-    w = widest * ppc;
+    x = W / 2 - (ringCm * ppc) / 2;
+    w = ringCm * ppc;
   }
   lc.save();
   getPattern(pattern)({
