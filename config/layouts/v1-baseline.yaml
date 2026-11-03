@@ -25,6 +25,9 @@ elements:
     size_cm: { h: 22 }
     rotation_deg: 0
     style: hatching
+    # Cut-out fitted by Claude: Rhonas with hood and staff out of the card art, without the temple on
+    # the sides. The width follows from it (about 0.9 × height). Adjust or remove freely.
+    crop: { x: 0.22, y: 0.112, w: 0.55, h: 0.443 }
 
   - id: skull
     type: figure

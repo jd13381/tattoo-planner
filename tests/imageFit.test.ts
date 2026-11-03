@@ -34,13 +34,13 @@ const fig = (over: Partial<FigureLike> = {}): FigureLike => ({
 describe("reference fields in the layout schema", () => {
   it("accepts crop, quarter turns, flip, feather and filter", () => {
     const text = baselineText.replace(
-      "    style: hatching\n",
-      "    style: hatching\n    crop: { x: 0.1, y: 0.2, w: 0.5, h: 0.6 }\n    image_rotation_deg: 90\n    flip: true\n    feather_cm: 0.5\n    filter: hatching\n",
+      "    red_accents: true\n",
+      "    red_accents: true\n    crop: { x: 0.1, y: 0.2, w: 0.5, h: 0.6 }\n    image_rotation_deg: 90\n    flip: true\n    feather_cm: 0.5\n    filter: hatching\n",
     );
     const r = parseLayout(text);
     expect(r.ok).toBe(true);
     if (r.ok)
-      expect(r.layout.elements.find((e) => e.id === "rhonas")).toMatchObject({
+      expect(r.layout.elements.find((e) => e.id === "medusa")).toMatchObject({
         crop: { x: 0.1, y: 0.2, w: 0.5, h: 0.6 },
         image_rotation_deg: 90,
         filter: "hatching",
@@ -48,7 +48,8 @@ describe("reference fields in the layout schema", () => {
   });
 
   it("rejects crops outside the image, odd turns and unknown filters", () => {
-    const put = (line: string) => parseLayout(baselineText.replace("    style: hatching\n", `    ${line}\n`));
+    const put = (line: string) =>
+      parseLayout(baselineText.replace("    red_accents: true\n", `    ${line}\n`));
     expect(put("crop: { x: 0.6, y: 0, w: 0.5, h: 1 }")).toMatchObject({ ok: false });
     expect(put("crop: { x: 0, y: 0, w: 0, h: 1 }")).toMatchObject({ ok: false });
     expect(put("image_rotation_deg: 45")).toMatchObject({ ok: false });
