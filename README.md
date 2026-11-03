@@ -12,9 +12,11 @@ A local tool for planning a tattoo sleeve: a parametric 3D model of the arm, a 2
 | 1 Stack check and scaffold          | done    |
 | 2 Parametric arm and viewer         | done    |
 | 3 Unwrap editor and blockout mode   | done    |
-| 4 Assets, ideas PDF, reference mode | review  |
-| 5 Export for the artist             | planned |
+| 4 Assets, ideas PDF, reference mode | done    |
+| 5 Export for the artist             | next    |
 | 6 Iteration and polish              | planned |
+
+Decisions Claude made without Jan are listed in `docs/claude-decisions.md` for review.
 
 ## Data stays out of git
 
