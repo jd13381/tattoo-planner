@@ -41,3 +41,19 @@ Written into `manifest.yaml` on Seafile (ids renamed, so `v1-baseline.yaml` stay
 - `pegasus-ref-01` has no image yet: ideas.pdf contains no Pegasus. Reference mode shows a labelled placeholder.
 - `anubis-photo` = `arm-photos/anubis1_nr.JPG` (palm up, no tape measure).
 - Pages 7–11 recatalogued as `card-art` with the card names as tags (`rhonas`, `hazoret`, `athreos`, `polukranos`, `mtg`, `egyptian`/`greek`).
+
+### Phase 4: reference mode and asset browser
+
+- **New optional layout fields** for figures and the existing tattoo: `crop: { x, y, w, h }` (0–1 of the stored image; overrides the asset's crop), `image_rotation_deg` (0/90/180/270, clockwise, turns the photo; fine tilt stays `rotation_deg`), `flip` (mirror), `feather_cm` (soft edge, default 1 cm), `filter` (`none`, `grayscale`, `hatching`).
+- **Filter default:** grayscale for elements centred below the elbow (the forearm's B&G look, §4), none above. Hatching is a 45° line screen, a rough stand-in for the engraving look.
+- **Figure width:** if `w` is not set, the box takes the cut-out's proportions (0.55 × height until the image loads). If both are set, the image is fitted inside the box without distortion.
+- **Image look:** images are multiplied onto the skin colour; grayscale and hatching brighten the photo so photographed skin disappears.
+- **Red lines** are always drawn on top of everything, regardless of layer order (§4.3), at 90 % opacity.
+- **Missing images** (e.g. `pegasus-ref-01`) render as a labelled placeholder box.
+- **Asset server:** serves only files named in the manifest, image types only, never outside the data folder, local dev server only. A broken manifest entry is skipped with a warning; a YAML syntax error stops the listing.
+
+### Phase 4: placements in v1-baseline (provisional, yours to change)
+
+- **Anubis:** cut out of `anubis1_nr.JPG` (crop and quarter turn fitted by Claude), 26 × 12 cm from your measurements, lowest point 2 cm above the wrist crease (v moved from 0.12 to 0.203). The photo is fitted, not stretched, so it is drawn about 11 cm wide instead of 12; stretching it would undo the arm curvature in the photo.
+- **Rhonas:** cut to the figure with hood and staff (crop fitted by Claude); without a crop the whole landscape card would make the box about 30 cm wide. The card background stays visible (background removal is a later optional step).
+- **Overlaps:** Anubis currently overlaps `scales-forearm` and the edge of Rhonas. Not changed: placement is your call.
