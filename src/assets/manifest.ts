@@ -22,6 +22,11 @@ export const assetSchema = z.strictObject({
   /** Path relative to the data folder, forward slashes. */
   file: z.string().min(1),
   kind: z.string().min(1),
+  /** Id of the original this image was edited from (kept edits, ADR 0007). */
+  derived_from: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]*$/)
+    .optional(),
   source: z.string().optional(),
   notes: z.string().optional(),
   tags: z.array(z.string()).default([]),

@@ -59,7 +59,7 @@ export function MeasurementsPanel({ fileValues, overrides, onChange, onReset, wa
                 <input
                   type="number"
                   min={0}
-                  step={0.5}
+                  step={0.1}
                   value={value}
                   onChange={(e) => {
                     const n = e.target.valueAsNumber;

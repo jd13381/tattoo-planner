@@ -3,6 +3,7 @@ import { ComparePage } from "./compare/ComparePage.tsx";
 import { DataFolderPage } from "./data/DataFolderPage.tsx";
 import { DATA_DIR_VAR } from "./data/types.ts";
 import { useDataFolderStatus, type DataFolderStatus } from "./data/useDataFolderStatus.ts";
+import { ImageEditPage } from "./edits/ImageEditPage.tsx";
 import { LayoutPage } from "./editor/LayoutPage.tsx";
 import type { WorkingLayout } from "./layout/useLayouts.ts";
 import { ProjectionPage } from "./projection/ProjectionPage.tsx";
@@ -13,6 +14,7 @@ const TABS = [
   { id: "layout", label: "Layout" },
   { id: "compare", label: "Compare" },
   { id: "projection", label: "Projection" },
+  { id: "images", label: "Edit images" },
   { id: "arm", label: "Arm & measurements" },
   { id: "data", label: "Data folder" },
 ] as const;
@@ -117,6 +119,9 @@ export function App() {
         </TabPanel>
         <TabPanel id="projection" open={tab === "projection"}>
           <ProjectionPage arm={arm} pose={pose} onDirty={setProjectionDirty} />
+        </TabPanel>
+        <TabPanel id="images" open={tab === "images"}>
+          <ImageEditPage />
         </TabPanel>
         <TabPanel id="arm" open={tab === "arm"}>
           <ArmPage arm={arm} pose={pose} />
