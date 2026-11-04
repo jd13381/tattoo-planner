@@ -73,6 +73,13 @@ export function useAssetImages(): { images: ReadonlyMap<string, AssetImage>; ver
   return { images, version };
 }
 
+/** Fired on window when the manifest changed in another part of the page (e.g. a kept image edit). */
+export const MANIFEST_CHANGED_EVENT = "tattoo-planner:manifest-changed";
+
+export function announceManifestChanged(): void {
+  window.dispatchEvent(new Event(MANIFEST_CHANGED_EVENT));
+}
+
 /** The manifest listing; `reload` re-reads the manifest and drops cached images. */
 export function useAssetListing(): { listing: AssetListing | null; reload: () => void } {
   const [listing, setListing] = useState<AssetListing | null>(null);
@@ -100,6 +107,12 @@ export function useAssetListing(): { listing: AssetListing | null; reload: () =>
   const reload = useCallback(() => {
     clearImages();
     setRequest((n) => n + 1);
+  }, []);
+  useEffect(() => {
+    // New entries only: cached images stay valid, so just re-read the list.
+    const onChange = () => setRequest((n) => n + 1);
+    window.addEventListener(MANIFEST_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(MANIFEST_CHANGED_EVENT, onChange);
   }, []);
   return { listing, reload };
 }

@@ -29,7 +29,18 @@ assets: []
 `;
 
 /** Key order of new entries; matches the schema and the example in the brief. */
-const KEY_ORDER: (keyof Asset)[] = ["id", "file", "kind", "source", "notes", "tags", "page", "bbox", "crop"];
+const KEY_ORDER: (keyof Asset)[] = [
+  "id",
+  "file",
+  "kind",
+  "derived_from",
+  "source",
+  "notes",
+  "tags",
+  "page",
+  "bbox",
+  "crop",
+];
 const FLOW_KEYS = new Set<string>(["tags", "bbox", "crop"]);
 
 /** Normalised form of a data-folder path for comparisons (macOS file systems ignore case). */

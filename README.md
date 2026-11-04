@@ -6,15 +6,15 @@ A local tool for planning a tattoo sleeve: a parametric 3D model of the arm, a 2
 
 ## Status
 
-| Phase                               | State                                                                                            |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 0 Bootstrap                         | done                                                                                             |
-| 1 Stack check and scaffold          | done                                                                                             |
-| 2 Parametric arm and viewer         | done                                                                                             |
-| 3 Unwrap editor and blockout mode   | done                                                                                             |
-| 4 Assets, ideas PDF, reference mode | done                                                                                             |
-| 5 Export for the artist             | done                                                                                             |
-| 6 Iteration and polish              | in progress: variant comparison, elbow-bent pose, red-line brush and Anubis from all photos done |
+| Phase                               | State                                                                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 0 Bootstrap                         | done                                                                                                          |
+| 1 Stack check and scaffold          | done                                                                                                          |
+| 2 Parametric arm and viewer         | done                                                                                                          |
+| 3 Unwrap editor and blockout mode   | done                                                                                                          |
+| 4 Assets, ideas PDF, reference mode | done                                                                                                          |
+| 5 Export for the artist             | done                                                                                                          |
+| 6 Iteration and polish              | in progress: variant comparison, elbow-bent pose, red-line brush, Anubis from all photos and image edits done |
 
 Decisions Claude made without Jan are listed in `docs/claude-decisions.md` for review.
 
@@ -33,6 +33,7 @@ Suggested layout of the data folder (PROJECT_BRIEF.md §12.3):
 ├── cards/           MTG card art
 ├── existing/        photos of existing tattoos
 ├── arm-photos/      left arm from four sides, with tape measure
+├── edits/           reference images edited in the planner (Edit images tab)
 └── exports/         generated PNG / PDF handouts (Phase 5)
 ```
 
@@ -69,6 +70,7 @@ npm run dev       # http://127.0.0.1:4320 (local only)
 - **Arm & measurements**: the parametric left arm built from `config/measurements.yaml`, with a 1 cm grid on the skin (bold every 5 cm, red centre lines for outer, lateral, inner and medial). Buttons switch between the four fixed views (front = inner side, back = outer side, medial, lateral); drag to rotate, scroll to zoom.
 - **Elbow pose** (every 3D view: Arm, Layout, Compare): **Straight**, **Bent 90°** or the slider (0–120°) flexes the elbow; the forearm swings towards the palm side, the skin bends over about ±6 cm around the elbow tip, stretching a little on the outer side and creasing on the inner side. The texture and the unwrap stay the same, so it shows how the elbow and skull area deform. The pose is shared by all tabs; the medial and lateral views show the bend best. Exports still show the straight arm. Model and limits: `docs/adr/0005-elbow-bend.md`. **Screenshot** saves a PNG to the browser's download folder. The panel shows every measurement; values not measured yet use flagged placeholders, and typing a value previews it immediately (edits are not saved: write final numbers into the YAML, which reloads the page).
 - **Projection**: the existing Anubis built from all five photos (`anubis1_nr.JPG`, `anubis_extra1–3.JPG`, `anubis_extra4.png`) and wrapped round the arm where they show it (details below).
+- **Edit images**: touch up a reference image without leaving the planner. Pick an image, click a preset (remove background, keep main figure only, remove text/watermark, stronger contrast, black and grey, trim to motif, mirror) or describe the change, and **Edit with Claude**: Claude Code runs headless on this Mac (`claude -p`) on a copy of the image, with local tools only (Pillow, ImageMagick, `rembg`), and shows its progress (usually under a minute, up to a few). Before and after appear side by side on a checkerboard. **Keep as new image** writes `edits/<id>-edit-N.png` into the data folder and adds a manifest entry (`derived_from: <id>`, tag `edited`, the instructions in `notes`); assign it to a figure in the Assets panel. **Edit further** works on the result, **Discard** throws it away. The original is never changed. Needs Claude Code installed and logged in; Claude sees the image (it is sent to Anthropic as with any image you show Claude Code), nothing is uploaded elsewhere. Optional `.env` settings: `TATTOO_CLAUDE_BIN`, `TATTOO_EDIT_MODEL`, `TATTOO_EDIT_CACHE`. Design and limits: `docs/adr/0007-image-edits.md`.
 - **Data folder**: lists the files found in `TATTOO_DATA_DIR` and checks the expected entries (`ideas.pdf`, `refs/`, …). If the variable is missing or wrong, it says so.
 
 Geometry and unwrap conventions: `docs/adr/0002-arm-geometry-and-unwrap.md`.
@@ -175,4 +177,4 @@ Size: when `size_cm.w` is not set, the box takes the proportions of the upright 
 | `npm run build`     | Static production bundle (without data-folder access)      |
 | `npm run check`     | lint, typecheck, tests and the binary guard over all files |
 
-Layout: `src/arm/` builds the profile, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures (blockout, reference, patterns), `src/layout/` holds the layout schema, shapes and image-fit rules, `src/assets/` the manifest schema and the asset browser, `src/viewer/` holds the 3D view and panels, `src/data/` resolves and lists the data folder and serves assets (`server/` runs in the dev server only), `src/export/` builds the handout and the PNGs (`server/` writes them into the data folder), `src/projection/` projects photos onto the skin (model, patch, calibration schema and the Projection tab), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
+Layout: `src/arm/` builds the profile, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures (blockout, reference, patterns), `src/layout/` holds the layout schema, shapes and image-fit rules, `src/assets/` the manifest schema and the asset browser, `src/viewer/` holds the 3D view and panels, `src/data/` resolves and lists the data folder and serves assets (`server/` runs in the dev server only), `src/export/` builds the handout and the PNGs (`server/` writes them into the data folder), `src/projection/` projects photos onto the skin (model, patch, calibration schema and the Projection tab), `src/edits/` edits reference images with `claude -p` (prompt and rules, the Edit images tab, `server/` runs the jobs), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.

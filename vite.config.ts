@@ -6,6 +6,7 @@ import { resolveDataDir } from "./src/data/server/dataDir.ts";
 import { layoutsPlugin } from "./src/data/server/layoutsApi.ts";
 import { projectionsPlugin } from "./src/data/server/projectionsApi.ts";
 import { dataFolderPlugin } from "./src/data/server/vitePlugin.ts";
+import { editsPlugin } from "./src/edits/server/editsApi.ts";
 import { exportsPlugin } from "./src/export/server/exportsApi.ts";
 
 export default defineConfig(({ mode }) => {
@@ -20,6 +21,7 @@ export default defineConfig(({ mode }) => {
       dataFolderPlugin(dataDir),
       assetsPlugin(dataDir),
       exportsPlugin(dataDir),
+      editsPlugin(dataDir, env),
       layoutsPlugin(path.join(root, "config", "layouts")),
       projectionsPlugin(path.join(root, "config", "projections")),
     ],

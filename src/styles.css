@@ -843,3 +843,132 @@ button.link {
 .number-field input[type="number"] {
   width: 6em;
 }
+
+/* Edit images tab (src/edits/ImageEditPage.tsx) */
+.edit-page {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 800px) {
+  .edit-page {
+    grid-template-columns: 1fr;
+  }
+}
+.edit-picker input[type="search"] {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.edit-picker .asset-grid {
+  max-height: 75vh;
+  overflow-y: auto;
+}
+.edit-compose {
+  display: grid;
+  grid-template-columns: minmax(160px, 260px) 1fr;
+  gap: 16px;
+}
+@media (max-width: 600px) {
+  .edit-compose {
+    grid-template-columns: 1fr;
+  }
+}
+.edit-page figure {
+  margin: 0;
+}
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.edit-form textarea {
+  width: 100%;
+  font: inherit;
+  resize: vertical;
+}
+.edit-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.edit-presets .chip {
+  font-size: 0.85em;
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.checker {
+  /* Checkerboard behind images so transparency is visible. */
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #ddd 25%, transparent 25%), linear-gradient(-45deg, #ddd 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ddd 75%), linear-gradient(-45deg, transparent 75%, #ddd 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+}
+.checker img {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+}
+.edit-results-head {
+  margin: 20px 0 8px;
+}
+.edit-jobs {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.edit-job-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.edit-job.failed .edit-job-head strong {
+  color: var(--accent);
+}
+.edit-job.kept .edit-job-head strong {
+  color: var(--ok);
+}
+.edit-instructions {
+  margin: 4px 0 8px;
+  padding-left: 1.4em;
+}
+.edit-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 8px 0;
+}
+.edit-log ol {
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 4px 0;
+  padding-left: 1.4em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
+.edit-page button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.edit-page button.primary:disabled {
+  opacity: 0.5;
+}
+.edit-picker .asset-card img {
+  background: #fff;
+}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ComparePage } from "./compare/ComparePage.tsx";
 import { DataFolderPage } from "./data/DataFolderPage.tsx";
+import { ImageEditPage } from "./edits/ImageEditPage.tsx";
 import { LayoutPage } from "./editor/LayoutPage.tsx";
 import type { WorkingLayout } from "./layout/useLayouts.ts";
 import { ProjectionPage } from "./projection/ProjectionPage.tsx";
@@ -11,6 +12,7 @@ const TABS = [
   { id: "layout", label: "Layout" },
   { id: "compare", label: "Compare" },
   { id: "projection", label: "Projection" },
+  { id: "images", label: "Edit images" },
   { id: "arm", label: "Arm & measurements" },
   { id: "data", label: "Data folder" },
 ] as const;
@@ -48,6 +50,7 @@ export function App() {
       </div>
       {tab === "compare" && <ComparePage arm={arm} pose={pose} working={working} />}
       {tab === "projection" && <ProjectionPage arm={arm} pose={pose} />}
+      {tab === "images" && <ImageEditPage />}
       {tab === "arm" && <ArmPage arm={arm} pose={pose} />}
       {tab === "data" && <DataFolderPage />}
     </main>
