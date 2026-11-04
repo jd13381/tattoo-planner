@@ -1,20 +1,7 @@
-// Framework-free view rules for the Image studio tab: which results form the current round, what the
-// run button says, what a run costs and how large the artboard of a new image is. The page
+// Framework-free view rules for the Image studio tab: what the run button says, what a run costs and
+// how large the artboard of a new image is. Session rules (versions, picks) live in session.ts. The page
 // (ImageEditPage.tsx) only renders these.
 import type { CreateSize, EditEngine, EditJob } from "./types.ts";
-
-/** States that still need a look or a decision; the rest are history. */
-const OPEN_STATES: ReadonlySet<EditJob["state"]> = new Set(["running", "done", "failed"]);
-
-/**
- * Splits results (newest first, as the page lists them) into the open round, oldest first so that
- * variants read 1, 2, 3 from the left, and the earlier results (kept, discarded, stopped), newest first.
- */
-export function splitRound(jobsNewestFirst: readonly EditJob[]): { open: EditJob[]; earlier: EditJob[] } {
-  const open = jobsNewestFirst.filter((j) => OPEN_STATES.has(j.state)).toReversed();
-  const earlier = jobsNewestFirst.filter((j) => !OPEN_STATES.has(j.state));
-  return { open, earlier };
-}
 
 /** Whether a job has a result image to show. */
 export function hasResult(job: EditJob): boolean {
@@ -37,21 +24,22 @@ export function formatUsd(usd: number): string {
 }
 
 export type RunContext = {
-  /** Mode "create" without a result to edit further. */
+  /** A new image whose session has no version yet: the run draws it from the description. */
   creatingNew: boolean;
-  /** Editing a result further. */
-  refining: boolean;
+  /** Index of the version the run starts from (the session's last version). */
+  version: number;
   engine: EditEngine;
   /** Jobs one click starts. */
   count: number;
 };
 
-/** Text of the run button. */
+/** Text of the run button; it names the version the run starts from. */
 export function runLabel(c: RunContext): string {
   if (c.creatingNew) return c.count > 1 ? `Create ${c.count} variants` : "Create with GPT Image";
-  if (c.refining) return "Edit the result";
-  if (c.engine === "openai") return c.count > 1 ? `Make ${c.count} variants` : "Edit with GPT Image";
-  return "Edit with Claude";
+  const v = `v${c.version}`;
+  if (c.engine === "openai")
+    return c.count > 1 ? `Make ${c.count} variants of ${v}` : `Edit ${v} with GPT Image`;
+  return `Edit ${v} with Claude`;
 }
 
 /** The time and cost line under the run button. */

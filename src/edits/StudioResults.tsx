@@ -1,6 +1,8 @@
-// Result views of the Image studio (ImageEditPage.tsx): a result tile for the variants grid and the
-// focus view with before and after side by side. UI only; the rules live in studio.ts.
+// Result views of the Image studio (ImageEditPage.tsx): the version strip of a session, a result tile
+// for the attempts grid and the focus view with before and after side by side. UI only; the rules
+// live in session.ts and studio.ts.
 import { assetImageUrl } from "../assets/types.ts";
+import { versionLabel } from "./session.ts";
 import { elapsedLabel, formatUsd, hasInput, hasResult } from "./studio.ts";
 import { jobUrl, type EditJob } from "./types.ts";
 
@@ -10,10 +12,10 @@ export function resultUrl(job: EditJob): string {
 
 export const STATE_LABEL: Record<EditJob["state"], string> = {
   running: "Working…",
-  done: "Ready to review",
+  done: "Ready",
   failed: "Failed",
   cancelled: "Stopped",
-  kept: "Kept",
+  kept: "Saved",
   discarded: "Discarded",
 };
 
@@ -26,12 +28,13 @@ const STATE_TONE: Record<EditJob["state"], string> = {
   discarded: "muted",
 };
 
-export type JobActions = {
+/** What a result tile can do: stop a running edit, or make the result the next version. */
+export type AttemptActions = {
   busy: boolean;
-  onKeep: () => void;
-  onDiscard: () => void;
+  /** Set when the result is already a version (its index): no pick button then. */
+  versionIndex: number | null;
+  onPick: () => void;
   onCancel: () => void;
-  onRefine: () => void;
 };
 
 function JobMeta({ job }: { job: EditJob }) {
@@ -43,29 +46,27 @@ function JobMeta({ job }: { job: EditJob }) {
   );
 }
 
-function JobButtons({ job, busy, onKeep, onDiscard, onCancel, onRefine }: { job: EditJob } & JobActions) {
-  return (
-    <div className="tile-actions">
-      {job.state === "running" && (
+function AttemptButtons({ job, busy, versionIndex, onPick, onCancel }: { job: EditJob } & AttemptActions) {
+  if (job.state === "running")
+    return (
+      <div className="tile-actions">
         <button type="button" className="small-button" onClick={onCancel} disabled={busy}>
           Stop
         </button>
-      )}
-      {job.state === "done" && (
-        <button type="button" className="primary small-button" onClick={onKeep} disabled={busy}>
-          Keep as new image
-        </button>
-      )}
-      {hasResult(job) && (
-        <button type="button" className="small-button" onClick={onRefine} disabled={busy}>
-          Edit further
-        </button>
-      )}
-      {job.state !== "running" && job.state !== "kept" && (
-        <button type="button" className="ghost small-button" onClick={onDiscard} disabled={busy}>
-          Discard
-        </button>
-      )}
+      </div>
+    );
+  if (versionIndex !== null)
+    return (
+      <div className="tile-actions">
+        <span className="chip ok">is {versionLabel(versionIndex)}</span>
+      </div>
+    );
+  if (!hasResult(job)) return null;
+  return (
+    <div className="tile-actions">
+      <button type="button" className="primary small-button" onClick={onPick} disabled={busy}>
+        Continue with this
+      </button>
     </div>
   );
 }
@@ -89,17 +90,8 @@ function JobLog({ job }: { job: EditJob }) {
 function JobNotes({ job }: { job: EditJob }) {
   return (
     <>
-      {job.references && job.references.length > 0 && (
-        <p className="tile-text faint">References: {job.references.join(", ")}</p>
-      )}
       {job.summary && job.state !== "running" && <p className="tile-text">{job.summary}</p>}
       {job.error && <p className="tile-text error-text">{job.error}</p>}
-      {job.kept && (
-        <p className="tile-text">
-          Saved as <code>{job.kept.id}</code> (<code>{job.kept.file}</code>). Assign it to a figure in the
-          Layout tab’s Assets panel.
-        </p>
-      )}
     </>
   );
 }
@@ -107,14 +99,13 @@ function JobNotes({ job }: { job: EditJob }) {
 export function JobTile({
   job,
   label,
-  compact = false,
   onFocus,
   ...actions
-}: { job: EditJob; label: string; compact?: boolean; onFocus: () => void } & JobActions) {
+}: { job: EditJob; label: string; onFocus: () => void } & AttemptActions) {
   const result = hasResult(job);
-  const prompt = job.instructions.at(-1) ?? "";
+  const picked = actions.versionIndex !== null;
   return (
-    <li className={`studio-tile ${job.state}${compact ? " compact" : ""}`}>
+    <li className={`studio-tile ${job.state}${picked ? " picked" : ""}`}>
       <div className="tile-head">
         <span className="tile-label">{label}</span>
         <span className="spacer" />
@@ -122,7 +113,7 @@ export function JobTile({
       </div>
       {result ? (
         <button type="button" className="tile-image checker" onClick={onFocus} title="Show large">
-          <img src={resultUrl(job)} alt="After" loading="lazy" />
+          <img src={resultUrl(job)} alt="Result" loading="lazy" />
           {job.output && (
             <span className="tile-dims mono">
               {job.output.width} × {job.output.height}
@@ -145,26 +136,18 @@ export function JobTile({
         </div>
       )}
       <p className="tile-text tile-prompt" title={job.instructions.join("\n→ ")}>
-        {job.instructions.length > 1 && (
-          <span className="faint">{job.instructions.length - 1} earlier · </span>
-        )}
-        {prompt}
+        {job.instructions.at(-1) ?? ""}
       </p>
       <JobMeta job={job} />
-      {!compact && <JobNotes job={job} />}
-      {compact && job.kept && (
-        <p className="tile-text faint">
-          Saved as <code>{job.kept.id}</code>
-        </p>
-      )}
-      <JobButtons job={job} {...actions} />
-      {!compact && <JobLog job={job} />}
+      <JobNotes job={job} />
+      <AttemptButtons job={job} {...actions} />
+      <JobLog job={job} />
     </li>
   );
 }
 
 /** One result large: before and after side by side, with the full prompt chain and the actions. */
-export function FocusView({ job, ...actions }: { job: EditJob } & JobActions) {
+export function FocusView({ job, ...actions }: { job: EditJob } & AttemptActions) {
   const withInput = hasInput(job);
   return (
     <div className="studio-focus">
@@ -206,8 +189,65 @@ export function FocusView({ job, ...actions }: { job: EditJob } & JobActions) {
           ))}
         </ol>
         <JobNotes job={job} />
-        <JobButtons job={job} {...actions} />
+        <AttemptButtons job={job} {...actions} />
       </div>
     </div>
+  );
+}
+
+export type StripVersion = {
+  index: number;
+  /** Image of the version; null for the blank artboard of a new image (v0). */
+  src: string | null;
+  /** Manifest id when the version is saved. */
+  saved?: string;
+  title: string;
+};
+
+/** The session's versions v0 … vN; the last one is where the next run starts. */
+export function VersionStrip({
+  versions,
+  viewing,
+  onView,
+}: {
+  versions: readonly StripVersion[];
+  viewing: number;
+  onView: (index: number) => void;
+}) {
+  const last = versions.length - 1;
+  return (
+    <ol className="studio-strip" aria-label="Versions">
+      {versions.map((v) => (
+        <li key={v.index} className={v.index === last ? "is-current" : undefined}>
+          {v.index > 0 && (
+            <span className="strip-arrow" aria-hidden="true">
+              →
+            </span>
+          )}
+          <button
+            type="button"
+            className={`strip-item${v.index === viewing ? " viewing" : ""}`}
+            aria-pressed={v.index === viewing}
+            title={v.title}
+            onClick={() => onView(v.index)}
+          >
+            <span className="strip-thumb checker">
+              {v.src ? <img src={v.src} alt="" /> : <span className="faint">blank</span>}
+            </span>
+            <span className="strip-label">
+              <span className="mono">{versionLabel(v.index)}</span>
+              {v.saved ? (
+                <span className="strip-saved" title={`Saved as ${v.saved}`}>
+                  saved
+                </span>
+              ) : v.index === 0 ? (
+                <span className="faint">source</span>
+              ) : null}
+            </span>
+            {v.index === last && <span className="strip-next">Next run starts here</span>}
+          </button>
+        </li>
+      ))}
+    </ol>
   );
 }

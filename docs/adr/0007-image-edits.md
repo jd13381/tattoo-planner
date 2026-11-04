@@ -1,6 +1,6 @@
 # ADR 0007: Editing reference images with `claude -p`
 
-- Status: accepted (2026-11-04)
+- Status: accepted (2026-11-04); the iteration flow (Keep / Edit further / Discard) is superseded by ADR 0010 (editing sessions)
 - Context: Jan needs to touch up reference images (remove a background, take out text or a watermark, small changes) without leaving the planner for some web service, and suggested driving the edits with `claude -p`.
 
 ## Decision

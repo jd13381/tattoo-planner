@@ -4639,9 +4639,11 @@ fieldset:disabled .props {
 .studio {
   --studio-assets-w: 272px;
   --studio-inspector-w: 320px;
-  --checker-a: #ffffff;
-  --checker-b: #dcdce2;
-  --thumb-bg: #e8e8ed;
+  /* Dark by default, like the rest of the planner; the canvas bar's Light switch is for black line
+     work on a transparent background. */
+  --checker-a: #1b1b22;
+  --checker-b: #24242c;
+  --thumb-bg: #1b1b22;
   display: grid;
   grid-template-columns: var(--studio-assets-w) minmax(0, 1fr) var(--studio-inspector-w);
   height: calc(100dvh - var(--header-h));
@@ -4649,10 +4651,10 @@ fieldset:disabled .props {
   background: var(--bg);
 }
 
-.studio.backdrop-dark {
-  --checker-a: #1b1b22;
-  --checker-b: #24242c;
-  --thumb-bg: #1b1b22;
+.studio.backdrop-light {
+  --checker-a: #ffffff;
+  --checker-b: #dcdce2;
+  --thumb-bg: #e8e8ed;
 }
 
 /* Loading and the no-data-folder state: the empty canvas with one card. */
@@ -4784,6 +4786,7 @@ a.button.primary:hover {
 }
 
 button.studio-thumb {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -5013,11 +5016,230 @@ figure.studio-artboard {
   --checker-b: #1e1e25;
 }
 
-/* Results: the source plus the open round side by side, then earlier results smaller. */
-.studio-results {
+/* Session: the version strip, a head line for the version on view, then its results. */
+.studio-session {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-session-main {
+  flex: 1;
+  min-height: 0;
+}
+
+.studio-session-main > .studio-center {
+  min-height: 280px;
+}
+
+.studio-session-main .studio-hero .checker img {
+  max-height: calc(100dvh - var(--header-h) - 330px);
+}
+
+.studio-strip {
+  list-style: none;
+  margin: 0;
+  padding: 2px 2px 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.studio-strip > li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.strip-arrow {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  margin-top: -18px;
+}
+
+button.strip-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  width: 96px;
+  height: auto;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  text-align: left;
+}
+
+button.strip-item:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+button.strip-item.viewing {
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.studio-strip > li.is-current button.strip-item {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.strip-thumb {
+  height: 64px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-2xs);
+}
+
+.strip-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.strip-label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0 2px;
+  font-size: var(--fs-2xs);
+}
+
+.strip-saved {
+  color: var(--ok);
+}
+
+.strip-next {
+  white-space: normal;
+  padding: 0 2px 1px;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--accent-text);
+}
+
+.studio-round-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 2px;
+}
+
+.studio-tile.picked {
+  border-color: var(--ok);
+}
+
+/* Browse: the picked image large, its saved versions in a floating row underneath. */
+.studio-browse {
+  position: relative;
+  height: 100%;
+  min-height: 320px;
+}
+
+.studio-browse .studio-hero .checker img {
+  max-height: calc(100dvh - var(--header-h) - 260px);
+}
+
+.studio-family {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.studio-family ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+button.family-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 84px;
+  height: auto;
+  padding: 3px;
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-size: var(--fs-2xs);
+  text-align: left;
+}
+
+button.family-item .checker {
+  height: 56px;
+}
+
+button.family-item img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+button.family-item .mono {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+button.family-item.current {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Thumbnails of images with an open editing session. */
+.thumb-session {
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.studio-scan-note {
+  margin: 0;
+  padding: 6px 12px 0;
+}
+
+.asset-scan-note {
+  margin: 0 0 6px;
+}
+
+.studio-open-sessions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
-  gap: var(--s-3);
-  align-content: start;
+  gap: 4px;
+}
+
+.studio-open-sessions button {
+  width: 100%;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ok-text {
+  color: var(--ok);
 }
 
 .studio-grid {
@@ -5031,13 +5253,8 @@ figure.studio-artboard {
   align-items: start;
 }
 
-.studio-grid.compact {
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 8px;
-}
-
 @media (max-width: 1000px) {
-  .studio-grid:not(.compact) {
+  .studio-grid {
     grid-template-columns: repeat(min(var(--n), 2), minmax(0, 1fr));
   }
 }
@@ -5061,13 +5278,6 @@ figure.studio-artboard {
 
 .studio-tile.failed {
   border-color: var(--danger-line);
-}
-
-.studio-tile.compact {
-  gap: 6px;
-  padding: 6px;
-  background: var(--surface);
-  border-color: var(--border);
 }
 
 .studio-tile.discarded,
@@ -5111,20 +5321,6 @@ figure.studio-artboard {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fs-2xs);
-}
-
-.studio-tile.compact .tile-head {
-  flex-wrap: wrap;
-  row-gap: 2px;
-}
-
-.studio-tile.compact .tile-label {
-  display: none;
-}
-
-.studio-tile.compact .tile-placeholder {
-  aspect-ratio: auto;
-  height: 72px;
 }
 
 .tile-label {
@@ -5268,17 +5464,6 @@ button.tile-image:hover:not(:disabled) {
 
 .tile-actions:empty {
   display: none;
-}
-
-.studio-earlier-head {
-  display: flex;
-  gap: 6px;
-  margin: var(--s-3) 2px 0;
-}
-
-.studio-earlier-head .mono {
-  font-size: var(--fs-2xs);
-  letter-spacing: 0;
 }
 
 .edit-log > summary {

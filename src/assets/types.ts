@@ -16,6 +16,41 @@ export type AssetListing =
   | { status: "unset" }
   | { status: "error"; message: string };
 
+/** POST: catalogue new images in the data folder (the same as `npm run assets:scan`) → ScanReport. */
+export const ASSETS_SCAN_ENDPOINT = "/api/assets/scan";
+
+export type ScanReport = {
+  /** Images in the scanned folders (cards/, refs/, existing/, arm-photos/). */
+  found: number;
+  /** Ids of the entries this scan added. */
+  added: string[];
+  /** Images in a format the browser cannot show (HEIC, TIFF …): not catalogued. */
+  unsupported: string[];
+  /** Images outside the scanned folders: not catalogued. */
+  outside: string[];
+  /** The data folder has more files than one listing covers; some may be missed. */
+  truncated: boolean;
+};
+
+/** One line for the UI about what a scan did. */
+export function scanSummary(r: ScanReport): string {
+  const parts = [
+    r.added.length === 0
+      ? "No new images"
+      : `${r.added.length} new image${r.added.length === 1 ? "" : "s"} added`,
+  ];
+  if (r.unsupported.length > 0)
+    parts.push(
+      `${r.unsupported.length} skipped (HEIC/TIFF; export as JPEG or PNG): ${r.unsupported.slice(0, 3).join(", ")}`,
+    );
+  if (r.outside.length > 0)
+    parts.push(
+      `${r.outside.length} outside cards/, refs/, existing/, arm-photos/: ${r.outside.slice(0, 3).join(", ")}${r.outside.length > 3 ? " …" : ""}`,
+    );
+  if (r.truncated) parts.push("the data folder is large; some files may be missed");
+  return parts.join(" · ");
+}
+
 export function assetImageUrl(id: string): string {
   return `${ASSET_IMAGE_ENDPOINT}/${encodeURIComponent(id)}`;
 }

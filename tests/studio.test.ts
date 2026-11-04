@@ -8,7 +8,6 @@ import {
   runEstimate,
   runLabel,
   spentUsd,
-  splitRound,
   stepId,
 } from "../src/edits/studio.ts";
 import type { EditJob } from "../src/edits/types.ts";
@@ -23,25 +22,6 @@ const job = (id: string, state: EditJob["state"], extra: Partial<EditJob> = {}):
   startedAt: "2026-11-04T10:00:00.000Z",
   log: [],
   ...extra,
-});
-
-describe("splitRound", () => {
-  it("puts open results oldest first and history newest first", () => {
-    const newestFirst = [
-      job("e", "kept"),
-      job("d", "done"),
-      job("c", "discarded"),
-      job("b", "running"),
-      job("a", "failed"),
-    ];
-    const { open, earlier } = splitRound(newestFirst);
-    expect(open.map((j) => j.id)).toEqual(["a", "b", "d"]);
-    expect(earlier.map((j) => j.id)).toEqual(["e", "c"]);
-  });
-
-  it("handles no jobs", () => {
-    expect(splitRound([])).toEqual({ open: [], earlier: [] });
-  });
 });
 
 describe("result and input", () => {
@@ -70,25 +50,13 @@ describe("cost", () => {
 });
 
 describe("run button", () => {
-  it("names what one click does", () => {
-    expect(runLabel({ creatingNew: true, refining: false, engine: "openai", count: 1 })).toBe(
-      "Create with GPT Image",
-    );
-    expect(runLabel({ creatingNew: true, refining: false, engine: "openai", count: 3 })).toBe(
-      "Create 3 variants",
-    );
-    expect(runLabel({ creatingNew: false, refining: true, engine: "claude", count: 1 })).toBe(
-      "Edit the result",
-    );
-    expect(runLabel({ creatingNew: false, refining: false, engine: "openai", count: 2 })).toBe(
-      "Make 2 variants",
-    );
-    expect(runLabel({ creatingNew: false, refining: false, engine: "openai", count: 1 })).toBe(
-      "Edit with GPT Image",
-    );
-    expect(runLabel({ creatingNew: false, refining: false, engine: "claude", count: 1 })).toBe(
-      "Edit with Claude",
-    );
+  it("names what one click does and the version it starts from", () => {
+    const c = { creatingNew: false, version: 2, engine: "openai", count: 1 } as const;
+    expect(runLabel({ ...c, creatingNew: true, version: 0 })).toBe("Create with GPT Image");
+    expect(runLabel({ ...c, creatingNew: true, version: 0, count: 3 })).toBe("Create 3 variants");
+    expect(runLabel({ ...c, count: 2 })).toBe("Make 2 variants of v2");
+    expect(runLabel(c)).toBe("Edit v2 with GPT Image");
+    expect(runLabel({ ...c, engine: "claude", version: 0 })).toBe("Edit v0 with Claude");
   });
 
   it("estimates per engine", () => {

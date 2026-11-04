@@ -3,7 +3,14 @@
 // modes never decodes again. Nothing is uploaded anywhere: the only source is the local dev server.
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { AssetImage } from "../render/reference.ts";
-import { assetImageUrl, ASSETS_ENDPOINT, type AssetListing } from "./types.ts";
+import {
+  assetImageUrl,
+  ASSETS_ENDPOINT,
+  ASSETS_SCAN_ENDPOINT,
+  scanSummary,
+  type AssetListing,
+  type ScanReport,
+} from "./types.ts";
 
 /** Longest side kept after decoding; plenty for 12 px/cm on a 30 cm piece, and light on memory. */
 const MAX_DECODED_PX = 2048;
@@ -80,10 +87,19 @@ export function announceManifestChanged(): void {
   window.dispatchEvent(new Event(MANIFEST_CHANGED_EVENT));
 }
 
-/** The manifest listing; `reload` re-reads the manifest and drops cached images. */
-export function useAssetListing(): { listing: AssetListing | null; reload: () => void } {
+/**
+ * The manifest listing. `reload` first catalogues new images in the data folder (as
+ * `npm run assets:scan`), then re-reads the manifest and drops cached images; `scanNote` says what the
+ * last scan did.
+ */
+export function useAssetListing(): {
+  listing: AssetListing | null;
+  reload: () => void;
+  scanNote: string | null;
+} {
   const [listing, setListing] = useState<AssetListing | null>(null);
   const [request, setRequest] = useState(0);
+  const [scanNote, setScanNote] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     fetch(ASSETS_ENDPOINT)
@@ -105,8 +121,21 @@ export function useAssetListing(): { listing: AssetListing | null; reload: () =>
     };
   }, [request]);
   const reload = useCallback(() => {
-    clearImages();
-    setRequest((n) => n + 1);
+    setScanNote("Looking for new images…");
+    fetch(ASSETS_SCAN_ENDPOINT, { method: "POST" })
+      .then(async (r) => {
+        const body = (await r.json().catch(() => ({}))) as ScanReport & { error?: string };
+        if (!r.ok) throw new Error(body.error ?? `HTTP ${r.status}`);
+        setScanNote(scanSummary(body));
+        if (body.added.length > 0) announceManifestChanged();
+      })
+      .catch((e: unknown) =>
+        setScanNote(`Could not look for new images: ${e instanceof Error ? e.message : String(e)}`),
+      )
+      .finally(() => {
+        clearImages();
+        setRequest((n) => n + 1);
+      });
   }, []);
   useEffect(() => {
     // New entries only: cached images stay valid, so just re-read the list.
@@ -114,5 +143,5 @@ export function useAssetListing(): { listing: AssetListing | null; reload: () =>
     window.addEventListener(MANIFEST_CHANGED_EVENT, onChange);
     return () => window.removeEventListener(MANIFEST_CHANGED_EVENT, onChange);
   }, []);
-  return { listing, reload };
+  return { listing, reload, scanNote };
 }

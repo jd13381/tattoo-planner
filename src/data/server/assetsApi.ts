@@ -1,8 +1,9 @@
 // Dev-server API for the asset manifest (<TATTOO_DATA_DIR>/manifest.yaml) and its images.
 //   GET /api/assets             → AssetListing (src/assets/types.ts)
 //   GET /api/assets/image/<id>  → the bytes of that manifest asset, images only
+//   POST /api/assets/scan       → ScanReport: adds entries for new images, as `npm run assets:scan`
 // Only files named in the manifest are served, and only when they resolve inside the data folder.
-// Nothing here writes into the data folder.
+// The scan is the only write: it appends manifest entries and never touches an image.
 import { createReadStream } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -11,6 +12,7 @@ import type { Plugin } from "vite";
 import { parseDocument } from "yaml";
 import { assetSchema, MANIFEST_FILE, type Asset } from "../../assets/manifest.ts";
 import { ASSETS_ENDPOINT, type AssetInfo, type AssetListing } from "../../assets/types.ts";
+import { scanDataFolder } from "./scanFolder.ts";
 
 /** Image types a browser can show. HEIC/HEIF are named separately: Chrome cannot decode them. */
 export const IMAGE_TYPES: Record<string, string> = {
@@ -201,6 +203,14 @@ export function assetsPlugin(dataDir: string | null): Plugin {
       server.middlewares.use(ASSETS_ENDPOINT, (req, res) => {
         const sub = (req.url ?? "/").split("?")[0] ?? "/";
         const run = async () => {
+          if (req.method === "POST" && sub === "/scan") {
+            // Only the planner page itself may change the manifest.
+            const site = req.headers["sec-fetch-site"];
+            if (site !== undefined && site !== "same-origin" && site !== "none")
+              return sendJson(res, 403, { error: "cross-site request refused" });
+            if (!dataDir) return sendJson(res, 409, { error: "TATTOO_DATA_DIR is not set" });
+            return sendJson(res, 200, await scanDataFolder(dataDir));
+          }
           if (req.method !== "GET") return sendJson(res, 405, { error: "method not allowed" });
           if (sub === "/" || sub === "") return sendJson(res, 200, await listAssets(dataDir));
           const m = /^\/image\/([^/]+)$/.exec(sub);

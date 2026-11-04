@@ -1,6 +1,6 @@
 # ADR 0009: Creating new images and using reference images
 
-- Status: accepted (2026-11-04)
+- Status: accepted (2026-11-04); the shared job list and Keep / Edit further flow are superseded by ADR 0010 (editing sessions)
 - Context: Jan wants to make completely new images and patterns with GPT Image 2.5 in the planner, not only edit imported ones, and to point at assets as references ("make a red triangle around it like in this reference image"). He allowed renaming and reshaping the edit tab.
 
 ## Decision

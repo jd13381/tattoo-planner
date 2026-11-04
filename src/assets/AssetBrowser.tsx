@@ -12,11 +12,13 @@ type Props = {
   onPick: (asset: AssetInfo) => void;
   /** false leaves out the heading (a tabbed panel names the browser and offers Reload). */
   heading?: boolean;
+  /** What the last Reload found (new images, skipped files). */
+  note?: string | null;
 };
 
 /** Thumbnails of the manifest assets; clicking one assigns it to the selected figure. */
 export function AssetBrowser(props: Props) {
-  const { listing, onReload, current, assignBlocked, onPick, heading = true } = props;
+  const { listing, onReload, current, assignBlocked, onPick, heading = true, note } = props;
   const [filter, setFilter] = useState<AssetFilter>(NO_FILTER);
   const assets = useMemo(() => (listing?.status === "ok" ? listing.assets : []), [listing]);
   const kinds = useMemo(() => facets(assets.map((a) => a.kind)), [assets]);
@@ -113,12 +115,13 @@ export function AssetBrowser(props: Props) {
             type="button"
             className="ghost"
             onClick={onReload}
-            title="Re-read manifest.yaml and the images"
+            title="Look for new images in the data folder, then re-read manifest.yaml and the images"
           >
             Reload
           </button>
         </div>
       )}
+      {note && <p className="small faint asset-scan-note">{note}</p>}
       {body}
       {warnings.length > 0 && (
         <details className="small warn">

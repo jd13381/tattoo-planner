@@ -14,7 +14,6 @@ import {
   readPngInfo,
   rootAssetId,
   showInStudio,
-  staleJobs,
 } from "../src/edits/edit.ts";
 import { EditManager, editOptionsFromEnv, type Runner } from "../src/edits/server/editsApi.ts";
 import type { EditJob } from "../src/edits/types.ts";
@@ -279,6 +278,62 @@ assets:
     await m.close();
   });
 
+  it("runs a session on its last version, saves the edit of an edit and closes cleanly", async () => {
+    const m = new EditManager(dir, {
+      bin: "claude",
+      cacheDir: cache,
+      checkClaude: enabled,
+      runner: fakeClaude(png(100, 50)),
+    });
+    const s = await m.startSession({ mode: "edit", assetId: "pegasus-ref-01" });
+    expect(await m.startSession({ mode: "edit", assetId: "pegasus-ref-01" })).toBe(s);
+    expect((await m.overview()).sessions.map((x) => x.id)).toEqual([s.id]);
+
+    // v0 → two attempts; the session ignores a stray assetId / fromJob.
+    const a = await finished(m, (await m.start({ session: s.id, instruction: "One" })).id);
+    const b = await finished(m, (await m.start({ session: s.id, assetId: "nope", instruction: "Two" })).id);
+    expect(a.session).toBe(s.id);
+    expect(b.fromJob).toBeUndefined();
+    await expect(m.save(s.id, {})).rejects.toMatchObject({ status: 409 });
+    expect(m.pick(s.id, { job: b.id }).versions).toEqual([b.id]);
+
+    // The next run starts from v1 without naming it.
+    const c = await finished(m, (await m.start({ session: s.id, instruction: "Three" })).id);
+    expect(c.fromJob).toBe(b.id);
+    expect(c.instructions).toEqual(["Two", "Three"]);
+    expect(m.pick(s.id, { job: c.id }).versions).toEqual([b.id, c.id]);
+    // Picking the other v0 attempt drops v1 and v2.
+    expect(m.pick(s.id, { job: a.id }).versions).toEqual([a.id]);
+    expect(m.truncate(s.id, { length: 0 }).versions).toEqual([]);
+    m.pick(s.id, { job: b.id });
+    m.pick(s.id, { job: c.id });
+
+    const saved = await m.save(s.id, {});
+    expect(saved.kept?.id).toBe("pegasus-ref-01-edit-1");
+    expect(await m.closeSession(s.id)).toEqual({ closed: s.id });
+    expect((await m.overview()).sessions).toEqual([]);
+    expect(m.list().map((j) => j.id)).toEqual([c.id]);
+    expect(() => m.file(a.id, "input")).toThrow();
+
+    // A new session on the saved edit: its own source, entry built from it, derived_from the original.
+    const s2 = await m.startSession({ mode: "edit", assetId: "pegasus-ref-01-edit-1" });
+    expect(s2.id).not.toBe(s.id);
+    const d = await finished(m, (await m.start({ session: s2.id, instruction: "Four" })).id);
+    expect(d.instructions).toEqual(["Four"]);
+    m.pick(s2.id, { job: d.id });
+    expect((await m.save(s2.id, {})).kept?.id).toBe("pegasus-ref-01-edit-2");
+    const entries = parseManifestText(await readFile(path.join(dir, "manifest.yaml"), "utf8")).toJS()
+      .assets as { id: string; derived_from?: string; notes?: string; tags: string[] }[];
+    expect(entries[2]).toMatchObject({
+      id: "pegasus-ref-01-edit-2",
+      derived_from: "pegasus-ref-01",
+      tags: ["pegasus", "edited"],
+    });
+    expect(entries[2]!.notes).toMatch(/^From pegasus-ref-01-edit-1\. Edited with claude -p: "Four"$/);
+    expect(() => m.pick("s999-x", { job: d.id })).toThrow(/no open session/);
+    await m.close();
+  });
+
   it("fails when Claude writes no PNG, and discards cleanly", async () => {
     const m = new EditManager(dir, {
       bin: "claude",
@@ -315,20 +370,6 @@ assets:
     await expect(m.start({ assetId: "pegasus-ref-01", instruction: " " })).rejects.toMatchObject({
       status: 400,
     });
-  });
-});
-
-describe("staleJobs", () => {
-  it("clears the earlier unkept results of the same original when a new round starts", () => {
-    const jobs = [
-      { id: "a", assetId: "m", state: "done" as const },
-      { id: "b", assetId: "m", state: "kept" as const },
-      { id: "c", assetId: "m", state: "failed" as const },
-      { id: "d", assetId: "m", state: "running" as const },
-      { id: "e", assetId: "other", state: "done" as const },
-      { id: "f", assetId: "m", state: "done" as const },
-    ];
-    expect(staleJobs(jobs, "m", new Set(["f"]))).toEqual(["a", "c"]);
   });
 });
 
