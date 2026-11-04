@@ -111,6 +111,7 @@ export const HANDOUT_EN = {
     none: "–",
     heightNotSet: "height not set",
     widthFromImage: "width from the image",
+    fromPhotos: "around the arm, from the photos",
     widthAssumed: "width assumed",
     box: (h: string, w: string) => `${h} × ${w} cm`,
     region: (h: string, w: string) => `${h} cm tall, about ${w} cm wide`,

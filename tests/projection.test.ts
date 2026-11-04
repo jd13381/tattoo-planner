@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { PLACEHOLDERS } from "../src/arm/inputs.ts";
+import { listProjections, saveProjection } from "../src/data/server/projectionsApi.ts";
+import { classify, resolveElement } from "../src/layout/shapes.ts";
+import { coverage } from "../src/metrics/coverage.ts";
 import { buildProfile } from "../src/arm/profile.ts";
 import {
   alongArm,
@@ -275,5 +281,62 @@ describe("projection YAML", () => {
     expect(back.ok && back.calibration.photos[1]!.u_view.wrist).toBe(0.61);
     // Unchanged values stay as written.
     expect(out.split("\n").length).toBe(text.split("\n").length);
+  });
+});
+
+describe("projected existing tattoo in a layout", () => {
+  const cal = calibration();
+  const patch = buildPatch(cal, profile, [syntheticPhoto()])!;
+  const el = {
+    type: "existing" as const,
+    id: "anubis",
+    asset: "anubis-photo",
+    projection: "t",
+    locked: true,
+    position: { u: 0.5, v: 0.9 },
+    size_cm: { h: 5, w: 5 },
+  };
+
+  it("uses the patch footprint instead of the box when the patch is there", () => {
+    const r = resolveElement(el, profile, undefined, undefined, patch);
+    expect(r.shape.kind).toBe("patch");
+    const cls = classify(
+      { name: "t", elements: [el] },
+      profile,
+      2,
+      undefined,
+      0,
+      undefined,
+      new Map([["anubis", patch]]),
+    );
+    const area = coverage(cls, profile).total.byCategory.existing;
+    // The dark square: about 4 cm tall, 3 cm wide, plus the footprint's smoothing.
+    expect(area).toBeGreaterThan(8);
+    expect(area).toBeLessThan(60);
+    // The element is in the classification (the box at v = 0.9 would be far above the square).
+    expect(cls.cells.some((c) => c === 1)).toBe(true);
+  });
+
+  it("falls back to the box without a patch", () => {
+    expect(resolveElement(el, profile).shape.kind).toBe("box");
+  });
+});
+
+describe("projections API", () => {
+  it("saves a calibration, keeping the comments, and lists it", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "projections-"));
+    await writeFile(
+      path.join(dir, "anubis.yaml"),
+      readFileSync(new URL("../config/projections/anubis.yaml", import.meta.url), "utf8"),
+    );
+    const r = parseProjection((await listProjections(dir))[0]!.text);
+    if (!r.ok) throw new Error(r.error);
+    r.calibration.blend.exponent = 6;
+    const text = await saveProjection(dir, "anubis", { calibration: r.calibration });
+    expect(text).toContain("exponent: 6 # weight of a photo");
+    expect((await listProjections(dir)).map((p) => p.name)).toEqual(["anubis"]);
+    await expect(saveProjection(dir, "other", { calibration: r.calibration })).rejects.toThrow(/match/);
+    await expect(saveProjection(dir, "../x", { calibration: r.calibration })).rejects.toThrow(/invalid/);
+    expect(await listProjections(path.join(dir, "missing"))).toEqual([]);
   });
 });

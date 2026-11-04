@@ -49,6 +49,7 @@ export function shapeYRange(shape: Shape, profile: ArmProfile): [number, number]
       return [shape.cy - r, shape.cy + r];
     }
     case "region":
+    case "patch":
       return [shape.y0, shape.y1];
     case "band":
       return [shape.y - shape.half, shape.y + shape.half];

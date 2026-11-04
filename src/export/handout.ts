@@ -101,6 +101,10 @@ export function sizeText(
       }
       return t.cell.line(cm(s.half * 2), cm(len));
     }
+    case "patch": {
+      const width = wrapU(s.u1 - s.u0) * profile.circumferenceAt(s.cy);
+      return `${t.cell.box(cm(s.y1 - s.y0), cm(width))} (${t.cell.fromPhotos})`;
+    }
   }
 }
 
@@ -109,8 +113,12 @@ export function positionText(r: ResolvedElement, profile: ArmProfile, t: Handout
   const L = profile.length;
   switch (el.type) {
     case "figure":
-    case "existing":
-      return `${t.cell.centre(sideName(el.position.u, t), cm(el.position.v * L))} ${t.cell.coords(two(el.position.u), two(el.position.v))}`;
+    case "existing": {
+      // A projected tattoo sits where its photos put it, not at `position`.
+      const s = r.shape;
+      const [u, v] = s.kind === "patch" ? [s.uc, s.cy / L] : [el.position.u, el.position.v];
+      return `${t.cell.centre(sideName(u, t), cm(v * L))} ${t.cell.coords(two(u), two(v))}`;
+    }
     case "filler":
       return t.cell.span(
         sideName(el.region.u[0], t),
@@ -222,7 +230,8 @@ export function facesView(r: ResolvedElement, view: ViewName, profile: ArmProfil
       const halfU = s.w / 2 / profile.circumferenceAt(s.cy);
       return Math.abs(wrapDelta(s.uc - vu)) < k + Math.min(halfU, 0.5);
     }
-    case "region": {
+    case "region":
+    case "patch": {
       const span = wrapU(s.u1 - s.u0) || (s.u1 !== s.u0 ? 1 : 0);
       const d = wrapU(vu - s.u0);
       // [vu - k, vu + k] overlaps [u0, u0 + span].
@@ -249,7 +258,7 @@ export function facingElements(facts: HandoutFacts): Record<ViewName, string[]> 
   const topY = (r: ResolvedElement) => {
     const s = r.shape;
     if (s.kind === "box") return s.cy + s.h / 2;
-    if (s.kind === "region") return s.y1;
+    if (s.kind === "region" || s.kind === "patch") return s.y1;
     if (s.kind === "band") return s.y + s.half;
     return Math.max(...s.points.map((p) => p.y));
   };

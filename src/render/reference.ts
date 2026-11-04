@@ -16,12 +16,13 @@ import {
   type ImageSettings,
 } from "../layout/imageFit.ts";
 import type { FigureLike, Layout } from "../layout/schema.ts";
-import { resolveElement, type ExistingSize, type Shape } from "../layout/shapes.ts";
+import type { ProjectedPatch } from "../projection/patch.ts";
+import { resolveElement, type ElementPatches, type ExistingSize, type Shape } from "../layout/shapes.ts";
 import { BLOCKOUT_COLORS } from "./blockout.ts";
 import { OVERLAY_GRID_STYLE, paintGrid } from "./cmGrid.ts";
-import { processPixels } from "./imageOps.ts";
+import { lineScreen, processPixels } from "./imageOps.ts";
 import { getPattern, seedFromId } from "./patterns/index.ts";
-import { screenX, shapeMask, wrapStrip } from "./unwrapRows.ts";
+import { rowRange, screenX, shapeMask, wrapStrip } from "./unwrapRows.ts";
 
 export type AssetImage =
   | { status: "loading" }
@@ -34,6 +35,8 @@ export type ReferenceSources = {
   /** Decoded images by asset id. */
   images: ReadonlyMap<string, AssetImage>;
   aspects: ElementAspects;
+  /** Existing tattoos projected from several photos (docs/adr/0006), by element id. */
+  patches?: ElementPatches;
 };
 
 export type ReferenceOptions = {
@@ -50,6 +53,7 @@ const rgb = (c: readonly number[]) => `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 
 /** Why an element shows a placeholder instead of its image, or null when the image is ready. */
 export function missingReason(el: FigureLike, sources: ReferenceSources): string | null {
+  if (sources.patches?.has(el.id)) return null; // drawn from its projected photos
   if (!el.asset) return "no asset";
   if (!sources.assets) return "no data folder";
   const info = sources.assets.get(el.asset);
@@ -85,8 +89,16 @@ export function renderReference(
   const lines: Shape[] = [];
   const lineColors: string[] = [];
   for (const el of layout.elements) {
-    const r = resolveElement(el, profile, opts.existing, sources.aspects.get(el.id));
-    if (isFigureLike(el) && r.shape.kind === "box") {
+    const r = resolveElement(
+      el,
+      profile,
+      opts.existing,
+      sources.aspects.get(el.id),
+      sources.patches?.get(el.id),
+    );
+    if (isFigureLike(el) && r.shape.kind === "patch") {
+      drawPatch(ctx, profile, r.shape.patch, el.filter === "hatching", opts);
+    } else if (isFigureLike(el) && r.shape.kind === "box") {
       drawFigure(ctx, profile, el, r.shape, opts);
     } else if (el.type === "filler" || el.type === "band") {
       drawPattern(
@@ -164,6 +176,63 @@ function blitRows(
       ctx.drawImage(local, sx, ly, sw, 1, W / 2 + piece.at * ppc, j, sw, 1);
     }
   }
+}
+
+/** The patch as an RGBA canvas (grey ink, alpha where photos see the skin), cached per patch. */
+const patchCanvases = new WeakMap<ProjectedPatch, Map<string, HTMLCanvasElement>>();
+
+function patchCanvas(patch: ProjectedPatch, hatching: boolean): HTMLCanvasElement {
+  let byLook = patchCanvases.get(patch);
+  if (!byLook) patchCanvases.set(patch, (byLook = new Map()));
+  const key = hatching ? "hatching" : "grayscale";
+  const hit = byLook.get(key);
+  if (hit) return hit;
+  const out = canvas(patch.width, patch.height);
+  const c = out.getContext("2d")!;
+  const img = c.createImageData(patch.width, patch.height);
+  for (let k = 0; k < patch.gray.length; k++) {
+    img.data[k * 4] = img.data[k * 4 + 1] = img.data[k * 4 + 2] = patch.gray[k]!;
+    img.data[k * 4 + 3] = patch.alpha[k]!;
+  }
+  if (hatching) lineScreen(img.data, patch.width, Math.max(3, patch.pxPerCm * 0.25));
+  c.putImageData(img, 0, 0);
+  byLook.set(key, out);
+  return out;
+}
+
+/**
+ * Draws a projected patch: its pixels are already in skin coordinates, so each unwrap row takes the
+ * patch row at the same height and stretches it over that row's u range (wrapping at the seam).
+ */
+function drawPatch(
+  ctx: CanvasRenderingContext2D,
+  profile: ArmProfile,
+  patch: ProjectedPatch,
+  hatching: boolean,
+  opts: ReferenceOptions,
+) {
+  const src = patchCanvas(patch, hatching);
+  const ppc = opts.pxPerCm;
+  const W = ctx.canvas.width;
+  const L = profile.length;
+  const [first, last] = rowRange(profile, ppc, patch.v0 * L, patch.v1 * L);
+  const uc = (patch.u0 + patch.u1) / 2;
+  ctx.globalCompositeOperation = "multiply";
+  for (let j = first; j <= last; j++) {
+    const v = (L - (j + 0.5) / ppc) / L;
+    const r = Math.floor(((patch.v1 - v) / (patch.v1 - patch.v0)) * patch.height);
+    if (r < 0 || r >= patch.height) continue;
+    const c = profile.circumferenceAt(v * L);
+    const half = ((patch.u1 - patch.u0) / 2) * c;
+    // Screen x grows towards smaller u, as the patch columns do.
+    for (const piece of wrapStrip(screenX(uc, opts.centerU, c), -half, half, c)) {
+      const sx = ((piece.from + half) / (2 * half)) * patch.width;
+      const sw = ((piece.to - piece.from) / (2 * half)) * patch.width;
+      if (sw < 0.01) continue;
+      ctx.drawImage(src, sx, r, sw, 1, W / 2 + piece.at * ppc, j, (piece.to - piece.from) * ppc, 1);
+    }
+  }
+  ctx.globalCompositeOperation = "source-over";
 }
 
 // Processed images are cached: switching modes or moving an element re-uses them; only a change of

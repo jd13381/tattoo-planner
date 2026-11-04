@@ -11,6 +11,10 @@ elements:
   - id: anubis
     type: existing
     asset: anubis-photo
+    # Drawn from all four Anubis photos, wrapped round the arm where they put it (config/projections/anubis.yaml,
+    # docs/adr/0006). position, size_cm, crop, image_rotation_deg and feather_cm below only apply while that
+    # cannot be built (no data folder, photos missing): then the single photo above is shown in its box.
+    projection: anubis
     locked: true
     position: { u: 0.50, v: 0.203 } # u = around (0.5 = inner centre line), v = along (0 = wrist)
     size_cm: { h: null, w: null }
