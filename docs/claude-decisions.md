@@ -125,3 +125,13 @@ Details in `docs/adr/0006-anubis-projection.md`.
 - **Blockout and metrics use a footprint** (ink smoothed over 1.5 cm, specks dropped, holes filled), so the existing-tattoo area follows the figure instead of a box. It is a rough area: hair on the lateral side adds a little, the palest cloak parts may count as open skin.
 - **Projection tab** with draggable edges and marks, the model's skin grid drawn on each photo, view-angle and blend sliders, and a live preview on the unwrap and the 3D arm; Save writes the YAML and keeps its comments.
 - **Grayscale only:** the patch has no colour; `filter: hatching` applies the line screen, `filter: none` shows it in grayscale.
+
+### Editing reference images
+
+Details in `docs/adr/0007-image-edits.md`.
+
+- **New tab "Edit images"** instead of a button in the Assets panel, so the parallel UX overhaul of the Layout tab does not collide with it. _Change:_ an "Edit…" link from the Assets panel or the element panel can open it later.
+- **Edits run as `claude -p` in a temp folder on a copy;** kept results go to `edits/<original-id>-edit-N.png` with a new manifest entry (`derived_from`, tag `edited`, the instructions in `notes`); the original file and its entry are never changed. Assigning the edit to a figure stays a click in the Assets panel. _Alternative:_ replacing the original, or switching every element that uses the original to the edit automatically.
+- **Tools:** Bash, Read, Write, Edit, Glob, Grep allowed without asking; WebFetch and WebSearch blocked; missing Python packages (e.g. `rembg`) go into a virtualenv in `~/.cache/tattoo-planner/venv`.
+- **Presets:** remove background, keep main figure only, remove text/watermark, stronger contrast, black and grey, trim to motif, mirror. They only fill the text field. _Change:_ `EDIT_PRESETS` in `src/edits/types.ts`.
+- **Limits:** two edits at a time, 15 minutes each; unkept results are forgotten when `npm run dev` restarts.

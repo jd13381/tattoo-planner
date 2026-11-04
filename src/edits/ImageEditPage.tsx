@@ -1,0 +1,381 @@
+// "Edit images" tab (ADR 0007): pick a reference image, say what to change, and let `claude -p` on
+// this Mac do it. Results are previews until kept; keeping writes a new image into edits/ and a new
+// manifest entry, the original stays untouched. UI only: the rules live in edit.ts and the server.
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { filterAssets, NO_FILTER } from "../assets/filter.ts";
+import { announceManifestChanged, useAssetListing } from "../assets/useAssets.ts";
+import { assetImageUrl, type AssetInfo } from "../assets/types.ts";
+import { rootAssetId } from "./edit.ts";
+import { EDIT_PRESETS, EDITS_ENDPOINT, jobUrl, type EditJob, type EditOverview } from "./types.ts";
+
+async function call<T>(url: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<T> {
+  const r = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = (await r.json().catch(() => ({}))) as T & { error?: string };
+  if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`);
+  return data;
+}
+
+function useEditOverview(): { overview: EditOverview | null; error: string | null; refresh: () => void } {
+  const [overview, setOverview] = useState<EditOverview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+  const refresh = useCallback(() => setTick((n) => n + 1), []);
+  const running = overview?.jobs.some((j) => j.state === "running") ?? false;
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      call<EditOverview>(EDITS_ENDPOINT).then(
+        (o) => {
+          if (cancelled) return;
+          setOverview(o);
+          setError(null);
+        },
+        (e: unknown) =>
+          !cancelled &&
+          setError(`Cannot reach the edit service (${String(e)}). It runs only under npm run dev.`),
+      );
+    void load();
+    const timer = running ? setInterval(() => void load(), 1500) : undefined;
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [tick, running]);
+  return { overview, error, refresh };
+}
+
+export function ImageEditPage() {
+  const { listing, reload } = useAssetListing();
+  const { overview, error: serviceError, refresh } = useEditOverview();
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [instruction, setInstruction] = useState("");
+  const [refineFrom, setRefineFrom] = useState<EditJob | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const assets = useMemo(
+    () => (listing?.status === "ok" ? listing.assets.filter((a) => a.exists) : []),
+    [listing],
+  );
+  const shown = useMemo(() => filterAssets(assets, { ...NO_FILTER, text: search }), [assets, search]);
+  const selected = assets.find((a) => a.id === selectedId) ?? null;
+  const root = selected ? rootAssetId(selected) : null;
+  const jobs = (overview?.jobs ?? []).filter((j) => j.assetId === root).toReversed();
+  const availability = overview?.availability;
+  const runningCount = overview?.jobs.filter((j) => j.state === "running").length ?? 0;
+
+  const select = (a: AssetInfo) => {
+    setSelectedId(a.id);
+    setRefineFrom(null);
+    setActionError(null);
+  };
+
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  };
+
+  const start = () =>
+    act(async () => {
+      if (!selected) return;
+      await call<EditJob>(EDITS_ENDPOINT, "POST", {
+        assetId: selected.id,
+        instruction,
+        ...(refineFrom ? { fromJob: refineFrom.id } : {}),
+      });
+      setInstruction("");
+      setRefineFrom(null);
+    });
+
+  const keep = (job: EditJob) =>
+    act(async () => {
+      await call<EditJob>(jobUrl(job.id, "keep"), "POST");
+      announceManifestChanged();
+      reload();
+    });
+
+  let picker: React.ReactNode;
+  if (!listing) picker = <p className="muted small">Loading…</p>;
+  else if (listing.status === "unset")
+    picker = (
+      <p className="small">
+        <code>TATTOO_DATA_DIR</code> is not set, so there are no images to edit.
+      </p>
+    );
+  else if (listing.status === "error") picker = <p className="small error-text">{listing.message}</p>;
+  else if (assets.length === 0)
+    picker = (
+      <p className="small muted">
+        No images in the manifest yet. Run <code>npm run assets:scan</code> after adding files to the data
+        folder.
+      </p>
+    );
+  else
+    picker = (
+      <>
+        <input
+          type="search"
+          placeholder="Search id, notes, source"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search images"
+        />
+        <ul className="asset-grid">
+          {shown.map((a) => (
+            <li key={a.id}>
+              <button
+                type="button"
+                className={`asset-card${a.id === selectedId ? " current" : ""}`}
+                title={[a.id, a.file, a.notes].filter(Boolean).join("\n")}
+                onClick={() => select(a)}
+              >
+                <img src={assetImageUrl(a.id)} alt="" loading="lazy" decoding="async" />
+                <span className="asset-id">{a.id}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </>
+    );
+
+  const canRun =
+    !!selected && !!instruction.trim() && !busy && availability?.enabled === true && runningCount < 2;
+
+  return (
+    <div className="edit-page">
+      <section className="panel edit-picker" aria-label="Images">
+        <div className="panel-head">
+          <h2>Images</h2>
+          <button type="button" onClick={reload} title="Re-read manifest.yaml">
+            Reload
+          </button>
+        </div>
+        {picker}
+      </section>
+
+      <section className="panel edit-main" aria-label="Edit">
+        <div className="panel-head">
+          <h2>{selected ? selected.id : "Edit an image"}</h2>
+          {availability?.enabled && <span className="muted small">{availability.claude}</span>}
+        </div>
+        {serviceError && <p className="notice error small">{serviceError}</p>}
+        {availability && !availability.enabled && <p className="notice warn small">{availability.reason}</p>}
+        {!selected ? (
+          <p className="muted">
+            Pick an image on the left, then describe the change, e.g. “remove the background”. Claude Code
+            runs the edit on this Mac (<code>claude -p</code>) with local tools; the original stays as it is
+            and each result is a preview until you keep it.
+          </p>
+        ) : (
+          <>
+            <div className="edit-compose">
+              <figure className="edit-source">
+                <div className="checker">
+                  <img
+                    src={
+                      refineFrom
+                        ? `${jobUrl(refineFrom.id, "output")}?v=${refineFrom.finishedAt ?? ""}`
+                        : assetImageUrl(selected.id)
+                    }
+                    alt="Image to edit"
+                  />
+                </div>
+                <figcaption className="small muted">
+                  {refineFrom ? "Editing the result of the edit below" : `${selected.file}`}
+                  {selected.derived_from && !refineFrom && <> · edit of {selected.derived_from}</>}
+                </figcaption>
+              </figure>
+              <div className="edit-form">
+                <div className="edit-presets" role="group" aria-label="Presets">
+                  {EDIT_PRESETS.map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      className="chip"
+                      onClick={() => setInstruction(p.instruction)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <label className="small" htmlFor="edit-instruction">
+                  What should change?
+                </label>
+                <textarea
+                  id="edit-instruction"
+                  rows={5}
+                  value={instruction}
+                  maxLength={2000}
+                  placeholder="e.g. Remove the background and the text at the bottom; keep the snake's tail."
+                  onChange={(e) => setInstruction(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canRun) void start();
+                  }}
+                />
+                <div className="toolbar">
+                  <button type="button" className="primary" disabled={!canRun} onClick={() => void start()}>
+                    {refineFrom ? "Edit the result" : "Edit with Claude"}
+                  </button>
+                  {refineFrom && (
+                    <button type="button" onClick={() => setRefineFrom(null)}>
+                      Start from the original instead
+                    </button>
+                  )}
+                  <span className="muted small">
+                    {runningCount >= 2
+                      ? "Two edits are running; wait for one."
+                      : "⌘/Ctrl + Enter · takes 1–5 min"}
+                  </span>
+                </div>
+                {actionError && <p className="error-text small">{actionError}</p>}
+              </div>
+            </div>
+
+            {jobs.length > 0 && <h3 className="edit-results-head">Results</h3>}
+            <ul className="edit-jobs">
+              {jobs.map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  busy={busy}
+                  onKeep={() => void keep(job)}
+                  onDiscard={() => void act(() => call(jobUrl(job.id, "discard"), "POST"))}
+                  onCancel={() => void act(() => call(jobUrl(job.id, "cancel"), "POST"))}
+                  onRefine={() => {
+                    setRefineFrom(job);
+                    setInstruction("");
+                    document.getElementById("edit-instruction")?.focus();
+                  }}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+const STATE_LABEL: Record<EditJob["state"], string> = {
+  running: "Claude is working…",
+  done: "Ready to review",
+  failed: "Failed",
+  cancelled: "Stopped",
+  kept: "Kept",
+  discarded: "Discarded",
+};
+
+function elapsed(job: EditJob): string {
+  const end = job.finishedAt ? Date.parse(job.finishedAt) : Date.now();
+  const s = Math.max(0, Math.round((end - Date.parse(job.startedAt)) / 1000));
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`;
+}
+
+function JobCard({
+  job,
+  busy,
+  onKeep,
+  onDiscard,
+  onCancel,
+  onRefine,
+}: {
+  job: EditJob;
+  busy: boolean;
+  onKeep: () => void;
+  onDiscard: () => void;
+  onCancel: () => void;
+  onRefine: () => void;
+}) {
+  const hasResult = job.state === "done" || job.state === "kept";
+  const resultSrc = job.kept
+    ? assetImageUrl(job.kept.id)
+    : `${jobUrl(job.id, "output")}?v=${job.finishedAt ?? ""}`;
+  return (
+    <li className={`card edit-job ${job.state}`}>
+      <div className="edit-job-head">
+        <strong>{STATE_LABEL[job.state]}</strong>
+        <span className="muted small">{elapsed(job)}</span>
+      </div>
+      <ol className="edit-instructions small">
+        {job.instructions.map((s, i) => (
+          <li key={i} className={i < job.instructions.length - 1 ? "muted" : ""}>
+            {s}
+          </li>
+        ))}
+      </ol>
+      {hasResult && (
+        <div className="edit-compare">
+          <figure>
+            <div className="checker">
+              <img src={jobUrl(job.id, "input")} alt="Before" loading="lazy" />
+            </div>
+            <figcaption className="small muted">before</figcaption>
+          </figure>
+          <figure>
+            <div className="checker">
+              <img src={resultSrc} alt="After" />
+            </div>
+            <figcaption className="small muted">
+              after
+              {job.output &&
+                ` · ${job.output.width} × ${job.output.height} px${job.output.alpha ? " · transparent" : ""}`}
+            </figcaption>
+          </figure>
+        </div>
+      )}
+      {job.summary && job.state !== "running" && <p className="small">{job.summary}</p>}
+      {job.error && <p className="small error-text">{job.error}</p>}
+      {job.kept && (
+        <p className="small">
+          Saved as <code>{job.kept.id}</code> (<code>{job.kept.file}</code>). Assign it to a figure in the
+          Layout tab’s Assets panel.
+        </p>
+      )}
+      {(job.log.length > 0 || job.state === "running") && (
+        <details className="edit-log small" open={job.state === "running"}>
+          <summary>Progress ({job.log.length})</summary>
+          <ol>
+            {job.log.slice(-60).map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ol>
+        </details>
+      )}
+      <div className="toolbar">
+        {job.state === "running" && (
+          <button type="button" onClick={onCancel} disabled={busy}>
+            Stop
+          </button>
+        )}
+        {job.state === "done" && (
+          <button type="button" className="primary" onClick={onKeep} disabled={busy}>
+            Keep as new image
+          </button>
+        )}
+        {hasResult && (
+          <button type="button" onClick={onRefine} disabled={busy}>
+            Edit further
+          </button>
+        )}
+        {job.state !== "running" && job.state !== "kept" && (
+          <button type="button" onClick={onDiscard} disabled={busy}>
+            Discard
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
