@@ -34,8 +34,6 @@ type Props = {
    * still work); every finished stroke arrives as layout points, thinned to the minimum step.
    */
   draw?: { active: boolean; onStroke: (samples: UV[]) => void };
-  /** Click on the skin (not a drag): the layout point that was clicked. */
-  onPick?: (p: UV) => void;
   /** Renders the toolbar into this element instead of above the canvas (lets a page align columns). */
   toolbarTarget?: HTMLElement | null;
   /** Floats on top of the canvas (e.g. the drawing hint); use a .canvas-toolbar.top inside. */
@@ -71,17 +69,6 @@ export function ArmViewer(props: Props) {
       a.click();
       URL.revokeObjectURL(a.href);
     }, "image/png");
-  };
-
-  const onPick = props.onPick;
-  const pick = (e: ThreeEvent<MouseEvent>) => {
-    // A click, not the end of a rotation: three.js reports how far the pointer moved.
-    if (!onPick || drawing || e.delta > 4) return;
-    if (!e.uv || e.face?.materialIndex !== 0) return;
-    const p = textureToLayout(profile, e.uv.x, e.uv.y);
-    if (!p) return;
-    e.stopPropagation();
-    onPick(p);
   };
 
   const toolbarEl = toolbar && (
@@ -131,7 +118,6 @@ export function ArmViewer(props: Props) {
             version={version}
             onPointerDown={drawing ? brush.down : undefined}
             onPointerMove={drawing ? brush.move : undefined}
-            onClick={onPick ? pick : undefined}
           />
           {brush.preview.length >= 2 && (
             <Line points={brush.preview} color="#d01810" lineWidth={4} depthTest={false} />

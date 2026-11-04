@@ -11,7 +11,7 @@ import {
   type Layout,
   type LayoutElement,
 } from "../layout/schema.ts";
-import { classify, pickElement, resolveElement } from "../layout/shapes.ts";
+import { classify, resolveElement } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
 import { parseLayout } from "../layout/yamlDoc.ts";
 import { coverage } from "../metrics/coverage.ts";
@@ -200,7 +200,7 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
     );
     return cls.resolved.map((r) => r.flags);
   }, [layout, profile, aspects, patches]);
-  // Clicking a figure on the 3D arm selects it in the editor (topmost element at that point).
+  // Resolved shapes, e.g. to tell whether the selection is fixed by its projection.
   const resolvedEls = useMemo(
     () =>
       layout?.elements.map((el) =>
@@ -208,7 +208,6 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
       ) ?? [],
     [layout, profile, aspects, patches],
   );
-  const pickOnArm = (p: UV) => setSelected(pickElement(resolvedEls, profile, p.u, p.v));
 
   const flagged =
     layout?.elements.filter((_, i) => flagsFor[i]?.includes("height not set")).map((e) => e.id) ?? [];
@@ -677,7 +676,6 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
               bendDeg={pose.bendDeg}
               onBendDeg={pose.setBendDeg}
               draw={{ active: drawing, onStroke }}
-              onPick={pickOnArm}
               toolbarTarget={viewerToolbar}
               overlay={
                 drawing && (
