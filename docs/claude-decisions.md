@@ -171,3 +171,15 @@ Jan chose the "Pro creative tool" proposal (graphite chrome, translucent floatin
 - **Layout tab as a full-bleed workspace:** tool rail (Select V, add figure/existing/filler/band/line, Draw red line R, shortcuts), 2D editor with a floating mode bar and a status bar (u/v and cm under the cursor, else the selection; zoom, Fit), 3D view with floating view bar, elbow pose, coverage and a right stack (Elements / Assets tabs, inspector). Variant, Undo/Redo, Save as…, Save and Export moved into the top bar; warnings became an "N notices" chip there (errors stay as banners). No separate pan tool: dragging the background pans, as before. _Change:_ `src/editor/LayoutPage.tsx`.
 - **New shortcuts V and R** (select tool, toggle Draw red line), only without modifiers and outside text fields.
 - **3D canvas is transparent** so the CSS gradient shows; Screenshot flattens it onto `VIEWER_BACKGROUND`. The PDF export keeps its white background.
+
+### Image studio: editing sessions (2026-11-04)
+
+Jan approved the session flow (proposal "Image studio: iteration flow review and proposal"). Details in `docs/adr/0010-editing-sessions.md`. The three open points of the proposal were decided by Claude:
+
+- **Results not picked stay visible** under their version until the session closes (not dropped on pick), so variants can still be compared and swapped in. _Alternative:_ drop them on every pick. _Change:_ `pick` in `ImageEditPage.tsx` could call discard for the siblings.
+- **Saving:** Save & close plus an optional "Save vK" per version; no automatic save on pick. _Alternative:_ save every picked version as a file.
+- **Sessions are not written to disk:** they end with `npm run dev`, as the unsaved previews always did; the status bar says so. _Change:_ persist `EditManager.sessions` and the job folders.
+- **One session per image**; starting again on an image with an open session resumes it.
+- **After Save & close of a new image** the studio switches to Edit mode with the saved file picked.
+- **Dark checkerboard and thumbnail background by default** (Jan: white backgrounds look odd); the Light switch stays for black line work on transparent backgrounds and is remembered per browser (`localStorage`).
+- **Reload runs the scan** (`POST /api/assets/scan`) before re-reading the manifest (Jan: new files did not show up). It only adds entries, like `npm run assets:scan`, and reports images outside `cards/`, `refs/`, `existing/`, `arm-photos/` instead of cataloguing them (`ideas/`, `edits/`, `generated/`, `exports/` are filled by the planner and not reported). _Alternative:_ catalogue any folder, or watch the folder.
