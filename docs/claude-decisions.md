@@ -103,6 +103,10 @@ Details in `docs/adr/0005-elbow-bend.md`.
 
 ## 2026-11-04
 
+### Pegasus reference
+
+- **`pegasus-ref-01` = `refs/pegasus.jpg`** (Jan's image), added to `manifest.yaml` on Seafile with a default crop to the figure (`x 0.13, y 0.12, w 0.72, h 0.73`, fitted by Claude). The Pegasus height in v1-baseline stays unset (shown at 10 cm) until Jan sets it.
+
 ### Anubis from all photos
 
 Details in `docs/adr/0006-anubis-projection.md`.
