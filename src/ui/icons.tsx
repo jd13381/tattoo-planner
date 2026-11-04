@@ -176,3 +176,10 @@ export const WarnIcon = () => (
     <path d="M12 10v4M12 17h.01" />
   </Pro>
 );
+
+/** Swap two things (Compare: A ⇄ B). */
+export const SwapIcon = () => (
+  <Pro>
+    <path d="M7 4L3.5 7.5 7 11M3.5 7.5h14M17 13l3.5 3.5L17 20M20.5 16.5h-14" />
+  </Pro>
+);

@@ -42,7 +42,10 @@ const TITLES: Record<Category, string> = {
 type Props = {
   coverage: Coverage;
   title?: string;
-  /** Compare tab: highlight cells that differ from this coverage by at least DIFF_THRESHOLD_PCT. */
+  /**
+   * Compare tab: highlight cells that differ from this coverage by at least DIFF_THRESHOLD_PCT. The
+   * panel variant explains the tint under the table; with "float" the page shows that legend.
+   */
   compareTo?: { coverage: Coverage; label: string };
   /**
    * "float": the compact Pro table for a floating panel over a canvas: swatch-only column heads,
@@ -99,12 +102,14 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
                   const d = delta?.[key][c] ?? 0;
                   const marked = Math.abs(d) >= DIFF_THRESHOLD_PCT;
                   const pct = sharePct(zone, c);
+                  const diffTitle =
+                    compareTo && d !== 0 ? `${d > 0 ? "+" : ""}${d} points vs ${compareTo.label}` : undefined;
                   if (float)
                     return (
                       <td
                         key={c}
-                        className={`num${pct === 0 && c !== "open" ? " zero" : ""}${c === "line" ? " line" : ""}${c === "open" ? " open" : ""}`}
-                        title={`${TITLES[c]}: ${pct}%`}
+                        className={`num${pct === 0 && c !== "open" ? " zero" : ""}${c === "line" ? " line" : ""}${c === "open" ? " open" : ""}${marked ? (d > 0 ? " diff more" : " diff less") : ""}`}
+                        title={`${TITLES[c]}: ${pct}%${diffTitle ? ` (${diffTitle})` : ""}`}
                       >
                         {c === "open" ? (
                           <>
@@ -124,11 +129,7 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
                     <td
                       key={c}
                       className={`num${marked ? (d > 0 ? " diff more" : " diff less") : ""}`}
-                      title={
-                        compareTo && d !== 0
-                          ? `${d > 0 ? "+" : ""}${d} points vs ${compareTo.label}`
-                          : undefined
-                      }
+                      title={diffTitle}
                     >
                       {pct}%
                     </td>
@@ -140,7 +141,7 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
         </tbody>
       </table>
       {noteOpen && <p className="muted small metrics-note">{NOTE}</p>}
-      {compareTo && (
+      {compareTo && !float && (
         <p className="muted small">
           Tinted: at least {DIFF_THRESHOLD_PCT} points more (red) or less (blue) than {compareTo.label}.
         </p>
