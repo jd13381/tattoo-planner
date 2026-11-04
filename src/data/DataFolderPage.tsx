@@ -1,5 +1,7 @@
 // Data folder tab: what TATTOO_DATA_DIR holds, how to set it up and which features need it.
 // The expected structure is shown in every state, so Jan sees what the planner will look for.
+// Layout: a status header (path, counts, Check again), then setup steps or the file tables on the
+// left and the structure and "what needs it" panels on the right.
 import { useEffect, useState } from "react";
 import { countFiles, EXPECTED_ENTRIES, formatSize, groupByFolder, isPresent } from "./expected.ts";
 import { DATA_DIR_VAR, DATA_FILES_ENDPOINT, type DataFile, type DataListing } from "./types.ts";
@@ -46,27 +48,74 @@ function useDataListing(): { state: State; checking: boolean; check: () => void 
   return { state, checking, check };
 }
 
+function headTone(state: State): string {
+  if (state.kind === "loading") return "loading";
+  if (state.kind === "failed") return "error";
+  return state.listing.status === "ok" ? "ok" : state.listing.status === "unset" ? "warn" : "error";
+}
+
 export function DataFolderPage() {
   const { state, checking, check } = useDataListing();
   const listing = state.kind === "loaded" ? state.listing : null;
   const files = listing?.status === "ok" ? listing.files : null;
-
-  const checkButton = (
-    <button type="button" onClick={check} disabled={checking}>
-      {checking ? "Checking…" : "Check again"}
-    </button>
-  );
+  const present = files ? EXPECTED_ENTRIES.filter((e) => isPresent(e, files)).length : null;
+  const latest = files
+    ? files.reduce<string | null>((m, f) => (m === null || f.modified > m ? f.modified : m), null)
+    : null;
 
   return (
-    <div className="data-page">
-      <div className="toolbar data-head">
-        <h2>Data folder</h2>
-        <StatusChip state={state} />
-        <span className="spacer" />
-        {checkButton}
-      </div>
+    <div className="df-page">
+      <header className={`df-head tone-${headTone(state)}`}>
+        <span className="df-head-icon" aria-hidden="true">
+          <FolderGlyph />
+        </span>
+        <div className="df-head-text">
+          <div className="df-head-title">
+            <h2>Data folder</h2>
+            <StatusChip state={state} />
+          </div>
+          <p className="df-head-path">
+            {listing?.status === "ok" || listing?.status === "error" ? (
+              <code>{listing.dir}</code>
+            ) : (
+              <span className="faint">
+                <code>{DATA_DIR_VAR}</code>{" "}
+                {state.kind === "loading"
+                  ? "· reading…"
+                  : state.kind === "failed"
+                    ? "· the dev server did not answer"
+                    : "is not set"}
+              </span>
+            )}
+          </p>
+        </div>
+        {files && (
+          <dl className="df-stats">
+            <div>
+              <dt>Files</dt>
+              <dd className="mono">
+                {files.length}
+                {listing?.status === "ok" && listing.truncated ? "+" : ""}
+              </dd>
+            </div>
+            <div>
+              <dt>Structure</dt>
+              <dd className="mono">
+                {present}/{EXPECTED_ENTRIES.length}
+              </dd>
+            </div>
+            <div>
+              <dt>Last change</dt>
+              <dd className="mono">{latest ? new Date(latest).toLocaleDateString() : "–"}</dd>
+            </div>
+          </dl>
+        )}
+        <button type="button" onClick={check} disabled={checking}>
+          {checking ? "Checking…" : "Check again"}
+        </button>
+      </header>
 
-      {state.kind === "loading" && <p className="muted">Reading the data folder…</p>}
+      {state.kind === "loading" && <p className="muted df-loading">Reading the data folder…</p>}
       {state.kind === "failed" && (
         <p className="notice error" role="alert">
           <strong>The dev server did not answer:</strong> {state.message}. The listing only works under{" "}
@@ -79,49 +128,55 @@ export function DataFolderPage() {
           Check the path in <code>.env</code> and restart <code>npm run dev</code>.
         </p>
       )}
-      {listing?.status === "ok" && (
-        <p className="data-path">
-          <code>{listing.dir}</code>
-          <span className="muted small">
-            {listing.files.length} file{listing.files.length === 1 ? "" : "s"}
-            {listing.truncated ? " (listing truncated)" : ""}
-          </span>
-        </p>
+      {listing?.status === "ok" && listing.truncated && (
+        <p className="notice warn">The listing is truncated: the folder holds more files than shown here.</p>
       )}
 
-      {(listing?.status === "unset" || listing?.status === "error") && (
-        <Setup unset={listing.status === "unset"} />
-      )}
-
-      <div className="data-grid">
-        <section className="panel" aria-label="Expected structure">
-          <h2>{files ? "Structure" : "Expected structure"}</h2>
-          <p className="muted small">
-            {files
-              ? "Empty folders count as missing; they do not show up in the listing."
-              : `What the planner looks for in ${DATA_DIR_VAR} (PROJECT_BRIEF.md §12.3).`}
-          </p>
-          <ExpectedList files={files} />
-        </section>
-        <section className="panel" aria-label="What needs the data folder">
-          <h2>What needs it</h2>
-          <p className="muted small">
-            {files
-              ? "These read the folder or write into it."
-              : "Without the folder these stay off; everything else (layouts, the arm, coverage) works."}
-          </p>
-          <ul className="needs">
-            {NEEDS.map((n) => (
-              <li key={n.feature}>
-                <strong>{n.feature}</strong>
-                <span className="muted">{n.uses}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+      <div className="df-grid">
+        <div className="df-main">
+          {(listing?.status === "unset" || listing?.status === "error") && (
+            <Setup unset={listing.status === "unset"} />
+          )}
+          {files && <FileTables files={files} />}
+        </div>
+        <div className="df-side">
+          <section className="df-panel" aria-label="Expected structure">
+            <div className="df-panel-head">
+              <h2 className="float-title">{files ? "Structure" : "Expected structure"}</h2>
+              {present !== null && (
+                <span className="mono faint">
+                  {present}/{EXPECTED_ENTRIES.length} present
+                </span>
+              )}
+            </div>
+            <p className="df-panel-note faint">
+              {files
+                ? "Empty folders count as missing; they do not show up in the listing."
+                : `What the planner looks for in ${DATA_DIR_VAR} (PROJECT_BRIEF.md §12.3).`}
+            </p>
+            <ExpectedList files={files} />
+          </section>
+          <section className="df-panel" aria-label="What needs the data folder">
+            <div className="df-panel-head">
+              <h2 className="float-title">What needs it</h2>
+            </div>
+            <p className="df-panel-note faint">
+              {files
+                ? "These read the folder or write into it."
+                : "Without the folder these stay off; everything else (layouts, the arm, coverage) works."}
+            </p>
+            <ul className={`needs${files ? " on" : ""}`}>
+              {NEEDS.map((n) => (
+                <li key={n.feature}>
+                  <span className="needs-dot" aria-hidden="true" />
+                  <strong>{n.feature}</strong>
+                  <span className="muted">{n.uses}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
       </div>
-
-      {files && <FileTables files={files} />}
     </div>
   );
 }
@@ -135,15 +190,38 @@ function StatusChip({ state }: { state: State }) {
   return <span className="chip error">Unreadable</span>;
 }
 
+function FolderGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.4l2 2h8.6A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z" />
+    </svg>
+  );
+}
+
+function CopyGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+      <path d="M10.5 3.5V3A1.5 1.5 0 0 0 9 1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h.5" />
+    </svg>
+  );
+}
+
 /** The setup steps from README.md, with copy buttons. */
 function Setup({ unset }: { unset: boolean }) {
   return (
-    <section className="empty data-setup" aria-label="Setup">
-      <h2>{unset ? `Set ${DATA_DIR_VAR} to use your images` : "Fix the data folder path"}</h2>
-      <p>
-        Images, the ideas PDF and exports never go into git. They live in a Seafile folder that the planner
-        finds through <code>{DATA_DIR_VAR}</code>.
-      </p>
+    <section className="df-panel df-setup" aria-label="Setup">
+      <div className="df-panel-head">
+        <h2 className="float-title">Setup</h2>
+        <span className="mono faint">4 steps</span>
+      </div>
+      <div className="df-setup-intro">
+        <h3>{unset ? `Set ${DATA_DIR_VAR} to use your images` : "Fix the data folder path"}</h3>
+        <p className="muted">
+          Images, the ideas PDF and exports never go into git. They live in a Seafile folder that the planner
+          finds through <code>{DATA_DIR_VAR}</code>.
+        </p>
+      </div>
       <ol className="setup-steps">
         <li>
           <span>In the repo folder, create your local settings file (it is git-ignored):</span>
@@ -182,7 +260,7 @@ function Command({ text }: { text: string }) {
       <code>{text}</code>
       <button
         type="button"
-        className="ghost"
+        className={`ghost small-button${copied === true ? " copied" : ""}`}
         onClick={() =>
           navigator.clipboard.writeText(text).then(
             () => setCopied(true),
@@ -191,6 +269,7 @@ function Command({ text }: { text: string }) {
         }
         aria-label={`Copy ${text}`}
       >
+        <CopyGlyph />
         {copied === true ? "Copied" : copied === false ? "Select and copy" : "Copy"}
       </button>
     </span>
@@ -217,9 +296,7 @@ function ExpectedList({ files }: { files: DataFile[] | null }) {
               {entry.kind === "folder" ? "/" : ""}
             </code>
             <span className="purpose">{entry.purpose}</span>
-            <span className="count num">
-              {count !== null && count > 0 ? `${count} file${count === 1 ? "" : "s"}` : ""}
-            </span>
+            <span className="count mono">{count !== null && count > 0 ? count : ""}</span>
           </li>
         );
       })}
@@ -229,15 +306,25 @@ function ExpectedList({ files }: { files: DataFile[] | null }) {
 
 function FileTables({ files }: { files: DataFile[] }) {
   const groups = groupByFolder(files);
-  if (groups.size === 0) return <p className="empty small muted">The data folder is empty.</p>;
+  if (groups.size === 0)
+    return (
+      <section className="df-panel">
+        <p className="muted df-panel-note">The data folder is empty.</p>
+      </section>
+    );
   return (
     <>
-      <h2 className="section-label data-files-head">Files</h2>
+      <div className="df-files-head">
+        <h2 className="float-title">Files</h2>
+        <span className="mono faint">
+          {groups.size} folder{groups.size === 1 ? "" : "s"}
+        </span>
+      </div>
       {[...groups].map(([folder, list]) => (
-        <details className="panel data-folder" key={folder || "(root)"} open={list.length <= 30}>
+        <details className="df-panel data-folder" key={folder || "(root)"} open={list.length <= 30}>
           <summary>
             <code>{folder ? `${folder}/` : "Top level"}</code>
-            <span className="muted small">
+            <span className="mono faint">
               {list.length} file{list.length === 1 ? "" : "s"}
             </span>
           </summary>
@@ -265,7 +352,9 @@ function FileTable({ folder, files }: { folder: string; files: DataFile[] }) {
               <code>{folder ? f.path.slice(folder.length + 1) : f.path}</code>
             </td>
             <td className="num">{formatSize(f.size)}</td>
-            <td>{new Date(f.modified).toLocaleString()}</td>
+            <td className="mono faint">
+              {new Date(f.modified).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+            </td>
           </tr>
         ))}
       </tbody>
