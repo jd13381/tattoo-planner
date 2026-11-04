@@ -11,6 +11,7 @@ export const EXPECTED_ENTRIES: ExpectedEntry[] = [
   { name: "cards", kind: "folder", purpose: "MTG card art" },
   { name: "existing", kind: "folder", purpose: "photos of existing tattoos" },
   { name: "arm-photos", kind: "folder", purpose: "left arm from four sides" },
+  { name: "edits", kind: "folder", purpose: "images kept from the Edit images tab" },
   { name: "exports", kind: "folder", purpose: "generated PNG / PDF handouts (Phase 5)" },
 ];
 
@@ -19,6 +20,13 @@ export function isPresent(entry: ExpectedEntry, files: DataFile[]): boolean {
   return entry.kind === "file"
     ? files.some((f) => f.path === entry.name)
     : files.some((f) => f.path.startsWith(`${entry.name}/`));
+}
+
+/** Files inside an expected folder (recursively); 1 or 0 for a file entry. */
+export function countFiles(entry: ExpectedEntry, files: DataFile[]): number {
+  return entry.kind === "file"
+    ? Number(isPresent(entry, files))
+    : files.filter((f) => f.path.startsWith(`${entry.name}/`)).length;
 }
 
 /** Groups files by their top-level folder; files in the root go under "" and come first. */

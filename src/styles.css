@@ -1559,7 +1559,7 @@ button.asset-card {
 
 .arm-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--side-w);
+  grid-template-columns: minmax(0, 1fr) 380px;
   gap: var(--s-4);
 }
 
@@ -1579,7 +1579,7 @@ button.asset-card {
 
 .field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px 4.5em;
+  grid-template-columns: minmax(0, 1fr) 64px 5.2em;
   gap: 6px;
   align-items: center;
   min-height: 30px;
@@ -1614,6 +1614,71 @@ button.asset-card {
 .field.edited .tag {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+/* An edit that differs from the file: the whole row is marked, so changes stand out in the list. */
+.field.changed {
+  margin: 0 -8px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.field.changed > span:first-child {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.field.changed input {
+  border-color: var(--accent-line);
+  font-weight: 600;
+}
+
+.changed-values {
+  margin: var(--s-2) 0 var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--accent-soft) 50%, var(--surface));
+}
+
+.changed-values-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.changed-values pre {
+  margin: var(--s-2) 0 4px;
+  padding: 6px var(--s-2);
+  max-height: 10em;
+  overflow: auto;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  user-select: all;
+}
+
+.changed-values p {
+  margin: 0;
+}
+
+/* "Front (inner)": the skin side on the view buttons. */
+.view-side {
+  margin-left: -2px;
+  color: var(--faint);
+  font-weight: 400;
+}
+
+.canvas-toolbar .view-side {
+  color: rgba(236, 232, 226, 0.55);
 }
 
 /* ── Compare tab ──────────────────────────────────────────────────────────────────────────────── */
@@ -1736,19 +1801,158 @@ button.asset-card {
 
 /* ── Data folder tab ──────────────────────────────────────────────────────────────────────────── */
 
+.data-page {
+  max-width: 980px;
+  margin: 0 auto;
+  display: grid;
+  gap: var(--s-3);
+}
+
+.data-page > * {
+  margin: 0;
+}
+
+.data-head h2 {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin: 0;
+}
+
+.data-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+
+.data-path code {
+  font-size: var(--fs-sm);
+}
+
+/* The setup steps: an empty-state card, but left-aligned and wide enough for the commands. */
+.empty.data-setup {
+  max-width: none;
+  margin: 0;
+  padding: var(--s-6) var(--s-8);
+}
+
+.empty.data-setup > p {
+  max-width: 64ch;
+}
+
+.setup-steps {
+  width: 100%;
+  max-width: 720px;
+  counter-reset: step;
+  list-style: none;
+  padding: 0 !important;
+  gap: var(--s-3) !important;
+}
+
+.setup-steps li {
+  counter-increment: step;
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding-left: 34px;
+}
+
+.setup-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+/* A command line with a copy button. */
+.command {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: 3px 3px 3px var(--s-3);
+  background: var(--canvas);
+  border-radius: var(--r-md);
+  color: #ece8e2;
+  color-scheme: dark;
+}
+
+.empty .command code {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: var(--fs-xs);
+  white-space: pre-wrap;
+}
+
+.command button.ghost {
+  height: 24px;
+  color: rgba(236, 232, 226, 0.75);
+}
+
+.command button.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.data-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .data-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .expected {
   list-style: none;
   padding: 0;
-  margin: var(--s-3) 0 0;
+  margin: var(--s-2) 0 0;
   display: grid;
-  gap: 4px;
 }
 
 .expected li {
   display: grid;
-  grid-template-columns: 1.5em 9em 1fr;
+  grid-template-columns: 1.4em 8.5em minmax(0, 1fr) auto;
   gap: var(--s-2);
   align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+
+.expected li:last-child {
+  border-bottom: 0;
+}
+
+.expected .purpose {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.expected .count {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.expected .mark {
+  text-align: center;
+  color: var(--faint);
 }
 
 .expected .present .mark {
@@ -1756,8 +1960,48 @@ button.asset-card {
   font-weight: 700;
 }
 
-.expected .absent {
+.expected .absent code,
+.expected .absent .purpose {
   color: var(--faint);
+}
+
+.needs {
+  list-style: none;
+  padding: 0;
+  margin: var(--s-2) 0 0;
+  display: grid;
+}
+
+.needs li {
+  display: grid;
+  gap: 1px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+
+.needs li:last-child {
+  border-bottom: 0;
+}
+
+.needs .muted {
+  font-size: var(--fs-xs);
+}
+
+.data-files-head {
+  margin-top: var(--s-2) !important;
+}
+
+.data-folder > summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.data-folder[open] > summary {
+  margin-bottom: var(--s-2);
 }
 
 /* Edit images tab (src/edits/ImageEditPage.tsx) */

@@ -40,6 +40,8 @@ type Props = {
   toolbarTarget?: HTMLElement | null;
   /** Floats on top of the canvas (e.g. the drawing hint); use a .canvas-toolbar.top inside. */
   overlay?: ReactNode;
+  /** Name the skin side on the view buttons: "Front (inner)", "Back (outer)". */
+  viewSides?: boolean;
 };
 
 export function ArmViewer(props: Props) {
@@ -84,7 +86,7 @@ export function ArmViewer(props: Props) {
 
   const toolbarEl = toolbar && (
     <div className="toolbar viewer-toolbar" role="toolbar" aria-label="3D view">
-      <ViewButtons state={vs} />
+      <ViewButtons state={vs} sides={props.viewSides} />
     </div>
   );
 
@@ -148,8 +150,11 @@ export function ArmViewer(props: Props) {
   );
 }
 
-/** The four fixed view buttons (front = inner, back = outer, medial, lateral). */
-export function ViewButtons({ state }: { state: ViewState }) {
+/** Skin side seen from the front and back views (front = inner, back = outer). */
+const VIEW_SIDE: Partial<Record<string, string>> = { front: "inner", back: "outer" };
+
+/** The four fixed view buttons; `sides` adds the skin side: "Front (inner)", "Back (outer)". */
+export function ViewButtons({ state, sides = false }: { state: ViewState; sides?: boolean }) {
   return (
     <span className="segmented" role="group" aria-label="View">
       {VIEWS.map((v) => {
@@ -164,6 +169,7 @@ export function ViewButtons({ state }: { state: ViewState }) {
             onClick={() => state.select(v.name)}
           >
             {v.label}
+            {sides && VIEW_SIDE[v.name] && <span className="view-side">({VIEW_SIDE[v.name]})</span>}
           </button>
         );
       })}
