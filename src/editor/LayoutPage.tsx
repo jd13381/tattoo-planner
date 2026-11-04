@@ -1,16 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AssetBrowser } from "../assets/AssetBrowser.tsx";
 import type { AssetInfo } from "../assets/types.ts";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { useLayoutSources } from "../assets/useLayoutSources.ts";
 import { defaultFilter, isFigureLike } from "../layout/imageFit.ts";
-import {
-  layoutSchema,
-  ELEMENT_TYPES,
-  type ElementType,
-  type Layout,
-  type LayoutElement,
-} from "../layout/schema.ts";
+import { layoutSchema, type ElementType, type Layout, type LayoutElement } from "../layout/schema.ts";
 import { classify, resolveElement } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
 import { parseLayout } from "../layout/yamlDoc.ts";
@@ -19,10 +14,26 @@ import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
 import { renderUnwrap, timed, type RenderMode } from "../render/unwrapCanvas.ts";
 import { ExportButton } from "../export/ExportButton.tsx";
 import type { ExportInput } from "../export/runExport.ts";
-import { ArmViewer } from "../viewer/ArmViewer.tsx";
+import { ArmViewer, ORBIT_HINT, PoseControl } from "../viewer/ArmViewer.tsx";
 import { anubisSize, INPUT_COUNT, type ArmState, type Pose } from "../viewer/useArm.ts";
 import { Popover } from "../ui/Popover.tsx";
-import { RedoIcon, UndoIcon } from "../ui/icons.tsx";
+import {
+  BandIcon,
+  ExistingIcon,
+  FigureIcon,
+  FillerIcon,
+  FitIcon,
+  HelpIcon,
+  ImageIcon,
+  LayersIcon,
+  LineIcon,
+  RedLineIcon,
+  RedoIcon,
+  SelectIcon,
+  UndoIcon,
+  WarnIcon,
+} from "../ui/icons.tsx";
+import { createValueStore, useValue, type ValueStore } from "../ui/valueStore.ts";
 import { ToastRegion, useToast } from "../ui/Toast.tsx";
 import { newElement, suggestVariantName } from "./edit.ts";
 import { ElementList } from "./ElementList.tsx";
@@ -40,11 +51,18 @@ import {
   type Burst,
   type LayoutEdit,
 } from "./layoutOps.ts";
-import { formatPositionCm, nudgeElement, nudgeStepCm } from "./nudge.ts";
+import {
+  elementAnchor,
+  formatPointCm,
+  formatPositionCm,
+  nudgeElement,
+  nudgeStepCm,
+  type UV as SkinUV,
+} from "./nudge.ts";
 import { SaveAsForm } from "./SaveAsForm.tsx";
 import { formatKeys, isEditableTarget, SHORTCUTS, type ShortcutAction } from "./shortcuts.ts";
 import { applyStroke, type UV } from "./stroke.ts";
-import { UnwrapEditor } from "./UnwrapEditor.tsx";
+import { EDITOR_HINT, UnwrapEditor } from "./UnwrapEditor.tsx";
 import { currentPlatform, useLayoutShortcuts } from "./useLayoutShortcuts.ts";
 
 const MODES: { id: RenderMode; label: string }[] = [
@@ -65,14 +83,29 @@ const PX_PER_CM = 12;
 /** Metrics resolution: 6 px per cm gives areas within a fraction of a percent. */
 const METRICS_PX_PER_CM = 6;
 
+/** The tool rail's add buttons, in rail order. */
+const ADD_TOOLS: { type: ElementType; label: string; icon: ReactNode }[] = [
+  { type: "figure", label: "Figure", icon: <FigureIcon /> },
+  { type: "existing", label: "Existing tattoo", icon: <ExistingIcon /> },
+  { type: "filler", label: "Filler", icon: <FillerIcon /> },
+  { type: "band", label: "Band", icon: <BandIcon /> },
+  { type: "line", label: "Line", icon: <LineIcon /> },
+];
+
+/** Where the page puts its controls in the app's top bar (App.tsx). */
+export type HeaderSlots = { notices: HTMLElement | null; actions: HTMLElement | null };
+
 type Props = {
   arm: ArmState;
   pose: Pose;
   /** Reports the open variant and its unsaved state (the Compare tab offers unsaved edits). */
   onWorking?: (w: WorkingLayout | null) => void;
+  /** Whether the tab is open; the page stays mounted while hidden and then leaves the top bar alone. */
+  active?: boolean;
+  header?: HeaderSlots;
 };
 
-export function LayoutPage({ arm, pose, onWorking }: Props) {
+export function LayoutPage({ arm, pose, onWorking, active = true, header }: Props) {
   const { profile } = arm;
   const [name, setName] = useState<string | null>(null);
   // The open layout with its undo/redo stacks; `layout` is the present state.
@@ -91,6 +124,12 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
   const [appendStrokes, setAppendStrokes] = useState(false);
   const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [noticesOpen, setNoticesOpen] = useState(false);
+  const [sideTab, setSideTab] = useState<"elements" | "assets">("elements");
+  const [fitRequest, setFitRequest] = useState(0);
+  // Cursor and zoom of the 2D editor change on every pointer move: only the status bar re-renders.
+  const [cursor] = useState(() => createValueStore<SkinUV | null>(null));
+  const [zoom] = useState(() => createValueStore(100));
   const toast = useToast();
   const rootRef = useRef<HTMLDivElement>(null);
   const [platform] = useState(currentPlatform);
@@ -354,6 +393,8 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
         return doRedo();
       case "help":
         return setHelpOpen((o) => !o);
+      case "tool":
+        return setDrawing(a.tool === "draw" ? (d) => !d : false);
       case "deselect":
         if (drawing) setDrawing(false);
         else if (helpOpen) setHelpOpen(false);
@@ -422,138 +463,139 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
   ];
   const errors = [loadError, parseError, validationError, saveError].some(Boolean);
 
-  return (
-    <div className="layout-page" ref={rootRef}>
-      <div className="toolbar layout-toolbar">
-        <label className="inline">
-          <span className="toolbar-label">Variant</span>
-          <select value={name ?? ""} onChange={(e) => switchTo(e.target.value)} disabled={!files}>
-            {(files ?? []).map((f) => (
-              <option key={f.name} value={f.name}>
-                {f.name}
-                {f.name === name && dirty ? " *" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+  const kbdSave = keyHint("Mod+S");
+  const assetCount = listing?.status === "ok" ? listing.assets.length : null;
+
+  // Top bar, left of the data-folder chip: the warnings as one chip with a popover.
+  const noticesChip = warnings.length > 0 && (
+    <span className="popover-anchor">
+      <button
+        type="button"
+        className="chip warn"
+        aria-expanded={noticesOpen}
+        aria-haspopup="dialog"
+        onClick={() => setNoticesOpen((o) => !o)}
+        title={warnings.length === 1 ? undefined : "Show the notices"}
+      >
+        <WarnIcon />
+        {warnings.length} {warnings.length === 1 ? "notice" : "notices"}
+      </button>
+      <Popover
+        open={noticesOpen}
+        onClose={() => setNoticesOpen(false)}
+        label="Notices"
+        align="end"
+        className="notices-popover"
+      >
+        <p className="popover-title">Notices</p>
+        <ul className="notice-list">
+          {warnings.map((w) => (
+            <li key={w.key}>{w.text}</li>
+          ))}
+        </ul>
+      </Popover>
+    </span>
+  );
+
+  // Top bar, right of the data-folder chip: variant, undo/redo, save, export.
+  const headerActions = (
+    <>
+      <span className="header-sep" aria-hidden="true" />
+      <span className="select-wrap" title={dirty ? "Unsaved edits" : undefined}>
+        <select
+          className="variant-select"
+          aria-label="Variant"
+          value={name ?? ""}
+          onChange={(e) => switchTo(e.target.value)}
+          disabled={!files}
+        >
+          {(files ?? []).map((f) => (
+            <option key={f.name} value={f.name}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+        {dirty && <span className="dirty-dot" role="img" aria-label="unsaved changes" />}
+      </span>
+      <button
+        type="button"
+        className="ghost icon-button"
+        onClick={doUndo}
+        disabled={!history || !canUndo(history)}
+        aria-label="Undo"
+        title={`Undo (${keyHint("Mod+Z")})`}
+      >
+        <UndoIcon />
+      </button>
+      <button
+        type="button"
+        className="ghost icon-button"
+        onClick={doRedo}
+        disabled={!history || !canRedo(history)}
+        aria-label="Redo"
+        title={`Redo (${keyHint("Shift+Mod+Z")})`}
+      >
+        <RedoIcon />
+      </button>
+      <span className="header-sep" aria-hidden="true" />
+      <span className="popover-anchor">
         <button
           type="button"
-          className={dirty ? "primary" : ""}
-          onClick={() => layout && void doSave(layout)}
-          disabled={!canSave}
-          title={
-            dirty ? `Save the changes to the variant's YAML file (${keyHint("Mod+S")})` : "No unsaved changes"
-          }
+          onClick={() => setSaveAsOpen((o) => !o)}
+          disabled={!layout || !!validationError}
+          aria-expanded={saveAsOpen}
+          aria-haspopup="dialog"
+          title="Save what you see as a new variant to try an alternative"
         >
-          Save
+          Save as…
         </button>
-        <span className="popover-anchor">
-          <button
-            type="button"
-            onClick={() => setSaveAsOpen((o) => !o)}
-            disabled={!layout || !!validationError}
-            aria-expanded={saveAsOpen}
-            aria-haspopup="dialog"
-            title="Save what you see as a new variant to try an alternative"
-          >
-            Save as…
-          </button>
-          <Popover open={saveAsOpen && !!layout} onClose={() => setSaveAsOpen(false)} label="Save as">
-            {layout && (
-              <SaveAsForm
-                suggested={suggestVariantName(
-                  layout.name,
-                  (files ?? []).map((f) => f.name),
-                )}
-                taken={(files ?? []).map((f) => f.name)}
-                current={name}
-                onSave={saveAs}
-                onCancel={() => setSaveAsOpen(false)}
-              />
-            )}
-          </Popover>
-        </span>
-        <span className="button-pair">
-          <button
-            type="button"
-            className="ghost icon-button"
-            onClick={doUndo}
-            disabled={!history || !canUndo(history)}
-            aria-label="Undo"
-            title={`Undo (${keyHint("Mod+Z")})`}
-          >
-            <UndoIcon />
-          </button>
-          <button
-            type="button"
-            className="ghost icon-button"
-            onClick={doRedo}
-            disabled={!history || !canRedo(history)}
-            aria-label="Redo"
-            title={`Redo (${keyHint("Shift+Mod+Z")})`}
-          >
-            <RedoIcon />
-          </button>
-        </span>
-        <span className="toolbar-sep" aria-hidden="true" />
-        <ExportButton input={exportInput} blocked={exportBlocked} />
-        <span className="spacer" />
-        <span
-          className="segmented"
-          role="group"
-          aria-label="Mode"
-          title={`Texture render time: ${Math.round(renderMs)} ms`}
+        <Popover
+          open={saveAsOpen && !!layout}
+          onClose={() => setSaveAsOpen(false)}
+          label="Save as"
+          align="end"
         >
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              className={mode === m.id ? "active" : ""}
-              aria-pressed={mode === m.id}
-              onClick={() => setMode(m.id)}
-            >
-              {m.label}
-            </button>
-          ))}
-        </span>
-        <span className="render-ms" data-render-ms={renderMs.toFixed(1)} title="Texture render time">
-          {Math.round(renderMs)} ms
-        </span>
-        <label className="inline check">
-          <input
-            type="checkbox"
-            checked={grid}
-            onChange={(e) => setGrid(e.target.checked)}
-            disabled={mode === "grid"}
-          />
-          Grid overlay
-        </label>
-        <span className="toolbar-sep" aria-hidden="true" />
-        <span className="toolbar-label">Centred</span>
-        <span className="segmented" role="group" aria-label="Editor centre">
-          <button
-            type="button"
-            className={centerU === 0 ? "active" : ""}
-            aria-pressed={centerU === 0}
-            onClick={() => setCenterU(0)}
-            title="Centre the 2D editor on the outer side"
-          >
-            Outer side
-          </button>
-          <button
-            type="button"
-            className={centerU === 0.5 ? "active" : ""}
-            aria-pressed={centerU === 0.5}
-            onClick={() => setCenterU(0.5)}
-            title="Centre the 2D editor on the inner side"
-          >
-            Inner side
-          </button>
-        </span>
-      </div>
+          {layout && (
+            <SaveAsForm
+              suggested={suggestVariantName(
+                layout.name,
+                (files ?? []).map((f) => f.name),
+              )}
+              taken={(files ?? []).map((f) => f.name)}
+              current={name}
+              onSave={saveAs}
+              onCancel={() => setSaveAsOpen(false)}
+            />
+          )}
+        </Popover>
+      </span>
+      <button
+        type="button"
+        className={dirty ? "primary" : ""}
+        onClick={() => layout && void doSave(layout)}
+        disabled={!canSave}
+        aria-keyshortcuts={platform === "mac" ? "Meta+S" : "Control+S"}
+        title={dirty ? `Save the changes to the variant's YAML file (${kbdSave})` : "No unsaved changes"}
+      >
+        Save <kbd className="kbd">{kbdSave}</kbd>
+      </button>
+      <ExportButton input={exportInput} blocked={exportBlocked} />
+    </>
+  );
 
-      {(errors || warnings.length > 0) && (
-        <div className="notices">
+  return (
+    <div className="layout-page" ref={rootRef}>
+      {active && header?.notices && noticesChip && createPortal(noticesChip, header.notices)}
+      {active && header?.actions && createPortal(headerActions, header.actions)}
+      {!header && (
+        <div className="toolbar layout-toolbar">
+          {noticesChip}
+          {headerActions}
+        </div>
+      )}
+
+      {errors && (
+        <div className="notices layout-errors">
           {loadError && <p className="notice error">{loadError}</p>}
           {parseError && (
             <p className="notice error" role="alert">
@@ -562,95 +604,111 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
           )}
           {validationError && <p className="notice error">Not saved: {validationError}</p>}
           {saveError && <p className="notice error">Save failed: {saveError}</p>}
-          {warnings.length === 1 && (
-            <p className="notice warn" role="status">
-              {warnings[0]!.text}
-            </p>
-          )}
-          {warnings.length > 1 && (
-            <details className="notice warn notice-group">
-              <summary>
-                <strong>{warnings.length} notices</strong>
-                <span className="notice-preview">{warnings[0]!.text}</span>
-              </summary>
-              <ul>
-                {warnings.map((w) => (
-                  <li key={w.key}>{w.text}</li>
-                ))}
-              </ul>
-            </details>
-          )}
         </div>
       )}
 
       {layout && (
-        <div className="layout-grid">
-          <div className="editor-head">
-            <div className="toolbar">
-              <span className="toolbar-label">Add</span>
-              {ELEMENT_TYPES.map((t) => (
-                <button key={t} type="button" onClick={() => addElement(t)}>
-                  {t}
-                </button>
-              ))}
-              <span className="spacer" />
-              <span className="popover-anchor">
-                <button
-                  type="button"
-                  className="ghost icon-button"
-                  aria-label="Keyboard shortcuts"
-                  aria-expanded={helpOpen}
-                  aria-haspopup="dialog"
-                  title="Keyboard shortcuts (?)"
-                  onClick={() => setHelpOpen((o) => !o)}
-                >
-                  ?
-                </button>
-                <Popover
-                  open={helpOpen}
-                  onClose={() => setHelpOpen(false)}
-                  label="Keyboard shortcuts"
-                  align="end"
-                  className="shortcuts-popover"
-                >
-                  <p className="popover-title">Keyboard shortcuts</p>
-                  <dl className="shortcut-list">
-                    {SHORTCUTS.map((s) => (
-                      <div key={s.description}>
-                        <dt>
-                          {s.keys.map((k) => (
-                            <kbd key={k}>{keyHint(k)}</kbd>
-                          ))}
-                        </dt>
-                        <dd>{s.description}</dd>
-                      </div>
-                    ))}
-                    <div>
-                      <dt>
-                        <kbd>{platform === "mac" ? "⌥" : "Alt"}</kbd>
-                        <span className="kbd-plus">+ click</span>
-                      </dt>
-                      <dd>Select the element underneath (2D editor)</dd>
-                    </div>
-                  </dl>
-                  <p className="faint small">Inactive while typing in a field, except save.</p>
-                </Popover>
-              </span>
-            </div>
-          </div>
-          <div className="viewer-head">
+        <div className="workspace">
+          <aside className="tool-rail" role="toolbar" aria-label="Tools" aria-orientation="vertical">
             <button
               type="button"
-              className={`draw-button${drawing ? " active" : ""}`}
-              aria-pressed={drawing}
-              onClick={() => setDrawing((d) => !d)}
-              title="Drag on the 3D arm to draw a red line; it becomes a line element you can edit in the 2D editor"
+              className="tool"
+              aria-pressed={!drawing}
+              aria-label="Select and move"
+              aria-keyshortcuts="V"
+              onClick={() => setDrawing(false)}
             >
-              Draw red line
+              <SelectIcon />
+              <span className="tool-key" aria-hidden="true">
+                V
+              </span>
+              <span className="tip" aria-hidden="true">
+                Select &amp; move <kbd className="kbd">V</kbd>
+              </span>
             </button>
-            <div ref={setViewerToolbar} className="viewer-tools" />
-          </div>
-          <div className="editor-col">
+            <span className="rail-sep" aria-hidden="true" />
+            <span className="rail-label" aria-hidden="true">
+              Add
+            </span>
+            {ADD_TOOLS.map((t) => (
+              <button
+                key={t.type}
+                type="button"
+                className="tool"
+                aria-label={`Add ${t.label.toLowerCase()}`}
+                onClick={() => addElement(t.type)}
+              >
+                {t.icon}
+                <span className="tip" aria-hidden="true">
+                  Add {t.label.toLowerCase()}
+                </span>
+              </button>
+            ))}
+            <span className="rail-sep" aria-hidden="true" />
+            <button
+              type="button"
+              className="tool draw-tool"
+              aria-pressed={drawing}
+              aria-label="Draw red line"
+              aria-keyshortcuts="R"
+              onClick={() => setDrawing((d) => !d)}
+            >
+              <RedLineIcon />
+              <span className="tool-key" aria-hidden="true">
+                R
+              </span>
+              <span className="tip" aria-hidden="true">
+                Draw red line on the 3D arm <kbd className="kbd">R</kbd>
+              </span>
+            </button>
+            <span className="spacer" />
+            <span className="popover-anchor">
+              <button
+                type="button"
+                className="tool"
+                aria-label="Keyboard shortcuts"
+                aria-expanded={helpOpen}
+                aria-haspopup="dialog"
+                aria-keyshortcuts="?"
+                onClick={() => setHelpOpen((o) => !o)}
+              >
+                <HelpIcon />
+                <span className="tip" aria-hidden="true">
+                  Keyboard shortcuts <kbd className="kbd">?</kbd>
+                </span>
+              </button>
+              <Popover
+                open={helpOpen}
+                onClose={() => setHelpOpen(false)}
+                label="Keyboard shortcuts"
+                className="shortcuts-popover side"
+              >
+                <p className="popover-title">Keyboard shortcuts</p>
+                <dl className="shortcut-list">
+                  {SHORTCUTS.map((s) => (
+                    <div key={s.description}>
+                      <dt>
+                        {s.keys.map((k) => (
+                          <kbd key={k}>{keyHint(k)}</kbd>
+                        ))}
+                      </dt>
+                      <dd>{s.description}</dd>
+                    </div>
+                  ))}
+                  <div>
+                    <dt>
+                      <kbd>{platform === "mac" ? "⌥" : "Alt"}</kbd>
+                      <span className="kbd-plus">+ click</span>
+                    </dt>
+                    <dd>Select the element underneath (2D editor)</dd>
+                  </div>
+                </dl>
+                <p className="faint small">Inactive while typing in a field, except save.</p>
+              </Popover>
+            </span>
+          </aside>
+
+          <section className="ws-2d" aria-label="2D editor">
             <UnwrapEditor
               key={`${profile.length}:${profile.maxCircumference}`}
               profile={profile}
@@ -665,18 +723,91 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
               onSelect={setSelected}
               onChange={setElement}
               onGestureEnd={() => setHistory((h) => (h ? seal(h) : h))}
+              onCursor={cursor.set}
+              onZoom={zoom.set}
+              fitRequest={fitRequest}
+              hint={false}
             />
-          </div>
-          <div className="viewer-col">
+            <div className="float float-bar ws-2d-bar">
+              <span className="segmented" role="group" aria-label="Mode" title={HINTS[mode]}>
+                {MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={mode === m.id ? "active" : ""}
+                    aria-pressed={mode === m.id}
+                    onClick={() => setMode(m.id)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </span>
+              <span
+                className="render-ms mono"
+                data-render-ms={renderMs.toFixed(1)}
+                title="Texture render time"
+              >
+                {Math.round(renderMs)} ms
+              </span>
+              <span className="toolbar-sep" aria-hidden="true" />
+              <label className="inline switch-label" title="1 cm grid over the skin, bold every 5 cm">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className="switch"
+                  checked={grid}
+                  onChange={(e) => setGrid(e.target.checked)}
+                  disabled={mode === "grid"}
+                />
+                Grid
+              </label>
+              <span className="toolbar-sep" aria-hidden="true" />
+              <span
+                className="segmented"
+                role="group"
+                aria-label="Editor centre"
+                title="Centre of the 2D editor"
+              >
+                <button
+                  type="button"
+                  className={centerU === 0 ? "active" : ""}
+                  aria-pressed={centerU === 0}
+                  onClick={() => setCenterU(0)}
+                  title="Centre the 2D editor on the outer side"
+                >
+                  Outer
+                </button>
+                <button
+                  type="button"
+                  className={centerU === 0.5 ? "active" : ""}
+                  aria-pressed={centerU === 0.5}
+                  onClick={() => setCenterU(0.5)}
+                  title="Centre the 2D editor on the inner side"
+                >
+                  Inner
+                </button>
+              </span>
+            </div>
+            <StatusBar
+              cursor={cursor}
+              zoom={zoom}
+              fallback={sel ? elementAnchor(sel) : null}
+              format={(p) => formatPointCm(profile, p)}
+              onFit={() => setFitRequest((n) => n + 1)}
+            />
+          </section>
+
+          <section className="ws-3d" aria-label="3D view">
             <ArmViewer
               profile={profile}
               canvas={texture}
               version={0}
               hint={HINTS[mode]}
               bendDeg={pose.bendDeg}
-              onBendDeg={pose.setBendDeg}
               draw={{ active: drawing, onStroke }}
               toolbarTarget={viewerToolbar}
+              screenshotInToolbar
+              footer={false}
               overlay={
                 drawing && (
                   <div className="canvas-toolbar top">
@@ -700,75 +831,195 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
                 )
               }
             />
-          </div>
-          <div className="side-col">
-            <ElementList
-              elements={layout.elements}
-              issues={issues}
-              selected={selected}
-              onSelect={setSelected}
-              onToggleLock={(i) => {
-                const el = layout.elements[i]!;
-                setElement(i, { ...el, locked: el.locked ? undefined : true });
-              }}
-              onMove={(from, to) => apply((l) => moveLayerTo(l, from, to))}
-            />
-            {sel && selected !== null ? (
-              <ElementPanel
-                element={sel}
-                asset={selAsset}
-                autoFilter={isFigureLike(sel) ? defaultFilter(sel, profile) : "none"}
-                flags={flagsFor[selected] ?? []}
-                positionCm={formatPositionCm(profile, sel)}
-                index={selected}
-                count={layout.elements.length}
-                onChange={(el) => setElement(selected, el, typingKey(`el${selected}`))}
-                onLayer={(dir) => apply((l) => moveLayer(l, selected, dir))}
-                onDelete={deleteSelected}
-                onDuplicate={() => apply((l) => duplicateAt(l, selected))}
-                keys={{
-                  duplicate: keyHint("Mod+D"),
-                  delete: "Delete",
-                  forward: "]",
-                  back: "[",
-                }}
-              />
-            ) : (
-              <section className="panel">
-                <div className="panel-head">
-                  <h2>{layout.name}</h2>
-                  {dirty && <span className="chip warn">unsaved</span>}
+            <div className="float float-bar ws-3d-bar" title={`${ORBIT_HINT} ${HINTS[mode] ?? ""}`}>
+              <button
+                type="button"
+                className={`ghost draw-button${drawing ? " active" : ""}`}
+                aria-pressed={drawing}
+                aria-keyshortcuts="R"
+                onClick={() => setDrawing((d) => !d)}
+                title="Drag on the 3D arm to draw a red line; it becomes a line element you can edit in the 2D editor (R)"
+              >
+                <RedLineIcon />
+                Draw red line <kbd className="kbd">R</kbd>
+              </button>
+              <span className="toolbar-sep" aria-hidden="true" />
+              <div ref={setViewerToolbar} className="viewer-tools" />
+            </div>
+            <div className="float pose-panel">
+              <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} variant="panel" />
+            </div>
+            {metrics && <MetricsPanel coverage={metrics} variant="float" />}
+
+            <div className="ws-stack">
+              <section className="float side-tabs" aria-label="Elements and assets">
+                <div className="float-head" role="tablist" aria-label="Side panel">
+                  <button
+                    type="button"
+                    role="tab"
+                    id="side-tab-elements"
+                    aria-selected={sideTab === "elements"}
+                    aria-controls="side-panel-elements"
+                    className="panel-tab"
+                    onClick={() => setSideTab("elements")}
+                  >
+                    <LayersIcon />
+                    Elements <span className="count">{layout.elements.length}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    id="side-tab-assets"
+                    aria-selected={sideTab === "assets"}
+                    aria-controls="side-panel-assets"
+                    className="panel-tab"
+                    onClick={() => setSideTab("assets")}
+                  >
+                    <ImageIcon />
+                    Assets {assetCount !== null && <span className="count">{assetCount}</span>}
+                  </button>
+                  <span className="spacer" />
+                  {sideTab === "elements" ? (
+                    <span
+                      className="faint xs"
+                      title="The list shows the top layer first; drag a row to change the order."
+                    >
+                      top first
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="ghost small-button"
+                      onClick={reloadAssets}
+                      title="Re-read manifest.yaml and the images"
+                    >
+                      Reload
+                    </button>
+                  )}
                 </div>
-                <label className="props">
-                  description
-                  <textarea
-                    rows={3}
-                    value={layout.description ?? ""}
-                    onChange={(e) =>
-                      commit(
-                        (l) => ({ ...l, description: e.target.value || undefined }),
-                        typingKey("description"),
-                      )
-                    }
-                  />
-                </label>
-                <p className="muted small">
-                  {layout.elements.length} elements. Select one in the list or the editor to edit it.
-                </p>
+                <div
+                  className="side-tab-body"
+                  role="tabpanel"
+                  id={`side-panel-${sideTab}`}
+                  aria-labelledby={`side-tab-${sideTab}`}
+                >
+                  {sideTab === "elements" ? (
+                    <ElementList
+                      heading={false}
+                      elements={layout.elements}
+                      issues={issues}
+                      selected={selected}
+                      onSelect={setSelected}
+                      onToggleLock={(i) => {
+                        const el = layout.elements[i]!;
+                        setElement(i, { ...el, locked: el.locked ? undefined : true });
+                      }}
+                      onMove={(from, to) => apply((l) => moveLayerTo(l, from, to))}
+                    />
+                  ) : (
+                    <AssetBrowser
+                      heading={false}
+                      listing={listing}
+                      onReload={reloadAssets}
+                      current={sel && isFigureLike(sel) ? sel.asset : undefined}
+                      assignBlocked={assignBlocked}
+                      onPick={pickAsset}
+                    />
+                  )}
+                </div>
               </section>
-            )}
-            <AssetBrowser
-              listing={listing}
-              onReload={reloadAssets}
-              current={sel && isFigureLike(sel) ? sel.asset : undefined}
-              assignBlocked={assignBlocked}
-              onPick={pickAsset}
-            />
-            {metrics && <MetricsPanel coverage={metrics} />}
-          </div>
+              <div className="float inspector">
+                {sel && selected !== null ? (
+                  <ElementPanel
+                    element={sel}
+                    asset={selAsset}
+                    autoFilter={isFigureLike(sel) ? defaultFilter(sel, profile) : "none"}
+                    flags={flagsFor[selected] ?? []}
+                    positionCm={formatPositionCm(profile, sel)}
+                    index={selected}
+                    count={layout.elements.length}
+                    onChange={(el) => setElement(selected, el, typingKey(`el${selected}`))}
+                    onLayer={(dir) => apply((l) => moveLayer(l, selected, dir))}
+                    onDelete={deleteSelected}
+                    onDuplicate={() => apply((l) => duplicateAt(l, selected))}
+                    keys={{
+                      duplicate: keyHint("Mod+D"),
+                      delete: "Delete",
+                      forward: "]",
+                      back: "[",
+                    }}
+                  />
+                ) : (
+                  <section className="panel variant-panel">
+                    <div className="panel-head inspector-head">
+                      <h2>{layout.name}</h2>
+                      <span className="faint">variant</span>
+                      <span className="spacer" />
+                      {dirty && <span className="chip warn">unsaved</span>}
+                    </div>
+                    <label className="props">
+                      description
+                      <textarea
+                        rows={3}
+                        value={layout.description ?? ""}
+                        onChange={(e) =>
+                          commit(
+                            (l) => ({ ...l, description: e.target.value || undefined }),
+                            typingKey("description"),
+                          )
+                        }
+                      />
+                    </label>
+                    <p className="muted small">
+                      {layout.elements.length} elements. Select one in the list or the editor to edit it.
+                    </p>
+                  </section>
+                )}
+              </div>
+            </div>
+          </section>
         </div>
       )}
       <ToastRegion toast={toast} />
+    </div>
+  );
+}
+
+/** Bottom of the 2D view: the skin point under the cursor (or the selection's anchor), zoom and Fit. */
+function StatusBar(props: {
+  cursor: ValueStore<SkinUV | null>;
+  zoom: ValueStore<number>;
+  fallback: SkinUV | null;
+  format: (p: SkinUV) => string;
+  onFit: () => void;
+}) {
+  const hover = useValue(props.cursor);
+  const zoom = useValue(props.zoom);
+  const p = hover ?? props.fallback;
+  return (
+    <div className="float status-bar" title={EDITOR_HINT}>
+      {p ? (
+        <>
+          <span className="mono">u {p.u.toFixed(2)}</span>
+          <span className="mono">v {p.v.toFixed(2)}</span>
+          <span className="faint status-cm">{props.format(p)}</span>
+        </>
+      ) : (
+        <span className="faint">Point at the skin to read its position.</span>
+      )}
+      <span className="spacer" />
+      <button
+        type="button"
+        className="ghost icon-button small-button"
+        onClick={props.onFit}
+        aria-label="Fit the whole sheet"
+        title="Fit the whole sheet (double-click the background)"
+      >
+        <FitIcon />
+      </button>
+      <span className="mono faint" aria-label={`Zoom ${zoom}%`}>
+        {zoom}%
+      </span>
     </div>
   );
 }

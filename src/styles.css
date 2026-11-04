@@ -1,49 +1,97 @@
 /* Tattoo Planner styles. Sections: tokens, base, controls, components, app shell, canvases, pages.
- * Design direction: ink on paper with one red line. Red (--accent) is never a selection colour: it is
- * reserved for the brand stroke, the "Draw red line" tool, errors and "more" in coverage diffs.
- * Selected and active states use ink (--text) or a raised surface. */
+ *
+ * Design direction: "Pro creative tool" (docs/claude-decisions.md, 2026-11-04). Dark only. The
+ * chrome recedes into near-black graphite so the skin is the only light surface; canvases are
+ * full-bleed and controls float over them in translucent panels (.float).
+ *
+ * Colour rules:
+ * - --accent (blue-violet) is the one interaction colour: selection, focus, the primary button,
+ *   pressed tools. Never use it for content.
+ * - --red is the sleeve's red line: red lines, the brand mark, the Draw red line tool, the red
+ *   accents tag. Never for selection or errors.
+ * - --danger is for errors and destructive actions (a lighter red that passes AA as text).
+ * - --warn (amber) for notices and warning dots.
+ * - --skin / --figure / --filler match the blockout colours of the canvases (swatches, legends).
+ *
+ * Conventions for pages (see README, "UI conventions"):
+ * - Buttons: default = hairline secondary; .primary (accent, one per view), .ghost (quiet, no
+ *   border), .danger, .link, .icon-button (square); a pressed toggle is aria-pressed="true".
+ * - .segmented for one choice of a few; .switch on a checkbox for an on/off toggle.
+ * - .panel / .card for opaque content blocks on the page; .float for a translucent panel over a
+ *   canvas, with .float-head + .float-title for its header and .float-bar for a row of controls.
+ * - Numbers (cm, u/v, %) use .mono or .num; key hints use <kbd> (or <kbd class="kbd"> inline).
+ * - Notices: .notices > .notice(.warn | .error | .info | .ok); chips: .chip(.ok | .warn | .error | .muted).
+ * - A tab whose page is a workspace (canvas fills the viewport) gets "full-bleed" in App.tsx. */
 
 /* ── Tokens ───────────────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* colour: light */
-  --bg: #f4f2ee; /* warm paper */
-  --surface: #fffdfa; /* panels, cards, buttons */
-  --surface-2: #eeeae4; /* segmented track, hover, table header, chips */
-  --surface-3: #e5e0d8; /* pressed */
-  --field-bg: #ffffff; /* inputs, selects, textareas */
-  --border: #e3ded6; /* hairlines, table rows */
-  --border-strong: #cfc8bd; /* control borders, total row */
-  --text: #1c1a17; /* ink */
-  --muted: #6e675f;
-  --faint: #9a938a; /* render ms, placeholder text, hints */
-  --on-ink: #fbf9f6; /* text on --text (primary button) */
-  --accent: #b3261e; /* the sleeve's red line; see the usage rule above */
-  --accent-hover: #971f18;
-  --accent-soft: rgba(179, 38, 30, 0.1);
-  --accent-line: rgba(179, 38, 30, 0.45);
-  --ok: #2e7d4f;
-  --ok-soft: rgba(46, 125, 79, 0.1);
-  --warn: #9a5b00;
-  --warn-soft: #fbf0dc;
-  --warn-line: #e2b56b;
-  --info: #35618f;
-  --info-soft: rgba(53, 97, 143, 0.1);
-  --focus: rgba(53, 97, 143, 0.55); /* ink-blue ring, deliberately not red */
-  --control-accent: var(--accent); /* range and checkbox fill */
-  --seg-active: var(--surface);
-  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236e675f' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  /* surfaces */
+  --bg: #0a0a0d; /* workspace */
+  --chrome: #111115; /* top bar */
+  --rail: #0e0e12; /* tool rail */
+  --surface: #16161c; /* opaque panels, cards, popovers */
+  --surface-2: #1d1d24; /* hover fill, table header, chips, tooltips */
+  --surface-3: #2a2a34; /* pressed, active segment */
+  --panel: rgba(22, 22, 28, 0.8); /* floating panel, always with --panel-blur */
+  --panel-blur: blur(18px) saturate(140%);
+  --field-bg: #0e0e13; /* inputs, selects, textareas */
+  --hover: rgba(255, 255, 255, 0.045);
 
-  /* canvases (same in both themes) */
-  --canvas: #2a2725;
-  --canvas-edge: #1a1816;
-  --canvas-label-bg: rgba(20, 18, 16, 0.72);
+  /* hairlines */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.11); /* control outlines, panel edges */
+  --border-hover: rgba(255, 255, 255, 0.16);
+
+  /* text: all three pass WCAG AA (4.5:1) on --surface and --bg */
+  --text: #e9e9ef;
+  --muted: #a3a3b0; /* text 2: labels, secondary */
+  --faint: #868693; /* text 3: hints, units, captions */
+  --on-ink: #0d0b1a; /* text on light fills (--text, --accent) */
+
+  /* interaction accent */
+  --accent: #8f84ff;
+  --accent-hover: #a69dff;
+  --accent-text: #b4adff; /* accent as text on dark */
+  --accent-soft: rgba(143, 132, 255, 0.14);
+  --accent-line: rgba(143, 132, 255, 0.45);
+  --focus: #8f84ff;
+  --focus-ring: 0 0 0 3px rgba(143, 132, 255, 0.28);
+
+  /* content and status */
+  --red: #d8262c; /* the sleeve's red line */
+  --red-soft: rgba(216, 38, 44, 0.13);
+  --red-line: rgba(216, 38, 44, 0.4);
+  --danger: #f0767a;
+  --danger-soft: rgba(240, 118, 122, 0.12);
+  --danger-line: rgba(240, 118, 122, 0.4);
+  --warn: #e6b35a;
+  --warn-text: #ecc985;
+  --warn-soft: rgba(230, 179, 90, 0.12);
+  --warn-line: rgba(230, 179, 90, 0.28);
+  --ok: #5fc08a;
+  --ok-soft: rgba(95, 192, 138, 0.12);
+  --info: var(--accent);
+  --info-soft: var(--accent-soft);
+  --control-accent: var(--accent); /* range and checkbox fill */
+  --seg-active: var(--surface-3);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23a3a3b0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* canvases */
+  --canvas: #0c0c10; /* 2D workspace, image wells */
+  --canvas-2d: #0c0c10 radial-gradient(rgba(255, 255, 255, 0.075) 1px, transparent 1.2px) 4px 4px / 16px 16px; /* dot grid */
+  --canvas-3d: radial-gradient(ellipse 60% 55% at 50% 44%, #1d1c26 0%, #121218 45%, #0a0a0d 100%);
+  --canvas-edge: rgba(255, 255, 255, 0.07);
+  --canvas-label-bg: rgba(22, 22, 28, 0.8);
+  --skin: #e4ddd3;
+  --figure: #3a3940;
+  --filler: #bdb7af;
 
   /* radii */
-  --r-xs: 4px;
-  --r-sm: 6px;
-  --r-md: 8px;
-  --r-lg: 12px;
+  --r-xs: 3px; /* tags */
+  --r-sm: 5px;
+  --r-md: 6px; /* controls */
+  --r-lg: 10px; /* panels */
   --r-pill: 999px;
 
   /* spacing: 4px base */
@@ -56,68 +104,38 @@
   --s-8: 32px;
 
   /* elevation */
-  --shadow-1: 0 1px 2px rgba(40, 30, 20, 0.06);
-  --shadow-2: 0 1px 2px rgba(40, 30, 20, 0.05), 0 6px 18px rgba(40, 30, 20, 0.07);
-  --shadow-seg: 0 1px 2px rgba(40, 30, 20, 0.14), 0 0 0 0.5px rgba(40, 30, 20, 0.1);
-  --shadow-canvas: 0 1px 2px rgba(0, 0, 0, 0.1), 0 10px 30px -12px rgba(0, 0, 0, 0.35);
+  --shadow-1: none;
+  --shadow-2: 0 12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-seg: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 0 0 1px var(--border-strong);
+  --shadow-canvas: none;
 
-  /* type */
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --fs-2xs: 11px; /* table headers, legends, tags (uppercase) */
-  --fs-xs: 12px; /* hints, captions, field labels, metrics cells */
-  --fs-sm: 13px; /* controls, body in panels (UI default) */
-  --fs-md: 14px; /* running text, panel titles */
-  --fs-lg: 16px; /* page titles inside a tab, empty state titles */
+  /* type: Inter for labels, JetBrains Mono for every number (bundled, see src/main.tsx) */
+  --font-ui: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --fs-2xs: 10px; /* uppercase panel titles, rail labels */
+  --fs-xs: 11px; /* hints, captions, field labels, table cells */
+  --fs-sm: 12px; /* controls, body in panels (UI default) */
+  --fs-md: 13px; /* running text */
+  --fs-lg: 15px; /* titles inside a tab, empty state titles, inspector name */
   --fs-xl: 20px; /* reserve */
   --lh-tight: 1.25;
-  --lh: 1.45;
+  --lh: 1.4;
 
   /* sizes */
   --control-h: 28px;
   --control-h-lg: 32px;
-  --header-h: 52px;
-  --side-w: 340px;
+  --header-h: 44px;
+  --rail-w: 48px;
+  --side-w: 300px;
 
-  color-scheme: light dark;
+  color-scheme: dark;
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
   line-height: var(--lh);
+  font-feature-settings: "tnum", "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #121110;
-    --surface: #1b1a18;
-    --surface-2: #252320;
-    --surface-3: #2f2c28;
-    --field-bg: #161513;
-    --border: #2e2b27;
-    --border-strong: #433e38;
-    --text: #ece8e2;
-    --muted: #a39b91;
-    --faint: #7a736a;
-    --on-ink: #161513;
-    --accent: #e5534b;
-    --accent-hover: #ef6a62;
-    --accent-soft: rgba(229, 83, 75, 0.16);
-    --accent-line: rgba(229, 83, 75, 0.5);
-    --ok: #5fb884;
-    --ok-soft: rgba(95, 184, 132, 0.14);
-    --warn: #e3a64a;
-    --warn-soft: rgba(227, 166, 74, 0.1);
-    --warn-line: rgba(227, 166, 74, 0.45);
-    --info: #8db3e2;
-    --info-soft: rgba(141, 179, 226, 0.14);
-    --focus: rgba(141, 179, 226, 0.6);
-    --seg-active: #3a3632;
-    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23a39b91' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    --canvas-edge: #383430; /* the edge must read against a near-black page */
-    --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-2: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.45);
-    --shadow-seg: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.06) inset;
-  }
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── Base ─────────────────────────────────────────────────────────────────────────────────────── */
@@ -142,6 +160,10 @@ p {
   margin: 0 0 var(--s-2);
 }
 
+a {
+  color: var(--accent-text);
+}
+
 code {
   font-family: var(--font-mono);
   font-size: 0.92em;
@@ -157,6 +179,15 @@ code {
   outline: none;
 }
 
+::selection {
+  background: rgba(143, 132, 255, 0.35);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -169,14 +200,24 @@ code {
   font-size: var(--fs-xs);
 }
 
+.xs {
+  font-size: var(--fs-2xs);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Warning text inside panels; notices carry their tone in the icon and border instead. */
-.warn:not(.notice) {
-  color: var(--warn);
+.warn:not(.notice, .chip) {
+  color: var(--warn-text);
 }
 
 .error-text,
-.error {
-  color: var(--accent);
+.error:not(.notice, .chip) {
+  color: var(--danger);
 }
 
 .num {
@@ -196,111 +237,141 @@ code {
 
 /* ── Controls ─────────────────────────────────────────────────────────────────────────────────── */
 
-/* Buttons: secondary by default; .primary (ink, the one main action), .ghost (quiet), .danger
- * (destructive), .link; aria-pressed="true" or .active outside a segmented control = pressed toggle. */
-button {
+/* Buttons: secondary (hairline) by default; .primary (accent, the one main action), .ghost (quiet),
+ * .danger (destructive), .link; aria-pressed="true" or .active outside a segmented control = pressed. */
+button,
+a.button {
   font: inherit;
   font-size: var(--fs-sm);
   font-weight: 500;
   height: var(--control-h);
-  padding: 0 var(--s-3);
+  padding: 0 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   white-space: nowrap;
-  border: 1px solid var(--border-strong);
+  border: 0;
   border-radius: var(--r-md);
-  background: var(--surface);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
   color: var(--text);
-  box-shadow: var(--shadow-1);
   cursor: pointer;
+  transition:
+    background-color 80ms ease,
+    color 80ms ease,
+    box-shadow 80ms ease;
 }
 
 button:hover:not(:disabled) {
-  background: var(--surface-2);
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--border-hover);
 }
 
 button:active:not(:disabled) {
-  background: var(--surface-3);
+  background: rgba(255, 255, 255, 0.07);
 }
 
 button[aria-pressed="true"],
 button.active {
-  background: var(--surface-3);
-  border-color: var(--border-strong);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent-text);
 }
 
-button.primary {
-  background: var(--text);
+button.primary,
+a.button.primary {
+  background: var(--accent);
   color: var(--on-ink);
-  border-color: var(--text);
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 0 0 1px rgba(143, 132, 255, 0.5);
 }
 
 button.primary:hover:not(:disabled),
 button.primary:active:not(:disabled) {
-  background: var(--text);
-  opacity: 0.88;
+  background: var(--accent-hover);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 0 0 1px rgba(143, 132, 255, 0.6);
 }
 
 button.ghost {
-  border-color: transparent;
   background: transparent;
   box-shadow: none;
   color: var(--muted);
 }
 
 button.ghost:hover:not(:disabled) {
-  background: var(--surface-2);
+  background: var(--hover);
+  box-shadow: none;
   color: var(--text);
 }
 
+button.ghost[aria-pressed="true"],
+button.ghost.active {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent-text);
+}
+
 button.danger {
-  color: var(--accent);
+  color: var(--danger);
 }
 
 button.danger:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
+  background: var(--danger-soft);
+  box-shadow: inset 0 0 0 1px var(--danger-line);
+  color: var(--danger);
 }
 
 button:disabled {
-  opacity: 0.45;
-  box-shadow: none;
+  opacity: 0.42;
   cursor: not-allowed;
 }
 
 button.link {
   height: auto;
-  border: none;
   background: none;
   box-shadow: none;
   padding: 0 4px;
   color: var(--muted);
   text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 button.link:hover:not(:disabled) {
   background: none;
+  box-shadow: none;
   color: var(--text);
 }
 
-/* Segmented control: one choice of a few (mode, view, pose). Active = raised surface, never red. */
+button.small-button {
+  height: 22px;
+  padding: 0 7px;
+  font-size: var(--fs-xs);
+}
+
+button.icon-button.small-button {
+  width: 22px;
+  padding: 0;
+}
+
+/* Segmented control: one choice of a few (mode, view, pose). Active = raised graphite, not accent. */
 .segmented {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   padding: 2px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 .segmented button {
-  height: calc(var(--control-h) - 6px);
-  padding: 0 10px;
-  border: 0;
+  height: 24px;
+  padding: 0 9px;
   border-radius: var(--r-sm);
   background: transparent;
   box-shadow: none;
@@ -310,6 +381,7 @@ button.link:hover:not(:disabled) {
 .segmented button:hover:not(:disabled),
 .segmented button:active:not(:disabled) {
   background: transparent;
+  box-shadow: none;
   color: var(--text);
 }
 
@@ -334,11 +406,16 @@ input[type="search"],
   font-size: var(--fs-sm);
   height: var(--control-h);
   padding: 0 var(--s-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
+  border: 0;
+  border-radius: var(--r-md);
   background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--border);
   color: var(--text);
   min-width: 0;
+}
+
+:is(select, textarea, input[type="text"], input[type="number"], input[type="search"]):hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--border-hover);
 }
 
 textarea {
@@ -350,6 +427,9 @@ textarea {
 
 input[type="number"] {
   text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
@@ -360,21 +440,31 @@ select {
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 10px 6px;
+  cursor: pointer;
+}
+
+select option {
+  background: var(--surface);
+  color: var(--text);
 }
 
 input::placeholder,
 textarea::placeholder {
   color: var(--faint);
+  font-family: var(--font-ui);
+  font-weight: 400;
 }
 
-:is(select, textarea, input):focus-visible {
+:is(select, textarea, input):focus-visible,
+:is(select, textarea, input):focus-visible:hover {
   outline: none;
-  border-color: var(--info);
-  box-shadow: 0 0 0 3px var(--focus);
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    var(--focus-ring);
 }
 
 :is(select, textarea, input):disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -392,12 +482,66 @@ input[type="range"] {
   margin: 0;
 }
 
+/* An on/off toggle: <input type="checkbox" role="switch" class="switch"> inside a label. */
+input.switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 24px;
+  height: 14px;
+  margin: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+input.switch::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 120ms ease;
+}
+
+input.switch:checked {
+  background: var(--accent);
+}
+
+input.switch:checked::after {
+  transform: translateX(10px);
+}
+
+input.switch:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
 /* A label with its control on one line ("Variant [select]", "[x] grid overlay"). */
 .inline {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: var(--fs-sm);
+}
+
+.switch-label {
+  height: var(--control-h);
+  padding: 0 6px;
+  gap: 7px;
+  color: var(--muted);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.switch-label:has(input:checked) {
+  color: var(--text);
 }
 
 /* ── Components ───────────────────────────────────────────────────────────────────────────────── */
@@ -407,7 +551,7 @@ input[type="range"] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-2);
+  gap: 6px;
 }
 
 .toolbar .spacer,
@@ -416,10 +560,11 @@ input[type="range"] {
 }
 
 .toolbar-sep {
+  flex: none;
   width: 1px;
-  height: 20px;
+  height: 18px;
   background: var(--border-strong);
-  margin: 0 var(--s-1);
+  margin: 0 4px;
 }
 
 .toolbar-label,
@@ -436,32 +581,34 @@ input[type="range"] {
   margin: 0 0 var(--s-3);
 }
 
-/* Chips: small status pills. .chip.warn / .ok / .error; a button.chip is clickable. */
+/* Chips: small status pills. .chip.warn / .ok / .error / .muted; a button.chip is clickable. */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
+  padding: 0 9px;
+  border: 0;
   border-radius: var(--r-pill);
-  background: var(--surface-2);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
   color: var(--muted);
-  font-size: var(--fs-xs);
+  font-size: 11.5px;
   font-weight: 500;
-  box-shadow: none;
   white-space: nowrap;
 }
 
 .chip::before {
   content: "";
+  flex: none;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--faint);
 }
 
-.chip.plain::before {
+.chip.plain::before,
+.chip:has(> .icon)::before {
   display: none;
 }
 
@@ -471,7 +618,7 @@ input[type="range"] {
 
 .chip.warn {
   background: var(--warn-soft);
-  border-color: var(--warn-line);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
   color: var(--warn);
 }
 
@@ -480,32 +627,36 @@ input[type="range"] {
 }
 
 .chip.error {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-  color: var(--accent);
+  background: var(--danger-soft);
+  box-shadow: inset 0 0 0 1px var(--danger-line);
+  color: var(--danger);
 }
 
 .chip.error::before {
-  background: var(--accent);
+  background: var(--danger);
 }
 
 button.chip:hover:not(:disabled) {
-  background: var(--surface-3);
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--border-hover);
+  color: var(--text);
 }
 
-button.chip.warn:hover:not(:disabled) {
-  background: var(--warn-soft);
-  border-color: var(--warn);
+button.chip.warn:hover:not(:disabled),
+button.chip.warn[aria-expanded="true"] {
+  background: rgba(230, 179, 90, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(230, 179, 90, 0.45);
+  color: var(--warn);
 }
 
-/* Panels and cards */
+/* Panels and cards: opaque blocks on the page. */
 .panel,
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
-  padding: var(--s-3) var(--s-4) var(--s-4);
+  padding: var(--s-3) var(--s-3) var(--s-3);
 }
 
 .card {
@@ -539,6 +690,47 @@ button.chip.warn:hover:not(:disabled) {
   margin-bottom: 0;
 }
 
+/* Floating panel over a canvas: translucent graphite with blur. Position it with a page class. */
+.float {
+  position: absolute;
+  z-index: 2;
+  background: var(--panel);
+  backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-float);
+  color: var(--text);
+}
+
+/* A row of controls in a float (mode bar, view bar). */
+.float-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+}
+
+/* A float's header row: title (or tabs) left, meta right, hairline below. */
+.float-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.float-title,
+h2.float-title {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
 fieldset {
   border: none;
   padding: 0;
@@ -550,15 +742,16 @@ legend,
 .section-label {
   font-size: var(--fs-2xs);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
+  letter-spacing: 0.08em;
+  color: var(--faint);
   font-weight: 600;
   margin: 0 0 var(--s-1);
   padding: 0;
 }
 
 /* Notices: compact strips (warn by default, .error, .info, .ok). Stack several in .notices; many
- * warnings fold into one <details class="notice warn notice-group"> with a <summary>. */
+ * warnings fold into one <details class="notice warn notice-group"> with a <summary>.
+ * .notice.compact with a leading <WarnIcon/> is the inline form used inside panels. */
 .notices {
   display: grid;
   gap: 6px;
@@ -569,14 +762,13 @@ legend,
 .card.notice {
   position: relative;
   margin: 0 0 6px;
-  padding: 6px var(--s-3) 6px 34px;
-  border: 1px solid var(--warn-line);
-  border-left-width: 3px;
+  padding: 7px var(--s-3) 7px 32px;
+  border: 0;
   border-radius: var(--r-md);
   background: var(--warn-soft);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
   color: var(--text);
   font-size: var(--fs-sm);
-  box-shadow: none;
   overflow: visible;
 }
 
@@ -589,40 +781,57 @@ legend,
   position: absolute;
   left: 10px;
   top: 8px;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
-  color: var(--surface);
+  color: var(--on-ink);
   background: var(--warn);
 }
 
+.notice.compact {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 9px;
+  color: var(--warn-text);
+  font-size: 11.5px;
+}
+
+.notice.compact::before {
+  display: none;
+}
+
+.notice.compact > .icon {
+  margin-top: 1px;
+}
+
 .notice.error {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
+  background: var(--danger-soft);
+  box-shadow: inset 0 0 0 1px var(--danger-line);
 }
 
 .notice.error::before {
-  background: var(--accent);
+  background: var(--danger);
 }
 
 .notice.info {
-  background: var(--info-soft);
-  border-color: color-mix(in srgb, var(--info) 40%, transparent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(143, 132, 255, 0.3);
 }
 
 .notice.info::before {
   content: "i";
-  background: var(--info);
+  background: var(--accent);
 }
 
 .notice.ok {
   background: var(--ok-soft);
-  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(95, 192, 138, 0.3);
 }
 
 .notice.ok::before {
@@ -644,7 +853,7 @@ legend,
 }
 
 .notice code {
-  background: color-mix(in srgb, var(--text) 7%, transparent);
+  background: rgba(255, 255, 255, 0.07);
   padding: 0 4px;
   border-radius: var(--r-xs);
 }
@@ -700,7 +909,7 @@ legend,
   max-width: 560px;
   margin: 8vh auto;
   background: var(--surface);
-  border: 1px dashed var(--border-strong);
+  border: 1px dashed var(--border-hover);
   border-radius: var(--r-lg);
 }
 
@@ -761,19 +970,29 @@ button .icon {
   min-width: 260px;
   max-width: min(380px, calc(100vw - 32px));
   padding: var(--s-3);
-  background: var(--surface);
+  background: rgba(24, 24, 30, 0.96);
+  backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
   color: var(--text);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-2);
   text-align: left;
   white-space: normal;
+  font-weight: 400;
   cursor: auto;
 }
 
 .popover.end {
   left: auto;
   right: 0;
+}
+
+/* Opens beside a vertical rail instead of below it. */
+.popover.side {
+  top: auto;
+  bottom: 0;
+  left: calc(100% + 10px);
 }
 
 .popover:focus {
@@ -801,28 +1020,41 @@ button .icon {
 }
 
 .field-hint.error {
-  color: var(--accent);
+  color: var(--danger);
 }
 
 .field-hint.warn {
-  color: var(--warn);
+  color: var(--warn-text);
 }
 
-input[aria-invalid="true"] {
-  border-color: var(--accent-line);
+input[aria-invalid="true"],
+input[aria-invalid="true"]:hover {
+  box-shadow: inset 0 0 0 1px var(--danger-line);
 }
 
+/* Key hints: <kbd> in lists; <kbd class="kbd"> inline in buttons and tooltips. */
 kbd {
   display: inline-block;
-  min-width: 20px;
+  min-width: 18px;
   padding: 1px 5px;
-  border: 1px solid var(--border-strong);
-  border-bottom-width: 2px;
   border-radius: var(--r-xs);
   background: var(--surface-2);
-  font: 500 var(--fs-2xs) / 1.4 var(--font-ui);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font: 500 var(--fs-2xs) / 1.4 var(--font-mono);
   text-align: center;
   color: var(--text);
+}
+
+kbd.kbd {
+  min-width: 0;
+  padding: 1px 4px;
+  background: transparent;
+  color: var(--faint);
+}
+
+button.primary kbd.kbd {
+  color: rgba(13, 11, 26, 0.65);
+  box-shadow: inset 0 0 0 1px rgba(13, 11, 26, 0.25);
 }
 
 /* Toast: a short confirmation at the bottom centre ("Saved v1-baseline"). */
@@ -841,8 +1073,11 @@ kbd {
   gap: var(--s-2);
   padding: 8px 14px;
   border-radius: var(--r-pill);
-  background: var(--text);
-  color: var(--on-ink);
+  background: rgba(30, 30, 38, 0.92);
+  backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
   box-shadow: var(--shadow-2);
   font-size: var(--fs-sm);
   font-weight: 500;
@@ -861,15 +1096,15 @@ kbd {
 }
 
 .toast.ok::before {
-  background: #5fb884;
+  background: var(--ok);
 }
 
 .toast.warn::before {
-  background: #e3a64a;
+  background: var(--warn);
 }
 
 .toast.error::before {
-  background: #ef6a62;
+  background: var(--danger);
 }
 
 @keyframes toast-in {
@@ -903,8 +1138,8 @@ td {
 th {
   font-size: var(--fs-2xs);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  letter-spacing: 0.06em;
+  color: var(--faint);
   font-weight: 600;
   padding: 6px;
   border-bottom-color: var(--border-strong);
@@ -915,13 +1150,18 @@ td {
   height: 26px;
 }
 
+td.num {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
 th.num,
 td.num {
   text-align: right;
 }
 
 tbody tr:hover td {
-  background: var(--surface-2);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 /* Coverage tables */
@@ -957,16 +1197,139 @@ tbody tr:hover td {
 }
 
 .metrics td.diff.more {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .metrics td.diff.less {
-  background: var(--info-soft);
-  color: var(--info);
+  background: var(--accent-soft);
+  color: var(--accent-text);
 }
 
-/* Category swatches in the coverage headers, matching the blockout colours. */
+/* Compact coverage in a float (MetricsPanel variant="float"). */
+.metrics.compact {
+  padding: 0 0 6px;
+}
+
+.metrics.compact .float-head {
+  min-height: 34px;
+  padding-right: 4px;
+}
+
+.metrics.compact .float-head .mono {
+  font-size: var(--fs-2xs);
+}
+
+.metrics.compact table {
+  margin-top: 2px;
+}
+
+.metrics.compact th,
+.metrics.compact td {
+  height: 21px;
+  padding: 0 6px;
+  border: 0;
+  font-weight: 400;
+}
+
+.metrics.compact thead th {
+  padding: 4px 6px 3px;
+  font-size: var(--fs-2xs);
+  color: var(--faint);
+  font-weight: 500;
+  text-align: right;
+}
+
+.metrics.compact th:first-child,
+.metrics.compact td:first-child {
+  width: 30%;
+  padding-left: 12px;
+  text-align: left;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.metrics.compact th:last-child,
+.metrics.compact td:last-child {
+  width: 26%;
+  padding-right: 12px;
+}
+
+.metrics.compact th[class*="cat-"]::before {
+  display: inline-block;
+  margin: 0;
+  vertical-align: -1px;
+}
+
+.metrics.compact th.cat-line::before {
+  height: 3px;
+  vertical-align: 2px;
+}
+
+.metrics.compact td {
+  font: 500 var(--fs-xs) var(--font-mono);
+  color: var(--text);
+}
+
+.metrics.compact td:first-child {
+  font: 400 11.5px var(--font-ui);
+}
+
+.metrics.compact tr.total td:first-child {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.metrics.compact td.zero {
+  color: #4a4a56;
+}
+
+.metrics.compact td.line:not(.zero) {
+  color: var(--danger);
+}
+
+.metrics.compact td.open {
+  white-space: nowrap;
+}
+
+.share-bar {
+  display: inline-block;
+  width: 36px;
+  height: 4px;
+  margin-right: 6px;
+  vertical-align: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.share-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: #6e6a8f;
+}
+
+.metrics.compact tr.total td {
+  height: 26px;
+  border-top: 1px solid var(--border-strong);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.metrics.compact tr.total .share-bar i {
+  background: var(--accent);
+}
+
+.metrics.compact tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.metrics-note {
+  margin: 6px 12px 4px;
+}
+
+/* Category swatches in the coverage headers and lists, matching the blockout colours. */
 th[class*="cat-"]::before {
   content: "";
   display: block;
@@ -978,40 +1341,32 @@ th[class*="cat-"]::before {
 
 th.cat-figure::before,
 .swatch.cat-figure {
-  background: #3d3936;
+  background: #4a4952;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 th.cat-existing::before,
 .swatch.cat-existing {
-  box-shadow: inset 0 0 0 1.5px var(--text);
+  box-shadow: inset 0 0 0 1.5px #b9b6c4;
 }
 
 th.cat-filler::before,
 .swatch.cat-filler {
-  background: #bdb6ad;
+  background: #c9c3bb;
 }
 
 th.cat-band::before,
 .swatch.cat-band {
-  background: repeating-linear-gradient(45deg, var(--text) 0 1px, transparent 1px 3px);
-  box-shadow: inset 0 0 0 0.5px var(--border-strong);
+  background: repeating-linear-gradient(45deg, #d7d2cb 0 2px, #3b3a40 2px 4px);
 }
 
 th.cat-line::before,
 .swatch.cat-line {
-  background: var(--accent);
+  background: var(--red);
 }
 
 th.cat-open::before {
-  visibility: hidden;
-}
-
-@media (prefers-color-scheme: dark) {
-  th.cat-figure::before,
-  .swatch.cat-figure {
-    background: #8a827a;
-    box-shadow: inset 0 0 0 1px #5a544e;
-  }
+  display: none;
 }
 
 /* ── App shell ────────────────────────────────────────────────────────────────────────────────── */
@@ -1023,51 +1378,67 @@ th.cat-open::before {
   height: var(--header-h);
   display: flex;
   align-items: center;
-  gap: var(--s-6);
-  padding: 0 var(--s-5);
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
-  backdrop-filter: saturate(1.4) blur(10px);
-  -webkit-backdrop-filter: saturate(1.4) blur(10px);
+  gap: 6px;
+  padding: 0 10px 0 0;
+  background: var(--chrome);
   border-bottom: 1px solid var(--border);
 }
 
-.brand {
-  font-size: 15px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  white-space: nowrap;
+/* The rail-wide square with the sleeve's red stroke. */
+.brand-mark {
+  flex: none;
+  align-self: stretch;
+  width: var(--rail-w);
+  display: grid;
+  place-items: center;
+  border-right: 1px solid var(--border);
 }
 
-.brand::before {
+.brand-mark::before {
   content: "";
-  width: 3px;
-  height: 20px;
-  border-radius: 2px;
-  background: var(--accent);
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background:
+    linear-gradient(var(--red), var(--red)) center / 2.5px 12px no-repeat,
+    linear-gradient(135deg, #2a2a33, #18181e);
+  box-shadow: inset 0 0 0 1px var(--border-hover);
+}
+
+.brand {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+  padding: 0 14px 0 8px;
+  white-space: nowrap;
 }
 
 .app-header > nav {
   height: 100%;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-header > :not(nav, .spacer) {
+  flex-shrink: 0;
 }
 
 .tabs {
   display: flex;
-  gap: var(--s-1);
-  height: 100%;
-  align-items: stretch;
+  gap: 2px;
+  align-items: center;
 }
 
 .tabs button {
   position: relative;
-  height: 100%;
-  padding: 0 var(--s-3);
-  border: 0;
-  border-radius: 0;
+  height: 28px;
+  padding: 0 10px;
   background: none;
   box-shadow: none;
   color: var(--muted);
@@ -1075,55 +1446,114 @@ th.cat-open::before {
 
 .tabs button:hover:not(:disabled),
 .tabs button:active:not(:disabled) {
-  background: none;
-  color: var(--text);
-}
-
-.tabs button[aria-selected="true"] {
-  color: var(--text);
-  background: none;
+  background: var(--hover);
   box-shadow: none;
+  color: var(--text);
 }
 
-.tabs button[aria-selected="true"]::after {
-  content: "";
-  position: absolute;
-  left: var(--s-3);
-  right: var(--s-3);
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--text);
-}
-
-.tabs button:focus-visible {
-  outline-offset: -6px;
-  border-radius: var(--r-md);
+.tabs button[aria-selected="true"],
+.tabs button[aria-selected="true"]:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 /* Unsaved edits in that tab. */
 .tab-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Pages portal controls into these (Layout: notices chip; variant, save, export). */
+.header-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-slot:empty {
+  display: none;
+}
+
+.header-sep {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--border-strong);
+}
+
+.select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+select.variant-select {
+  max-width: 200px;
+  padding-left: 10px;
+  padding-right: 26px;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.select-wrap:has(.dirty-dot) select.variant-select {
+  padding-right: 38px;
+}
+
+.dirty-dot {
+  position: absolute;
+  right: 24px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: currentColor;
+  background: var(--accent);
+  pointer-events: none;
 }
 
+.notice-list {
+  margin: 0;
+  padding-left: 1.1em;
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+/* Tab pages: padded and centred, except full-bleed workspaces (App.tsx FULL_BLEED). */
 .page {
+  margin: 0;
+  padding: 0;
+}
+
+.tab-panel {
   max-width: 1600px;
   margin: 0 auto;
   padding: var(--s-3) var(--s-5) var(--s-6);
 }
 
+.tab-panel.full-bleed {
+  max-width: none;
+  padding: 0;
+}
+
+@media (max-width: 1360px) {
+  .brand {
+    display: none;
+  }
+  .tabs button {
+    padding: 0 8px;
+  }
+  .header-slot kbd.kbd,
+  .export-button .export-label,
+  .ws-2d-bar .render-ms {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
-  .app-header {
-    gap: var(--s-3);
-    padding: 0 var(--s-3);
-  }
-  .app-header > nav {
-    overflow-x: auto;
-  }
-  .page {
+  .tab-panel {
     padding: var(--s-3);
   }
 }
@@ -1142,7 +1572,7 @@ th.cat-open::before {
   position: relative;
   height: max(420px, calc(100dvh - var(--header-h) - 150px));
   overflow: hidden;
-  background: var(--canvas);
+  background: var(--canvas-3d);
   border: 1px solid var(--canvas-edge);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-canvas);
@@ -1150,8 +1580,8 @@ th.cat-open::before {
 
 .canvas-wrap.drawing {
   cursor: crosshair;
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 2px solid var(--red);
+  outline-offset: -2px;
 }
 
 /* Hints under a canvas. */
@@ -1172,14 +1602,15 @@ th.cat-open::before {
   padding: 3px 10px;
   border-radius: var(--r-pill);
   background: var(--canvas-label-bg);
-  backdrop-filter: blur(6px);
-  color: #f2eee8;
+  backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
   font-size: var(--fs-xs);
   font-weight: 500;
   pointer-events: none;
 }
 
-/* Dark glass bar floating on a canvas (pose control, draw hints). Light-on-dark in both themes. */
+/* Glass bar floating on a canvas (pose control, draw hints). */
 .canvas-toolbar {
   position: absolute;
   left: 50%;
@@ -1189,14 +1620,15 @@ th.cat-open::before {
   align-items: center;
   gap: var(--s-2);
   max-width: calc(100% - 20px);
-  padding: 3px 8px 3px 3px;
-  background: rgba(20, 18, 16, 0.72);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--r-md);
-  color: #ece8e2;
+  padding: 4px 8px 4px 4px;
+  background: var(--panel);
+  backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-float);
+  color: var(--text);
   font-size: var(--fs-xs);
-  color-scheme: dark;
 }
 
 /* A small glass button in the canvas's top-right corner (Screenshot). */
@@ -1207,19 +1639,18 @@ button.canvas-action {
   z-index: 1;
   height: 24px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--r-pill);
   background: var(--canvas-label-bg);
-  backdrop-filter: blur(6px);
-  box-shadow: none;
-  color: rgba(242, 238, 232, 0.85);
+  backdrop-filter: var(--panel-blur);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--muted);
   font-size: var(--fs-xs);
 }
 
 button.canvas-action:hover:not(:disabled),
 button.canvas-action:active:not(:disabled) {
-  background: rgba(20, 18, 16, 0.9);
-  color: #fff;
+  background: rgba(30, 30, 38, 0.95);
+  color: var(--text);
 }
 
 .canvas-toolbar.top {
@@ -1234,28 +1665,7 @@ button.canvas-action:active:not(:disabled) {
 }
 
 .canvas-toolbar .muted {
-  color: rgba(236, 232, 226, 0.7);
-}
-
-.canvas-toolbar .segmented {
-  background: transparent;
-  border: 0;
-  padding: 0;
-}
-
-.canvas-toolbar .segmented button {
-  color: rgba(236, 232, 226, 0.7);
-}
-
-.canvas-toolbar .segmented button:hover:not(:disabled) {
-  color: #fff;
-}
-
-.canvas-toolbar .segmented button.active,
-.canvas-toolbar .segmented button[aria-pressed="true"] {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-  box-shadow: none;
+  color: var(--muted);
 }
 
 .pose-control {
@@ -1273,173 +1683,446 @@ button.canvas-action:active:not(:disabled) {
   font-variant-numeric: tabular-nums;
 }
 
+/* The pose as a floating panel: title and value, presets, slider (PoseControl variant="panel"). */
+.pose-control.panel {
+  display: grid;
+  gap: 8px;
+}
+
+.pose-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pose-control.panel .pose-value {
+  min-width: 0;
+  color: var(--text);
+}
+
+.pose-control.panel .segmented {
+  display: flex;
+}
+
+.pose-control.panel .segmented button {
+  flex: 1;
+}
+
+.pose-control.panel input[type="range"] {
+  width: 100%;
+}
+
 /* ── Layout tab ───────────────────────────────────────────────────────────────────────────────── */
 
-/* The Layout tab fills the viewport below the header: context bar, notices, then the work area,
- * whose canvases take the remaining height while the side column scrolls on its own. */
+/* The Layout tab is a full-bleed workspace under the top bar: tool rail | 2D editor | 3D view,
+ * with every control in a floating panel. Errors (rare) push the workspace down. */
 .layout-page {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - var(--header-h) - var(--s-3) - var(--s-6));
-  min-height: 600px;
+  height: calc(100dvh - var(--header-h));
+  min-height: 560px;
 }
 
-.layout-page > .layout-toolbar,
-.layout-page > .notices {
+.layout-errors {
   flex: none;
+  margin: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
 }
 
-/* The red line tool: the one toggle that is red when on. */
-button.draw-button[aria-pressed="true"] {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-  color: var(--accent);
-  box-shadow: none;
-}
-
-.render-ms {
-  min-width: 3.5em;
-  color: var(--faint);
-  font-size: var(--fs-2xs);
-  font-variant-numeric: tabular-nums;
-}
-
-.export-status {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  font-size: var(--fs-xs);
-}
-
-.export-status progress {
-  width: 80px;
-  accent-color: var(--text);
-}
-
-.export-status code {
-  word-break: break-all;
-}
-
-/* Two rows, so the editor and the 3D view start at the same height whatever their toolbars hold. */
-.layout-grid {
+.workspace {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) var(--side-w);
-  grid-template-areas:
-    "editor-head viewer-head side"
-    "editor viewer side";
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: var(--s-2) var(--s-4);
+  grid-template-columns: var(--rail-w) clamp(380px, 36vw, 560px) minmax(0, 1fr);
 }
 
-.layout-grid > .editor-head {
-  grid-area: editor-head;
-  align-self: end;
-}
-
-.layout-grid > .viewer-head {
-  grid-area: viewer-head;
-  align-self: end;
+/* Tool rail: icon tools with a tooltip (.tip) to the right; aria-pressed marks the active tool. */
+.tool-rail {
+  position: relative;
+  z-index: 5;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: var(--s-2);
+  gap: 2px;
+  padding: 8px 0;
+  background: var(--rail);
+  border-right: 1px solid var(--border);
 }
 
-/* The 3D viewer's own toolbar is portalled in here. */
-.layout-grid > .viewer-head > .viewer-tools {
+.tool-rail > .spacer {
   flex: 1;
+}
+
+button.tool {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+}
+
+button.tool:hover:not(:disabled) {
+  background: var(--hover);
+  box-shadow: none;
+  color: var(--text);
+}
+
+button.tool[aria-pressed="true"],
+button.tool[aria-pressed="true"]:hover {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent-hover);
+}
+
+/* Draw red line: pressed reads red, the one place the tool rail uses the sleeve colour. */
+button.tool.draw-tool[aria-pressed="true"],
+button.tool.draw-tool[aria-pressed="true"]:hover {
+  background: var(--red-soft);
+  box-shadow: inset 0 0 0 1px var(--red-line);
+}
+
+.tool-key {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font: 500 7.5px var(--font-mono);
+  color: var(--faint);
+}
+
+.tool .tip {
+  position: absolute;
+  left: 42px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  z-index: 9;
+}
+
+.tool:hover .tip,
+.tool:focus-visible .tip {
+  opacity: 1;
+  transition-delay: 250ms;
+}
+
+.tool[aria-expanded="true"] .tip {
+  display: none;
+}
+
+.rail-sep {
+  width: 22px;
+  height: 1px;
+  margin: 6px 0;
+  background: var(--border-strong);
+}
+
+.rail-label {
+  margin: 2px 0;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* 2D view: the unwrap sheet on a dot grid; bars float on top, the SVG sits between them. */
+.ws-2d {
+  position: relative;
   min-width: 0;
+  overflow: hidden;
+  background: var(--canvas-2d);
+  border-right: 1px solid var(--border);
 }
 
-.layout-grid > .editor-col {
-  grid-area: editor;
+.ws-2d-bar {
+  left: 12px;
+  top: 12px;
+  max-width: calc(100% - 24px);
+  flex-wrap: wrap;
 }
 
-.layout-grid > .viewer-col {
-  grid-area: viewer;
+.render-ms {
+  min-width: 3.6em;
+  padding: 0 4px;
+  color: var(--faint);
+  font-size: var(--fs-2xs);
 }
 
-.layout-grid > .side-col {
-  grid-area: side;
+.status-bar {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px 0 12px;
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.status-bar .mono {
+  color: var(--muted);
+}
+
+.status-bar .faint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-bar .faint.mono {
+  flex: none;
+  min-width: 3.4em;
+  text-align: right;
+  font-size: var(--fs-2xs);
+}
+
+.ws-2d .unwrap-editor {
+  position: absolute;
+  inset: 0;
+}
+
+.ws-2d .unwrap-editor svg {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 60px;
+  bottom: 54px;
+  width: calc(100% - 24px);
+  height: calc(100% - 114px);
+  border: 0;
+  border-radius: 0;
+}
+
+.ws-2d .unwrap-image-layer {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ws-2d .unwrap-image-host {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+}
+
+/* 3D view: the canvas fills the column, the right stack floats over its right edge (as in the
+ * design, the arm is centred in the whole view, between the left panels and the stack). */
+.ws-3d {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--canvas-3d);
+}
+
+.ws-3d > .viewer {
+  position: absolute;
+  inset: 0;
+}
+
+.ws-3d .canvas-wrap {
+  flex: 1;
+  height: auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.ws-3d-bar {
+  left: 12px;
+  top: 12px;
+}
+
+.ws-3d-bar .viewer-tools,
+.ws-3d-bar .viewer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+button.draw-button {
+  color: var(--text);
+  padding: 0 10px 0 8px;
+  gap: 7px;
+}
+
+button.draw-button:hover:not(:disabled) {
+  background: var(--red-soft);
+}
+
+button.draw-button[aria-pressed="true"],
+button.draw-button[aria-pressed="true"]:hover {
+  background: var(--red-soft);
+  box-shadow: inset 0 0 0 1px var(--red-line);
+  color: var(--text);
+}
+
+/* The drawing hint: beside the pose panel, clear of the right stack. */
+.ws-3d .canvas-toolbar.top {
+  top: 60px;
+  left: 230px;
+  translate: none;
+  max-width: min(340px, calc(100% - var(--side-w) - 266px));
+  justify-content: flex-start;
+}
+
+.pose-panel {
+  left: 12px;
+  top: 60px;
+  width: 206px;
+  padding: 8px 10px 10px;
+}
+
+.ws-3d .metrics.compact {
+  left: 12px;
+  bottom: 12px;
+  width: 300px;
+}
+
+.ws-stack {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: var(--side-w);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.ws-stack > .float {
+  position: relative;
+  pointer-events: auto;
+}
+
+.side-tabs {
+  flex: 0 0 auto;
+  max-height: 44%;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+}
+
+.side-tab-body {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
+  padding: 4px;
 }
 
-.editor-col,
-.viewer-col,
-.side-col {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  min-width: 0;
+.side-tab-body .asset-browser {
+  padding: 6px 4px 4px;
 }
 
-.side-col {
-  gap: var(--s-3);
-}
-
-.side-col > .panel {
-  flex: none;
-}
-
-/* Canvases fill the work area; both hints reserve three lines so the canvases end level. */
-.layout-grid .unwrap-editor,
-.layout-grid .viewer {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+button.panel-tab {
+  height: 24px;
+  padding: 0 8px;
   gap: 6px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--faint);
 }
 
-.layout-grid .unwrap-editor svg,
-.layout-grid .canvas-wrap {
+button.panel-tab:hover:not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+}
+
+button.panel-tab[aria-selected="true"] {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+button.panel-tab .count {
+  color: var(--faint);
+  font-size: 10.5px;
+  font-weight: 400;
+}
+
+.inspector {
   flex: 1 1 0;
-  height: auto;
-  min-height: 360px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
-.layout-grid .unwrap-editor > p.muted.small,
-.layout-grid .viewer > p.muted.small {
-  flex: none;
-  min-height: calc(3 * var(--lh) * var(--fs-xs));
-  margin-bottom: 0;
+.inspector > .panel {
+  background: transparent;
+  border: 0;
+  padding: 0 12px 12px;
 }
 
-@media (max-width: 1200px) {
+.inspector-head {
+  gap: 8px;
+  min-height: 44px;
+  margin: 0 0 4px;
+  justify-content: flex-start;
+}
+
+.inspector-head h2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-head .swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+}
+
+/* Narrow windows: the 2D and 3D views stack; the 3D canvas stops left of the panel stack. */
+@media (max-width: 1100px) {
   .layout-page {
     height: auto;
-    min-height: 0;
   }
-  .layout-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      "editor-head viewer-head"
-      "editor viewer"
-      "side side";
-    grid-template-rows: auto auto auto;
+  .workspace {
+    grid-template-columns: var(--rail-w) minmax(0, 1fr);
+    grid-auto-rows: minmax(560px, calc(100dvh - var(--header-h)));
   }
-  .layout-grid .unwrap-editor svg,
-  .layout-grid .canvas-wrap {
-    flex: none;
-    height: max(480px, calc(100dvh - var(--header-h) - 200px));
+  .tool-rail {
+    grid-row: span 2;
   }
-  .layout-grid > .side-col {
-    overflow: visible;
+  .ws-3d {
+    grid-column: 2;
+  }
+  .ws-3d > .viewer {
+    right: calc(var(--side-w) + 24px);
   }
 }
 
-@media (max-width: 760px) {
-  .layout-grid {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "editor-head" "editor" "viewer-head" "viewer" "side";
-    grid-template-rows: none;
-  }
+/* A side column of panels (Projection tab). */
+.side-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
 }
 
 /* Unwrap editor */
@@ -1466,7 +2149,6 @@ button.draw-button[aria-pressed="true"] {
   overflow: hidden;
   border-radius: var(--r-lg);
   background: var(--canvas);
-  box-shadow: var(--shadow-canvas);
   pointer-events: none;
 }
 
@@ -1497,24 +2179,24 @@ button.draw-button[aria-pressed="true"] {
   stroke: transparent;
 }
 
-/* Yellow is the selection colour on the dark canvas only. */
+/* Selection: the accent, as everywhere else. */
 .unwrap-editor .shape.selected rect,
 .unwrap-editor .shape.selected polygon {
-  stroke: #ffc400;
+  stroke: var(--accent);
   stroke-width: 0.15;
   stroke-dasharray: none;
 }
 
-/* Hover: a solid white outline shows what a click will select. */
+/* Hover: a light accent outline shows what a click will select. */
 .unwrap-editor .shape.hovered rect,
 .unwrap-editor .shape.hovered polygon {
-  stroke: rgba(255, 255, 255, 0.95);
+  stroke: var(--accent-hover);
   stroke-width: 0.12;
   stroke-dasharray: none;
 }
 
 .unwrap-editor .shape.hovered .line-hit {
-  stroke: rgba(255, 255, 255, 0.22);
+  stroke: rgba(143, 132, 255, 0.3);
 }
 
 /* Locked shapes can be selected (pointer) but not moved. */
@@ -1534,6 +2216,8 @@ button.draw-button[aria-pressed="true"] {
 .unwrap-editor .shape-label,
 .unwrap-editor .edge-label {
   font-size: 0.85px;
+  font-family: var(--font-ui);
+  font-weight: 500;
   fill: #fff;
   paint-order: stroke;
   stroke: rgba(0, 0, 0, 0.6);
@@ -1542,26 +2226,27 @@ button.draw-button[aria-pressed="true"] {
 }
 
 .unwrap-editor .edge-label {
-  fill: #cfc8c0;
+  fill: var(--faint);
+  stroke: none;
 }
 
 /* Selection handles: sized in screen pixels (UnwrapEditor.tsx), so strokes do not scale either. */
 .unwrap-editor .handles line,
 .unwrap-editor .handles .selection-box {
   fill: none;
-  stroke: #ffc400;
+  stroke: var(--accent);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
 
 .unwrap-editor .handles .selection-box {
-  stroke-opacity: 0.7;
+  stroke-opacity: 0.85;
 }
 
 .unwrap-editor .handle {
-  fill: #fffdfa;
-  stroke: #1d1b19;
+  fill: #fff;
+  stroke: var(--accent);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
   transition: fill 80ms ease;
@@ -1574,8 +2259,9 @@ button.draw-button[aria-pressed="true"] {
 
 .unwrap-editor .grip:hover .handle,
 .unwrap-editor .grip.active .handle {
-  fill: #ffc400;
-  stroke-width: 2px;
+  fill: var(--accent);
+  stroke: #fff;
+  stroke-width: 1.5px;
 }
 
 .unwrap-editor .grip.rotate,
@@ -1598,25 +2284,26 @@ button.draw-button[aria-pressed="true"] {
 }
 
 .unwrap-editor .resize-feedback .size-pill {
-  fill: var(--canvas-label-bg);
-  stroke: #ffc400;
+  fill: rgba(22, 22, 28, 0.92);
+  stroke: var(--accent);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
 }
 
 .unwrap-editor .resize-feedback text {
   text-anchor: middle;
-  font-family: var(--font-ui);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 .unwrap-editor .resize-feedback .size-label {
-  fill: #fff;
-  font-weight: 600;
+  fill: #c9c4ff;
+  font-weight: 500;
 }
 
 .unwrap-editor .resize-feedback .size-mode {
-  fill: #cfc8c0;
+  fill: var(--muted);
+  font-family: var(--font-ui);
 }
 
 /* Property grids (element panel, projection fields) */
@@ -1630,7 +2317,7 @@ button.draw-button[aria-pressed="true"] {
 
 .props label {
   display: grid;
-  grid-template-columns: 7.5em minmax(0, 1fr);
+  grid-template-columns: 5.5em minmax(0, 1fr);
   align-items: center;
   gap: var(--s-2);
 }
@@ -1657,10 +2344,6 @@ label.props {
   margin-top: var(--s-2);
 }
 
-.element-panel h2 .muted {
-  font-weight: 400;
-}
-
 .image-fields {
   display: grid;
   gap: 6px;
@@ -1684,19 +2367,79 @@ label.props {
 
 /* Sub-heads inside the element panel (Position, Size, Style, Notes). */
 .props-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   margin: var(--s-2) 0 0;
-  padding-top: var(--s-2);
-  border-top: 1px solid var(--border);
   font-size: var(--fs-2xs);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
+  letter-spacing: 0.08em;
+  color: var(--faint);
   font-weight: 600;
 }
 
-/* The element's position in cm, read-only, aligned with the fields. */
+.props-head-note {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  font-size: 10.5px;
+}
+
+/* Two compact number fields side by side (u | v, H | W | rotation). */
+.field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.props label.field-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-h);
+  padding: 0 8px;
+  border-radius: var(--r-md);
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+  cursor: text;
+}
+
+.props label.field-box:hover {
+  box-shadow: inset 0 0 0 1px var(--border-hover);
+}
+
+.props label.field-box:focus-within {
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    var(--focus-ring);
+}
+
+.props .field-box input,
+.props .field-box input:hover,
+.props .field-box input:focus-visible {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.field-box .k {
+  min-width: 10px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+
+.field-box .u {
+  color: var(--faint);
+  font-size: 10.5px;
+}
+
+/* The element's position in cm, read-only, under the fields. */
 .cm-readout {
-  margin: -2px 0 0 calc(7.5em + var(--s-2));
+  margin: 0;
+  padding: 0 1px;
   font-size: var(--fs-xs);
   color: var(--faint);
   font-variant-numeric: tabular-nums;
@@ -1710,17 +2453,23 @@ label.props {
   margin-bottom: 0;
 }
 
-/* "Reference image" reads as one more group: same rule above, legend as a normal row. */
+/* "Reference image" reads as one more group. */
 .element-panel .image-fields {
   margin-top: var(--s-2);
-  padding-top: var(--s-2);
-  border-top: 1px solid var(--border);
 }
 
 .element-panel .image-fields > legend {
   float: left;
   width: 100%;
-  margin: 0;
+  margin: 0 0 2px;
+}
+
+.props label.red-accents:has(input:checked) {
+  color: var(--text);
+}
+
+.props label.red-accents input {
+  accent-color: var(--red);
 }
 
 .save-as-form {
@@ -1732,19 +2481,28 @@ label.props {
 }
 
 .element-actions {
-  gap: var(--s-1);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 8px 0 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.element-actions .icon-button {
+  width: 26px;
+  height: 26px;
 }
 
 .layer-label {
-  font-size: var(--fs-xs);
-  color: var(--muted);
+  font-size: 11.5px;
+  color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
 
-.element-footer {
-  margin-top: var(--s-3);
-  padding-top: var(--s-3);
-  border-top: 1px solid var(--border);
+.layer-label b {
+  color: var(--muted);
+  font-weight: 500;
 }
 
 button.lock-toggle {
@@ -1761,16 +2519,20 @@ button.lock-toggle[aria-pressed="true"] {
 }
 
 button.lock-toggle[aria-pressed="true"]:hover:not(:disabled) {
-  background: var(--surface-2);
+  background: var(--hover);
 }
 
 /* Elements list: every element, top layer first. */
 .element-list ul {
   list-style: none;
-  margin: 0 calc(-1 * var(--s-2));
+  margin: 0;
   padding: 0;
   display: grid;
   gap: 1px;
+}
+
+.panel.element-list ul {
+  margin: 0 calc(-1 * var(--s-2));
 }
 
 .element-row {
@@ -1783,12 +2545,12 @@ button.lock-toggle[aria-pressed="true"]:hover:not(:disabled) {
 }
 
 .element-row:hover {
-  background: var(--surface-2);
+  background: var(--hover);
 }
 
 .element-row.selected {
-  background: var(--info-soft);
-  box-shadow: inset 2px 0 0 var(--info);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
 }
 
 .element-row.dragging {
@@ -1803,7 +2565,7 @@ button.lock-toggle[aria-pressed="true"]:hover:not(:disabled) {
   right: 6px;
   height: 2px;
   border-radius: 1px;
-  background: var(--info);
+  background: var(--accent);
 }
 
 .element-row.drop-above::before {
@@ -1819,22 +2581,22 @@ button.element-select {
   min-width: 0;
   justify-content: flex-start;
   gap: var(--s-2);
-  height: 28px;
-  padding: 0 var(--s-2);
-  border: none;
+  height: 26px;
+  padding: 0 6px;
   background: transparent;
   box-shadow: none;
-  font-weight: 400;
+  font-weight: 500;
   cursor: pointer;
 }
 
 button.element-select:hover:not(:disabled),
 button.element-select:active:not(:disabled) {
   background: transparent;
+  box-shadow: none;
 }
 
 .element-row.selected .element-id {
-  font-weight: 600;
+  color: #fff;
 }
 
 .element-id {
@@ -1845,19 +2607,22 @@ button.element-select:active:not(:disabled) {
 .element-type {
   color: var(--faint);
   font-size: var(--fs-xs);
+  font-weight: 400;
 }
 
 .issue-dot {
   flex: none;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   margin-left: auto;
   border-radius: 50%;
   background: var(--warn);
+  box-shadow: 0 0 0 3px rgba(230, 179, 90, 0.14);
 }
 
 .element-row .lock-toggle {
-  width: 24px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   color: var(--faint);
   opacity: 0;
@@ -1877,11 +2642,12 @@ button.element-select:active:not(:disabled) {
   flex: none;
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
-.swatch.cat-filler {
-  box-shadow: inset 0 0 0 0.5px var(--border-strong);
+.swatch.cat-line {
+  height: 4px;
+  border-radius: 2px;
 }
 
 /* Shortcuts popover */
@@ -1942,7 +2708,7 @@ button.element-select:active:not(:disabled) {
   padding: 0;
   margin: 6px 0 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
   gap: 6px;
   max-height: 420px;
   overflow-y: auto;
@@ -1956,9 +2722,9 @@ button.asset-card {
   height: auto;
   padding: 4px;
   gap: 2px;
-  border-color: var(--border);
   text-align: left;
   white-space: normal;
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 .asset-card img,
@@ -1966,20 +2732,21 @@ button.asset-card {
   width: 100%;
   aspect-ratio: 1;
   object-fit: contain;
-  background: var(--canvas);
-  border-radius: 5px;
+  background: repeating-conic-gradient(#15151b 0 25%, #111116 0 50%) 0 0 / 12px 12px;
+  border-radius: var(--r-sm);
 }
 
 .asset-missing {
   display: grid;
   place-items: center;
-  color: var(--warn);
+  color: var(--warn-text);
   font-size: var(--fs-2xs);
 }
 
 .asset-card.current {
-  outline: 2px solid var(--text);
-  outline-offset: 1px;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  outline: 2px solid var(--accent-line);
+  outline-offset: 0;
 }
 
 .asset-card.missing {
@@ -1996,8 +2763,9 @@ button.asset-card {
 .asset-thumb {
   position: relative;
   line-height: 0;
-  background: var(--canvas);
-  border-radius: var(--r-sm);
+  background: repeating-conic-gradient(#15151b 0 25%, #111116 0 50%) 0 0 / 12px 12px;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px var(--border);
   overflow: hidden;
 }
 
@@ -2015,13 +2783,29 @@ button.asset-card {
 }
 
 .crop-shade {
-  fill: rgba(0, 0, 0, 0.5);
+  fill: rgba(0, 0, 0, 0.55);
 }
 
 .crop-rect {
   fill: none;
-  stroke: #ffc400;
+  stroke: var(--accent);
   stroke-width: 0.006;
+}
+
+.export-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-xs);
+}
+
+.export-status progress {
+  width: 80px;
+  accent-color: var(--accent);
+}
+
+.export-status code {
+  word-break: break-all;
 }
 
 /* ── Arm & measurements tab ───────────────────────────────────────────────────────────────────── */
@@ -2773,30 +3557,18 @@ fieldset:disabled .props {
   }
 }
 
-/* A link that looks like a button (the empty state's way to the Data folder tab). */
+/* A link that looks like a button (the empty state's way to the Data folder tab); the look is the
+ * shared button style under Controls. */
 a.button {
-  display: inline-flex;
-  align-items: center;
-  height: var(--control-h);
-  padding: 0 var(--s-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  color: var(--text);
-  font-size: var(--fs-sm);
-  font-weight: 500;
   text-decoration: none;
-  box-shadow: var(--shadow-1);
-}
-
-a.button.primary {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--on-ink);
 }
 
 a.button:hover {
-  opacity: 0.88;
+  background: var(--hover);
+}
+
+a.button.primary:hover {
+  background: var(--accent-hover);
 }
 
 .empty a.button {
@@ -2960,7 +3732,7 @@ a.button:hover {
 }
 
 .edit-job.failed {
-  border-left-color: var(--accent);
+  border-left-color: var(--danger);
 }
 
 .edit-job.kept {
@@ -2979,7 +3751,7 @@ a.button:hover {
 }
 
 .edit-job.failed .edit-job-head strong {
-  color: var(--accent);
+  color: var(--danger);
 }
 
 .edit-job.kept .edit-job-head strong {

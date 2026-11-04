@@ -1,6 +1,7 @@
 import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { CameraIcon } from "../ui/icons.tsx";
 import { createPortal } from "react-dom";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ArmProfile } from "../arm/profile.ts";
@@ -40,7 +41,14 @@ type Props = {
   overlay?: ReactNode;
   /** Name the skin side on the view buttons: "Front (inner)", "Back (outer)". */
   viewSides?: boolean;
+  /** false leaves out the usage hint under the canvas (the page shows ORBIT_HINT elsewhere). */
+  footer?: boolean;
+  /** Puts the Screenshot button, as an icon, at the end of the toolbar instead of the canvas corner. */
+  screenshotInToolbar?: boolean;
 };
+
+/** How to move the camera; the viewers' hint starts with it. */
+export const ORBIT_HINT = "Drag to rotate, scroll to zoom, right-drag to pan.";
 
 export function ArmViewer(props: Props) {
   const { profile, canvas, version, hint, viewState, toolbar = true, sync, label } = props;
@@ -60,8 +68,17 @@ export function ArmViewer(props: Props) {
   const screenshot = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // The canvas is transparent (the workspace gradient is CSS); flatten it onto an opaque background.
+    const flat = document.createElement("canvas");
+    flat.width = canvas.width;
+    flat.height = canvas.height;
+    const ctx = flat.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = VIEWER_BACKGROUND;
+    ctx.fillRect(0, 0, flat.width, flat.height);
+    ctx.drawImage(canvas, 0, 0);
     // Downloads go to the browser's download folder, never into the repo.
-    canvas.toBlob((blob) => {
+    flat.toBlob((blob) => {
       if (!blob) return;
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -71,9 +88,24 @@ export function ArmViewer(props: Props) {
     }, "image/png");
   };
 
+  const screenshotTitle = "Save this view as a PNG in the browser's download folder";
   const toolbarEl = toolbar && (
     <div className="toolbar viewer-toolbar" role="toolbar" aria-label="3D view">
       <ViewButtons state={vs} sides={props.viewSides} />
+      {props.screenshotInToolbar && (
+        <>
+          <span className="toolbar-sep" aria-hidden="true" />
+          <button
+            type="button"
+            className="ghost icon-button"
+            onClick={screenshot}
+            aria-label="Screenshot"
+            title={`Screenshot: ${screenshotTitle}`}
+          >
+            <CameraIcon />
+          </button>
+        </>
+      )}
     </div>
   );
 
@@ -85,13 +117,8 @@ export function ArmViewer(props: Props) {
       <div className={`canvas-wrap${drawing ? " drawing" : ""}`}>
         {label && <span className="viewer-label">{label}</span>}
         {props.overlay}
-        {toolbar && (
-          <button
-            type="button"
-            className="canvas-action"
-            onClick={screenshot}
-            title="Save this view as a PNG in the browser's download folder"
-          >
+        {toolbar && !props.screenshotInToolbar && (
+          <button type="button" className="canvas-action" onClick={screenshot} title={screenshotTitle}>
             Screenshot
           </button>
         )}
@@ -103,10 +130,9 @@ export function ArmViewer(props: Props) {
         <Canvas
           ref={canvasRef}
           camera={{ fov: CAMERA_FOV, near: 1, far: 2000 }}
-          gl={{ preserveDrawingBuffer: true, antialias: true }}
+          gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
           dpr={[1, 2]}
         >
-          <color attach="background" args={[VIEWER_BACKGROUND]} />
           <hemisphereLight
             args={[LIGHTS.hemisphere.sky, LIGHTS.hemisphere.ground, LIGHTS.hemisphere.intensity]}
           />
@@ -125,9 +151,9 @@ export function ArmViewer(props: Props) {
           <CameraRig profile={profile} bounds={bounds} state={vs} sync={sync} rotate={!drawing} />
         </Canvas>
       </div>
-      {toolbar && (
+      {toolbar && props.footer !== false && (
         <p className="muted small">
-          Drag to rotate, scroll to zoom, right-drag to pan.{" "}
+          {ORBIT_HINT}{" "}
           {hint ??
             "Grid: 1 cm, bold every 5 cm; red lines mark outer, lateral, inner and medial centre lines."}
         </p>
@@ -163,10 +189,28 @@ export function ViewButtons({ state, sides = false }: { state: ViewState; sides?
   );
 }
 
-/** Elbow pose: a flexion slider with presets (the same texture bends with the skin). */
-export function PoseControl({ bendDeg, onChange }: { bendDeg: number; onChange: (deg: number) => void }) {
+/**
+ * Elbow pose: a flexion slider with presets (the same texture bends with the skin). "inline" is one
+ * row for a toolbar; "panel" stacks title and value, presets and slider for a floating panel.
+ */
+export function PoseControl({
+  bendDeg,
+  onChange,
+  variant = "inline",
+}: {
+  bendDeg: number;
+  onChange: (deg: number) => void;
+  variant?: "inline" | "panel";
+}) {
+  const panel = variant === "panel";
   return (
-    <span className="pose-control" role="group" aria-label="Elbow pose">
+    <span className={`pose-control${panel ? " panel" : ""}`} role="group" aria-label="Elbow pose">
+      {panel && (
+        <span className="pose-head">
+          <span className="float-title">Elbow pose</span>
+          <span className="pose-value mono">{bendDeg}°</span>
+        </span>
+      )}
       <span className="segmented">
         <button
           type="button"
@@ -195,7 +239,7 @@ export function PoseControl({ bendDeg, onChange }: { bendDeg: number; onChange: 
         aria-label="Elbow flexion in degrees"
         title="Elbow flexion"
       />
-      <span className="muted small pose-value">{bendDeg}°</span>
+      {!panel && <span className="muted small pose-value">{bendDeg}°</span>}
     </span>
   );
 }

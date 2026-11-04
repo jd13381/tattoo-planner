@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ExportIcon } from "../ui/icons.tsx";
 import type { ExportStatus } from "./names.ts";
 import {
   fetchExportStatus,
@@ -60,13 +61,15 @@ export function ExportButton({ input, blocked }: Props) {
       <button
         type="button"
         className="export-button"
+        aria-label={running ? "Exporting" : "Export"}
         onClick={() => void start()}
         disabled={running || !!disabledReason}
         title={
           disabledReason ?? "PDF handout for the artist and PNGs of every view, into <data folder>/exports/"
         }
       >
-        {running ? "Exporting…" : "Export"}
+        <ExportIcon />
+        <span className="export-label">{running ? "Exporting…" : "Export"}</span>
       </button>
       {/* Why export is unavailable lives in the button's tooltip and the header's data-folder chip. */}
       {state.phase !== "idle" && (

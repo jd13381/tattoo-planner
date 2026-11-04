@@ -4,7 +4,7 @@ import { DataFolderPage } from "./data/DataFolderPage.tsx";
 import { DATA_DIR_VAR } from "./data/types.ts";
 import { useDataFolderStatus, type DataFolderStatus } from "./data/useDataFolderStatus.ts";
 import { ImageEditPage } from "./edits/ImageEditPage.tsx";
-import { LayoutPage } from "./editor/LayoutPage.tsx";
+import { LayoutPage, type HeaderSlots } from "./editor/LayoutPage.tsx";
 import type { WorkingLayout } from "./layout/useLayouts.ts";
 import { ProjectionPage } from "./projection/ProjectionPage.tsx";
 import { ArmPage } from "./viewer/ArmPage.tsx";
@@ -36,6 +36,10 @@ export function App() {
   const [bendDeg, setBendDeg] = useState(0);
   const pose = { bendDeg, setBendDeg };
   const dataFolder = useDataFolderStatus();
+  // The Layout tab puts its notices and its variant / save / export controls into the top bar.
+  const [noticesSlot, setNoticesSlot] = useState<HTMLDivElement | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
+  const header: HeaderSlots = { notices: noticesSlot, actions: actionsSlot };
 
   const setTab = (id: TabId) => {
     setTabState(id);
@@ -83,6 +87,7 @@ export function App() {
   return (
     <>
       <header className="app-header">
+        <span className="brand-mark" aria-hidden="true" />
         <h1 className="brand">Tattoo Planner</h1>
         <nav aria-label="Sections">
           <div className="tabs" role="tablist">
@@ -107,12 +112,20 @@ export function App() {
           </div>
         </nav>
         <span className="spacer" />
+        <div className="header-slot" ref={setNoticesSlot} />
         <DataFolderChip status={dataFolder} onOpen={() => setTab("data")} />
+        <div className="header-slot" ref={setActionsSlot} />
       </header>
       <main className="page">
         {/* The Layout tab stays mounted (hidden), so unsaved edits survive a look at another tab. */}
         <TabPanel id="layout" open={tab === "layout"} keepMounted>
-          <LayoutPage arm={arm} pose={pose} onWorking={setWorking} />
+          <LayoutPage
+            arm={arm}
+            pose={pose}
+            onWorking={setWorking}
+            active={tab === "layout"}
+            header={header}
+          />
         </TabPanel>
         <TabPanel id="compare" open={tab === "compare"}>
           <ComparePage arm={arm} pose={pose} working={working} onOpenLayout={() => setTab("layout")} />
@@ -134,11 +147,20 @@ export function App() {
   );
 }
 
+/** Tabs whose page is a full-bleed workspace (no page padding, fills the viewport under the top bar). */
+const FULL_BLEED: ReadonlySet<TabId> = new Set(["layout"]);
+
 function TabPanel(props: { id: TabId; open: boolean; keepMounted?: boolean; children: ReactNode }) {
   const { id, open, keepMounted, children } = props;
   if (!open && !keepMounted) return null;
   return (
-    <div role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!open}>
+    <div
+      role="tabpanel"
+      id={`panel-${id}`}
+      aria-labelledby={`tab-${id}`}
+      hidden={!open}
+      className={FULL_BLEED.has(id) ? "tab-panel full-bleed" : "tab-panel"}
+    >
       {children}
     </div>
   );
@@ -152,7 +174,7 @@ function DataFolderChip({ status, onOpen }: { status: DataFolderStatus; onOpen: 
       ? ["ok", "Data folder", `${DATA_DIR_VAR}: ${status.dir}`]
       : status.kind === "unset"
         ? [
-            "warn",
+            "muted",
             "No data folder",
             `${DATA_DIR_VAR} is not set: no reference images, photos or export. Click for setup.`,
           ]

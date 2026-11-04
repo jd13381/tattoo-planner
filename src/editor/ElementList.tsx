@@ -12,12 +12,15 @@ type Props = {
   onToggleLock: (index: number) => void;
   /** Moves the element at layer `from` to layer `to` (0 = bottom). */
   onMove: (from: number, to: number) => void;
+  /** false leaves out the heading (a tabbed panel names the list instead). */
+  heading?: boolean;
 };
 
 type Drop = { over: number; above: boolean };
 
 /** Every element of the variant, topmost first: select, lock, and drag to change the layer order. */
-export function ElementList({ elements, issues, selected, onSelect, onToggleLock, onMove }: Props) {
+export function ElementList(props: Props) {
+  const { elements, issues, selected, onSelect, onToggleLock, onMove, heading = true } = props;
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
   const order = elements.map((_, i) => elements.length - 1 - i);
@@ -36,18 +39,20 @@ export function ElementList({ elements, issues, selected, onSelect, onToggleLock
   };
 
   return (
-    <section className="panel element-list" aria-label="Elements">
-      <div className="panel-head">
-        <h2>
-          Elements <span className="muted small">{elements.length}</span>
-        </h2>
-        <span
-          className="faint xs"
-          title="The list shows the top layer first; drag a row to change the order."
-        >
-          top layer first
-        </span>
-      </div>
+    <section className={heading ? "panel element-list" : "element-list"} aria-label="Elements">
+      {heading && (
+        <div className="panel-head">
+          <h2>
+            Elements <span className="muted small">{elements.length}</span>
+          </h2>
+          <span
+            className="faint xs"
+            title="The list shows the top layer first; drag a row to change the order."
+          >
+            top layer first
+          </span>
+        </div>
+      )}
       <ul>
         {order.map((i) => {
           const el = elements[i]!;

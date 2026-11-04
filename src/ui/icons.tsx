@@ -1,16 +1,17 @@
 // Small stroke icons (16 px, currentColor) for icon buttons. Decorative: the button carries the label.
 import type { ReactNode } from "react";
 
-function Icon({ children, size = 16 }: { children: ReactNode; size?: number }) {
+/** `box` is the drawing grid: the original icons use 16, the Pro tool icons 24 (stroke 1.6). */
+function Icon({ children, size = 16, box = 16 }: { children: ReactNode; size?: number; box?: number }) {
   return (
     <svg
       className="icon"
       width={size}
       height={size}
-      viewBox="0 0 16 16"
+      viewBox={`0 0 ${box} ${box}`}
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={box === 16 ? 1.5 : 1.6}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -48,4 +49,130 @@ export const InfoIcon = () => (
     <path d="M8 7.25v3.75" />
     <path d="M8 5h.01" strokeWidth={2} />
   </Icon>
+);
+
+// Pro tool icons (24 grid). The rail and the floating bars use these.
+const Pro = ({ children, size = 16 }: { children: ReactNode; size?: number }) => (
+  <Icon size={size} box={24}>
+    {children}
+  </Icon>
+);
+
+export const SelectIcon = () => (
+  <Pro>
+    <path d="M5 3l14 8-6.2 1.6L10 19z" />
+  </Pro>
+);
+
+export const FigureIcon = () => (
+  <Pro>
+    <rect x="5" y="4" width="14" height="16" rx="3" fill="currentColor" fillOpacity=".35" />
+  </Pro>
+);
+
+export const ExistingIcon = () => (
+  <Pro>
+    <rect x="5" y="4" width="14" height="16" rx="3" strokeDasharray="3 2.4" />
+  </Pro>
+);
+
+export const FillerIcon = () => (
+  <Pro>
+    <rect x="5" y="4" width="14" height="16" rx="3" />
+    <path d="M9 9h.01M15 9h.01M12 12h.01M9 15h.01M15 15h.01" strokeWidth={2.2} />
+  </Pro>
+);
+
+export const BandIcon = () => (
+  <Pro>
+    <rect x="3" y="8" width="18" height="8" rx="1.5" />
+    <path d="M7 8l-3 6M11 8l-4 8M15 8l-4 8M19 8l-4 8M21 12l-2 4" />
+  </Pro>
+);
+
+export const LineIcon = () => (
+  <Pro>
+    <path d="M5 19c3-1 3-6 6-8s6-1 8-6" />
+  </Pro>
+);
+
+/** The red line brush: the one icon drawn in the sleeve red. */
+export const RedLineIcon = () => (
+  <Pro>
+    <path d="M4 20c3-1 4-7 7-9s6-1 9-7" stroke="var(--red)" strokeWidth={2.6} />
+    <circle cx="20" cy="4" r="1.6" fill="var(--red)" stroke="none" />
+  </Pro>
+);
+
+export const HelpIcon = () => (
+  <Pro>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M9.6 9.5a2.5 2.5 0 014.8.9c0 1.7-2.4 2-2.4 3.6M12 17h.01" />
+  </Pro>
+);
+
+export const LayersIcon = () => (
+  <Pro size={14}>
+    <path d="M12 4l8.5 4.5L12 13 3.5 8.5z" />
+    <path d="M3.5 12.5L12 17l8.5-4.5M3.5 16.5L12 21l8.5-4.5" />
+  </Pro>
+);
+
+export const ImageIcon = () => (
+  <Pro size={14}>
+    <rect x="4" y="5" width="16" height="14" rx="2" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="M20 16l-5-5-9 8" />
+  </Pro>
+);
+
+export const CameraIcon = () => (
+  <Pro>
+    <path d="M4 8.5A1.5 1.5 0 015.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0120 8.5v9a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 17.5z" />
+    <circle cx="12" cy="12.5" r="3.2" />
+  </Pro>
+);
+
+export const ExportIcon = () => (
+  <Pro>
+    <path d="M12 4v11M7.5 8.5L12 4l4.5 4.5M5 14v4.5A1.5 1.5 0 006.5 20h11a1.5 1.5 0 001.5-1.5V14" />
+  </Pro>
+);
+
+export const FitIcon = () => (
+  <Pro size={14}>
+    <path d="M4 9V5.5A1.5 1.5 0 015.5 4H9M15 4h3.5A1.5 1.5 0 0120 5.5V9M20 15v3.5a1.5 1.5 0 01-1.5 1.5H15M9 20H5.5A1.5 1.5 0 014 18.5V15" />
+  </Pro>
+);
+
+export const ArrowUpIcon = () => (
+  <Pro size={14}>
+    <path d="M12 19V6M6.5 11.5L12 6l5.5 5.5" />
+  </Pro>
+);
+
+export const ArrowDownIcon = () => (
+  <Pro size={14}>
+    <path d="M12 5v13M6.5 12.5L12 18l5.5-5.5" />
+  </Pro>
+);
+
+export const DuplicateIcon = () => (
+  <Pro size={14}>
+    <rect x="8.5" y="8.5" width="11" height="11" rx="2" />
+    <path d="M15.5 8.5V6a1.5 1.5 0 00-1.5-1.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5" />
+  </Pro>
+);
+
+export const TrashIcon = () => (
+  <Pro size={14}>
+    <path d="M4.5 7h15M10 11v6M14 11v6M6.5 7l1 12a1.5 1.5 0 001.5 1.4h6a1.5 1.5 0 001.5-1.4l1-12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2" />
+  </Pro>
+);
+
+export const WarnIcon = () => (
+  <Pro size={13}>
+    <path d="M12 4l9 16H3z" />
+    <path d="M12 10v4M12 17h.01" />
+  </Pro>
 );

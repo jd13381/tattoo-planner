@@ -5,7 +5,11 @@ import { bendArmMesh } from "../arm/bend.ts";
 import { buildArmMesh } from "../arm/geometry.ts";
 import type { ArmProfile } from "../arm/profile.ts";
 
-export const VIEWER_BACKGROUND = "#2a2725";
+/**
+ * The live viewer's canvas is transparent so the workspace gradient (CSS, .canvas-wrap) shows
+ * through; screenshots are flattened onto this colour. The PDF export uses EXPORT_BACKGROUND.
+ */
+export const VIEWER_BACKGROUND = "#111116";
 export const LIGHTS = {
   hemisphere: { sky: "#ffffff", ground: "#4a4440", intensity: 1.2 },
   key: { position: [60, 120, 90] as [number, number, number], intensity: 1.6 },
