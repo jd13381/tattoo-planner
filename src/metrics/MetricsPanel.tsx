@@ -91,9 +91,11 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo }: Props)
           })}
         </tbody>
       </table>
-      <p className="muted small">
-        Share of each zone's skin, topmost element counted. Elbow: 4 cm below to 6 cm above the elbow tip;
-        shoulder: top 8 cm; inner = the half around the palm-side line.
+      <p
+        className="muted small"
+        title="Elbow: 4 cm below to 6 cm above the elbow tip; shoulder: top 8 cm; inner = the half around the palm-side line."
+      >
+        Share of each zone's skin, topmost element counted (hover for the zones).
         {compareTo && (
           <>
             {" "}

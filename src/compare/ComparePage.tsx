@@ -90,6 +90,7 @@ export function ComparePage({ arm, pose, working }: Props) {
           type="button"
           onClick={() => keys && setKeys({ a: keys.b, b: keys.a })}
           disabled={!keys}
+          className="ghost"
           title="Swap A and B"
         >
           ⇄
@@ -111,7 +112,13 @@ export function ComparePage({ arm, pose, working }: Props) {
         </label>
         <span className="segmented" role="group" aria-label="Mode">
           {(["blockout", "reference"] as const).map((m) => (
-            <button key={m} type="button" className={mode === m ? "active" : ""} onClick={() => setMode(m)}>
+            <button
+              key={m}
+              type="button"
+              className={mode === m ? "active" : ""}
+              aria-pressed={mode === m}
+              onClick={() => setMode(m)}
+            >
               {m === "blockout" ? "Blockout" : "Reference"}
             </button>
           ))}

@@ -24,9 +24,8 @@ export function AssetBrowser({ listing, onReload, current, assignBlocked, onPick
   if (!listing) body = <p className="muted small">Loading…</p>;
   else if (listing.status === "unset")
     body = (
-      <p className="small">
-        <code>TATTOO_DATA_DIR</code> is not set, so there are no reference images. Set it in <code>.env</code>{" "}
-        and restart <code>npm run dev</code>.
+      <p className="muted small">
+        No data folder, so no reference images. The <strong>Data folder</strong> tab explains the setup.
       </p>
     );
   else if (listing.status === "error") body = <p className="small error-text">{listing.message}</p>;
@@ -106,7 +105,12 @@ export function AssetBrowser({ listing, onReload, current, assignBlocked, onPick
     <section className="panel asset-browser" aria-label="Assets">
       <div className="panel-head">
         <h2>Assets</h2>
-        <button type="button" onClick={onReload} title="Re-read manifest.yaml and the images">
+        <button
+          type="button"
+          className="ghost"
+          onClick={onReload}
+          title="Re-read manifest.yaml and the images"
+        >
           Reload
         </button>
       </div>
