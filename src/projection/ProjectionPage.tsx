@@ -211,6 +211,7 @@ function ProjectionEditor(props: {
               info={info}
               image={info ? images.get(info.id) : undefined}
               profile={profile}
+              noData={!assetMap}
               onChange={setPhoto}
             />
             <PhotoFields photo={photo} onChange={setPhoto} />
@@ -260,9 +261,11 @@ function PhotoEditor(props: {
   info: AssetInfo | null;
   image: AssetImage | undefined;
   profile: ArmProfile;
+  /** No data folder: the page already says so. */
+  noData: boolean;
   onChange: (p: PhotoCalibration) => void;
 }) {
-  const { photo, info, image, profile, onChange } = props;
+  const { photo, info, image, profile, noData, onChange } = props;
   const ready = image?.status === "ready" ? image : null;
   const size = ready ? turnedSize(ready.width, ready.height, photo.turn) : { width: 3, height: 4 };
   const turned = useMemo(() => {
@@ -287,6 +290,8 @@ function PhotoEditor(props: {
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<Handle | null>(null);
 
+  // Without a data folder the page already says so; nothing to show per photo.
+  if (!info && noData) return null;
   if (!info)
     return <p className="card notice warn">{photo.file} is not in manifest.yaml (npm run assets:scan).</p>;
   if (!info.exists) return <p className="card notice warn">{photo.file} is missing in the data folder.</p>;

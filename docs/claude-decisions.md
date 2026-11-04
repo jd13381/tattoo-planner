@@ -100,3 +100,22 @@ Details in `docs/adr/0005-elbow-bend.md`.
 - **Simplification:** Ramer–Douglas–Peucker with a 0.3 cm tolerance on the skin, measured exactly as lines are rendered (u scaled by the local circumference, the short way round the arm), so strokes across the inner seam stay intact. Samples closer than 0.2 cm are skipped while drawing; strokes under 1 cm count as a click and are dropped. Existing points of a continued line are never simplified away. _Change:_ constants at the top of `src/editor/stroke.ts`.
 - **Drawing mode turns off rotation** (left-drag draws; right-drag pans, scroll zooms). The live preview is a thin line just above the skin; the real stroke appears in the texture when released.
 - **YAML key order for new elements:** new elements are now written with `id` first, then `type` (as in the hand-written files); before, the schema's order put `type` first. Existing elements keep their order.
+
+## 2026-11-04
+
+### Anubis from all photos
+
+Details in `docs/adr/0006-anubis-projection.md`.
+
+- **Projection instead of a flat cut-out:** the four Anubis photos are projected onto the arm's skin coordinates through the planner's own elliptical cross-section and blended into one patch. _Alternative:_ stitching the photos with homographies (wrong on a curved surface).
+- **Built live in the browser, no script, nothing written to the data folder:** the browser already decodes the photos; building takes about half a second and is cached. _Alternative:_ `npm run project:anubis` writing `existing/anubis-unwrap.png` (goes stale after each calibration change, needs a Node image codec with EXIF handling, one more command for you).
+- **Calibration in `config/projections/anubis.yaml`, numbers only:** silhouette edges as two straight lines, two marks at known distances along the arm, the view angle at wrist and elbow (the forearm twists when turned), quarter turn, weight. Photos are named by their data-folder path and found in the manifest by file, so asset ids may change.
+- **Two marks with any distances instead of "wrist crease + one point":** the extra photos do not show the wrist marker line, so their lowest ink and ear tips are used.
+- **Fitted calibration (yours to change in the Projection tab):** `anubis1_nr` is the reference (u_view 0.5, wrist marker at 0 cm, ear tips at 28 cm = 2 + 26). For the three extra photos Claude read edges and marks off the photos and then optimised the view angles, small shifts of the marks along the arm and of the edges so the photos agree where they overlap. Result: extra1 is turned slightly towards medial at the wrist (0.67 → 0.52 at the elbow), extra2 and extra3 towards lateral (0.29 → 0.49 and 0.15 → 0.39).
+- **Blend:** weight cos(viewing angle)^4; each photo divided by its local skin brightness (1.5 cm window) so exposure and shading match; brightness above 90 % of the skin counts as bare skin (hides most hair). _Change:_ `blend:` in the YAML or the sliders.
+- **Patch range** u 0.10–0.78, v 0.015–0.42 (from just above the wrist marker line to past the elbow) at 20 px per cm.
+- **Layout field `projection: anubis`** on the existing element instead of a new element type; v1-baseline uses it. The element keeps `asset: anubis-photo` and its box as the fallback when no photo is available (e.g. no data folder). Missing photos are left out with a warning.
+- **The projected tattoo sits where the photos put it:** its `position` and `size_cm` are ignored while the patch is shown, and the editor does not move it (it is locked anyway). The handout gives its size and position from the patch.
+- **Blockout and metrics use a footprint** (ink smoothed over 1.5 cm, specks dropped, holes filled), so the existing-tattoo area follows the figure instead of a box. It is a rough area: hair on the lateral side adds a little, the palest cloak parts may count as open skin.
+- **Projection tab** with draggable edges and marks, the model's skin grid drawn on each photo, view-angle and blend sliders, and a live preview on the unwrap and the 3D arm; Save writes the YAML and keeps its comments.
+- **Grayscale only:** the patch has no colour; `filter: hatching` applies the line screen, `filter: none` shows it in grayscale.

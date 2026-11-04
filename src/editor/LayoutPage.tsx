@@ -352,8 +352,7 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
       {saveError && <p className="card notice error">Save failed: {saveError}</p>}
       {[...patchIssues].map(([id, issue]) => (
         <p key={id} className="card notice warn small">
-          {id}:{" "}
-          {patches.has(id) ? "" : "shown from its single photo, because the projection cannot be built: "}
+          {id}: {patches.has(id) ? "" : "projection not shown, the element's own box is used instead: "}
           {issue}.
         </p>
       ))}

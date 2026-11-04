@@ -6,15 +6,15 @@ A local tool for planning a tattoo sleeve: a parametric 3D model of the arm, a 2
 
 ## Status
 
-| Phase                               | State                                                                    |
-| ----------------------------------- | ------------------------------------------------------------------------ |
-| 0 Bootstrap                         | done                                                                     |
-| 1 Stack check and scaffold          | done                                                                     |
-| 2 Parametric arm and viewer         | done                                                                     |
-| 3 Unwrap editor and blockout mode   | done                                                                     |
-| 4 Assets, ideas PDF, reference mode | done                                                                     |
-| 5 Export for the artist             | done                                                                     |
-| 6 Iteration and polish              | in progress: variant comparison, elbow-bent pose and red-line brush done |
+| Phase                               | State                                                                                            |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 0 Bootstrap                         | done                                                                                             |
+| 1 Stack check and scaffold          | done                                                                                             |
+| 2 Parametric arm and viewer         | done                                                                                             |
+| 3 Unwrap editor and blockout mode   | done                                                                                             |
+| 4 Assets, ideas PDF, reference mode | done                                                                                             |
+| 5 Export for the artist             | done                                                                                             |
+| 6 Iteration and polish              | in progress: variant comparison, elbow-bent pose, red-line brush and Anubis from all photos done |
 
 Decisions Claude made without Jan are listed in `docs/claude-decisions.md` for review.
 
@@ -68,6 +68,7 @@ npm run dev       # http://127.0.0.1:4320 (local only)
 - **Compare**: two variants side by side on the 3D arm, read-only (edit in the Layout tab). Pick A and B (⇄ swaps them), Blockout or Reference, and one of the four views; both arms share the camera, so rotating or zooming either one moves both. Under each arm its coverage table, with every cell tinted that differs from the other variant by at least 2 points (red = more, blue = less; the tooltip gives the difference). Below, the elements that exist in only one variant or whose values differ (by id, with the changed fields). While the Layout tab has unsaved edits, they can be compared too ("(unsaved edits)", preselected against the saved file). Variants are the files in `config/layouts/`; make one with **Save as…**.
 - **Arm & measurements**: the parametric left arm built from `config/measurements.yaml`, with a 1 cm grid on the skin (bold every 5 cm, red centre lines for outer, lateral, inner and medial). Buttons switch between the four fixed views (front = inner side, back = outer side, medial, lateral); drag to rotate, scroll to zoom.
 - **Elbow pose** (every 3D view: Arm, Layout, Compare): **Straight**, **Bent 90°** or the slider (0–120°) flexes the elbow; the forearm swings towards the palm side, the skin bends over about ±6 cm around the elbow tip, stretching a little on the outer side and creasing on the inner side. The texture and the unwrap stay the same, so it shows how the elbow and skull area deform. The pose is shared by all tabs; the medial and lateral views show the bend best. Exports still show the straight arm. Model and limits: `docs/adr/0005-elbow-bend.md`. **Screenshot** saves a PNG to the browser's download folder. The panel shows every measurement; values not measured yet use flagged placeholders, and typing a value previews it immediately (edits are not saved: write final numbers into the YAML, which reloads the page).
+- **Projection**: the existing Anubis built from all four photos (`anubis1_nr.JPG`, `anubis_extra1–3.JPG`) and wrapped round the arm where they show it (details below).
 - **Data folder**: lists the files found in `TATTOO_DATA_DIR` and checks the expected entries (`ideas.pdf`, `refs/`, …). If the variable is missing or wrong, it says so.
 
 Geometry and unwrap conventions: `docs/adr/0002-arm-geometry-and-unwrap.md`.
@@ -83,6 +84,16 @@ Geometry and unwrap conventions: `docs/adr/0002-arm-geometry-and-unwrap.md`.
 | `lotus` (`lotus-frieze`) | band   | lotus flowers alternating with papyrus umbels, linked by garland arcs                      |
 
 Bands fit a whole number of repeats around the arm, so they meet at the inner seam. Fillers are seeded from the element `id`: the same layout always looks the same. Any other name draws a faint diagonal placeholder hatch.
+
+### Anubis from all photos (Projection tab)
+
+The Anubis wraps partly round the forearm, so one photo cannot show all of it. `config/projections/anubis.yaml` says, for each photo, where the forearm's outline is, where the wrist crease and the top of the tattoo are, and which side of the arm faces the camera (numbers only; the photos stay in the data folder). The planner projects every photo onto the arm's skin coordinates and blends them, the most frontal photo counting most, into one patch that the Layout, Compare and Export use for every element with `projection: anubis` (v1-baseline's `anubis`). The patch is built in the browser when the page loads (about half a second); nothing is written into the data folder.
+
+The **Projection** tab shows each photo upright with the model's skin grid on it: red = inner centre line, green = lateral and medial lines, yellow lines every 2 cm along the arm, magenta every 10 cm from the wrist crease. Drag the orange edge ends onto the forearm's outline and the red marks onto points whose distance from the wrist crease you know (the number field next to each mark), and move the "u facing the camera" sliders until the grid sits on the arm the way the tattoo does. The middle column shows the combined patch (inner side centred), the right one the arm; the percentage on each photo's button is the share of the patch it supplies. **Save** writes the YAML, keeping its comments. The fit Claude made is a starting point: if the head or the ribbons look doubled, nudge the photo whose copy is off.
+
+Requirements: the four photos in `arm-photos/` with entries in `manifest.yaml` (`npm run assets:scan` adds them; the entry is found by file path, its id does not matter). Missing photos are left out with a warning; without any photo (or without a data folder) the planner shows the old single-photo box (`asset`, `crop`, `position`, `size_cm` of the element). Design and limits: `docs/adr/0006-anubis-projection.md`.
+
+**On your Mac** after pulling this change: nothing new to install. Run `npm run assets:scan` once if `manifest.yaml` has no entries for `arm-photos/anubis_extra1.JPG`–`anubis_extra3.JPG` yet, then `npm run dev` and open the Projection tab.
 
 ### Export for the artist
 
@@ -119,6 +130,7 @@ Running them again is safe: they only add entries for new files and refresh `pag
 The dev server reads `<TATTOO_DATA_DIR>/manifest.yaml` (schema: `src/assets/manifest.ts`) and serves, on `127.0.0.1` only:
 
 - `GET /api/assets`: the manifest entries, each with `exists`; invalid entries become warnings instead of hiding the rest; no manifest yet = an empty list.
+- `GET /api/projections`, `PUT /api/projections/<name>`: the calibrations in `config/projections/` (text YAML, validated, comments kept).
 - `GET /api/assets/image/<id>`: the image of one manifest entry, nothing else. Only `png`, `jpg`/`jpeg`, `webp`, `gif` and `avif`; HEIC/HEIF answer 415 (export them as JPEG). Paths must be relative, without `..`, and stay inside the data folder after resolving symlinks.
 
 `v1-baseline.yaml` uses these asset ids: `anubis-photo` (must point at `arm-photos/anubis1_nr.JPG`, because the layout's crop is fitted to that photo), `rhonas-card` (the Rhonas card image from ideas.pdf; the layout's crop is fitted to the full card), `medusa-ref-01`, `skull-ref-01` and `pegasus-ref-01`. An id that is not in the manifest renders as a placeholder. The entry for the Anubis photo:
@@ -134,13 +146,14 @@ The dev server reads `<TATTOO_DATA_DIR>/manifest.yaml` (schema: `src/assets/mani
 
 Figures and existing tattoos take these optional fields (rules in `src/layout/imageFit.ts`):
 
-| Field                | Meaning                                                                                                                                                                                                          |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crop`               | `{ x, y, w, h }`, 0–1 from the left/top edge of the image as stored (before turning). Overrides the asset's `crop` in the manifest; without either, the whole image.                                             |
-| `image_rotation_deg` | `90`, `180` or `270`: turns the cut-out clockwise, e.g. for a photo of the arm lying sideways.                                                                                                                   |
-| `flip`               | `true` mirrors the image left-right (after turning).                                                                                                                                                             |
-| `feather_cm`         | soft edge of the cut-out in cm, default `1`; `0` for a hard edge.                                                                                                                                                |
-| `filter`             | `none`, `grayscale` or `hatching` (grayscale with an engraving line screen). Default: `grayscale` when the element's centre is on the forearm, `none` above the elbow. Photos are stretched so skin turns white. |
+| Field                | Meaning                                                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `crop`               | `{ x, y, w, h }`, 0–1 from the left/top edge of the image as stored (before turning). Overrides the asset's `crop` in the manifest; without either, the whole image.                                                                 |
+| `image_rotation_deg` | `90`, `180` or `270`: turns the cut-out clockwise, e.g. for a photo of the arm lying sideways.                                                                                                                                       |
+| `flip`               | `true` mirrors the image left-right (after turning).                                                                                                                                                                                 |
+| `feather_cm`         | soft edge of the cut-out in cm, default `1`; `0` for a hard edge.                                                                                                                                                                    |
+| `filter`             | `none`, `grayscale` or `hatching` (grayscale with an engraving line screen). Default: `grayscale` when the element's centre is on the forearm, `none` above the elbow. Photos are stretched so skin turns white.                     |
+| `projection`         | existing tattoos only: a calibration in `config/projections/` (e.g. `anubis`). The tattoo is then drawn from all its photos where they put it, and the fields above, `position` and `size_cm` only apply while that cannot be built. |
 
 Size: when `size_cm.w` is not set, the box takes the proportions of the upright cut-out (in every mode, so blockout, metrics and picture agree; until the image has loaded, or without a data folder, the old 0.55 × height is used). When both `h` and `w` are set, the image is fitted inside the box without distortion and centred.
 
@@ -148,6 +161,7 @@ Size: when `size_cm.w` is not set, the box takes the proportions of the upright 
 
 - `config/measurements.yaml`: left-arm measurements in cm (PROJECT_BRIEF.md §13.1). `null` means not measured yet. How to measure and photograph the arm: `docs/measuring.md`.
 - `config/layouts/*.yaml`: layout variants (§13.2), starting with `v1-baseline.yaml`. Hand-editable; Git history is the design history.
+- `config/projections/*.yaml`: how photos of an existing tattoo map onto the arm (ADR 0006), edited in the Projection tab or by hand.
 
 ## Development
 
@@ -161,4 +175,4 @@ Size: when `size_cm.w` is not set, the box takes the proportions of the upright 
 | `npm run build`     | Static production bundle (without data-folder access)      |
 | `npm run check`     | lint, typecheck, tests and the binary guard over all files |
 
-Layout: `src/arm/` builds the profile, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures (blockout, reference, patterns), `src/layout/` holds the layout schema, shapes and image-fit rules, `src/assets/` the manifest schema and the asset browser, `src/viewer/` holds the 3D view and panels, `src/data/` resolves and lists the data folder and serves assets (`server/` runs in the dev server only), `src/export/` builds the handout and the PNGs (`server/` writes them into the data folder), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
+Layout: `src/arm/` builds the profile, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures (blockout, reference, patterns), `src/layout/` holds the layout schema, shapes and image-fit rules, `src/assets/` the manifest schema and the asset browser, `src/viewer/` holds the 3D view and panels, `src/data/` resolves and lists the data folder and serves assets (`server/` runs in the dev server only), `src/export/` builds the handout and the PNGs (`server/` writes them into the data folder), `src/projection/` projects photos onto the skin (model, patch, calibration schema and the Projection tab), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
