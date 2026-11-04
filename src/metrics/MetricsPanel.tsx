@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { InfoIcon } from "../ui/icons.tsx";
 import {
   CATEGORIES,
   coverageDelta,
@@ -25,6 +27,9 @@ const LABELS: Record<Category, string> = {
   open: "Open",
 };
 
+const NOTE =
+  "Share of each zone's skin, counting the topmost element only. Elbow: 4 cm below to 6 cm above the elbow tip; shoulder: the top 8 cm; inner = the half around the palm-side line.";
+
 const TITLES: Record<Category, string> = {
   figure: "Figures",
   existing: "Existing tattoo",
@@ -48,9 +53,22 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo }: Props)
     { key: "total", label: "Whole arm" },
   ];
   const delta = compareTo ? coverageDelta(compareTo.coverage, coverage) : null;
+  const [noteOpen, setNoteOpen] = useState(false);
   return (
     <section className="panel metrics" aria-label={title}>
-      <h2>{title}</h2>
+      <div className="panel-head">
+        <h2>{title}</h2>
+        <button
+          type="button"
+          className="ghost icon-button"
+          aria-label="How coverage is measured"
+          aria-expanded={noteOpen}
+          title={NOTE}
+          onClick={() => setNoteOpen((o) => !o)}
+        >
+          <InfoIcon />
+        </button>
+      </div>
       <table>
         <thead>
           <tr>
@@ -91,18 +109,12 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo }: Props)
           })}
         </tbody>
       </table>
-      <p
-        className="muted small"
-        title="Elbow: 4 cm below to 6 cm above the elbow tip; shoulder: top 8 cm; inner = the half around the palm-side line."
-      >
-        Share of each zone's skin, topmost element counted (hover for the zones).
-        {compareTo && (
-          <>
-            {" "}
-            Tinted: at least {DIFF_THRESHOLD_PCT} points more (red) or less (blue) than {compareTo.label}.
-          </>
-        )}
-      </p>
+      {noteOpen && <p className="muted small">{NOTE}</p>}
+      {compareTo && (
+        <p className="muted small">
+          Tinted: at least {DIFF_THRESHOLD_PCT} points more (red) or less (blue) than {compareTo.label}.
+        </p>
+      )}
     </section>
   );
 }

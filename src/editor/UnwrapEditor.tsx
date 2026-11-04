@@ -11,6 +11,8 @@ import { wrapU } from "../arm/uv.ts";
 import type { ElementAspects } from "../layout/imageFit.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import {
+  nextInCycle,
+  pickAllElements,
   resolveElement,
   wrapDelta,
   type ElementPatches,
@@ -34,7 +36,10 @@ type Props = {
   centerU: number;
   selected: number | null;
   onSelect: (index: number | null) => void;
-  onChange: (index: number, element: LayoutElement) => void;
+  /** `gesture` is the same for every change of one drag, so the caller can make it one undo step. */
+  onChange: (index: number, element: LayoutElement, gesture?: string) => void;
+  /** A drag ended (pointer up). */
+  onGestureEnd?: () => void;
 };
 
 type Drag =
@@ -60,12 +65,16 @@ export function UnwrapEditor(props: Props) {
     selected,
     onSelect,
     onChange,
+    onGestureEnd,
   } = props;
   const L = profile.length;
   const half = profile.maxCircumference / 2;
   const fullView = useMemo<ViewBox>(() => ({ x: -half - 1, y: -1, w: 2 * half + 2, h: L + 2 }), [half, L]);
   const [view, setView] = useState<ViewBox>(fullView);
   const [drag, setDrag] = useState<Drag | null>(null);
+  // Every drag gets its own id; all changes of one drag share it.
+  const gestureSeq = useRef(0);
+  const [hover, setHover] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   // The rendered canvas is shown as it is (encoding it as a PNG data URL on every change cost
@@ -142,13 +151,27 @@ export function UnwrapEditor(props: Props) {
   const startDrag = (e: ReactPointerEvent, next: Drag) => {
     e.stopPropagation();
     (e.target as Element).setPointerCapture?.(e.pointerId);
+    gestureSeq.current += 1;
     setDrag(next);
   };
 
+  const endDrag = () => {
+    if (drag && drag.kind !== "pan") onGestureEnd?.();
+    setDrag(null);
+  };
+
   const onElementDown = (e: ReactPointerEvent, index: number) => {
+    const p = pointer(e);
+    // Alt-click cycles through every element under the pointer, topmost first, without moving any.
+    if (e.altKey && p) {
+      e.stopPropagation();
+      const hits = pickAllElements(resolved, profile, p.u, p.v);
+      if (!hits.includes(index)) hits.unshift(index);
+      onSelect(nextInCycle(hits, selected));
+      return;
+    }
     onSelect(index);
     const el = layout.elements[index]!;
-    const p = pointer(e);
     if (!p || el.locked || resolved[index]?.shape.kind === "patch") {
       e.stopPropagation();
       return;
@@ -160,6 +183,7 @@ export function UnwrapEditor(props: Props) {
     if (!drag) return;
     const p = pointer(e);
     if (!p) return;
+    const gesture = `drag-${gestureSeq.current}`;
     switch (drag.kind) {
       case "pan": {
         const ctm = svgRef.current?.getScreenCTM();
@@ -172,22 +196,22 @@ export function UnwrapEditor(props: Props) {
         return;
       }
       case "move":
-        onChange(drag.index, moveElement(drag.start, wrapDelta(p.u - drag.u), p.v - drag.v));
+        onChange(drag.index, moveElement(drag.start, wrapDelta(p.u - drag.u), p.v - drag.v), gesture);
         return;
       case "scale": {
         const d = Math.hypot(p.sx - drag.cx, p.sy - drag.cy);
-        if (drag.d0 > 0) onChange(drag.index, scaleFigure(drag.start, d / drag.d0));
+        if (drag.d0 > 0) onChange(drag.index, scaleFigure(drag.start, d / drag.d0), gesture);
         return;
       }
       case "rotate": {
         const deg = (Math.atan2(drag.cy - p.sy, p.sx - drag.cx) * 180) / Math.PI - 90;
         const norm = Math.round(((deg + 540) % 360) - 180);
         if (drag.start.type === "figure" || drag.start.type === "existing")
-          onChange(drag.index, { ...drag.start, rotation_deg: norm });
+          onChange(drag.index, { ...drag.start, rotation_deg: norm }, gesture);
         return;
       }
       case "point":
-        onChange(drag.index, movePoint(drag.start, drag.point, p.u, p.v));
+        onChange(drag.index, movePoint(drag.start, drag.point, p.u, p.v), gesture);
         return;
     }
   };
@@ -217,12 +241,14 @@ export function UnwrapEditor(props: Props) {
           startDrag(e, { kind: "pan", startX: e.clientX, startY: e.clientY, box: view });
         }}
         onPointerMove={onMove}
-        onPointerUp={() => setDrag(null)}
-        onPointerCancel={() => setDrag(null)}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onPointerLeave={() => setHover(null)}
         onWheel={onWheel}
         onDoubleClick={() => setView(fullView)}
         role="application"
         aria-label="Unwrap editor"
+        className={drag?.kind === "pan" ? "panning" : drag ? "dragging" : undefined}
       >
         <text className="edge-label" x={-half + 0.3} y={-0.3}>
           {centerU === 0 ? "lateral ←" : "medial ←"}
@@ -235,12 +261,16 @@ export function UnwrapEditor(props: Props) {
             key={r.element.id}
             shape={r.shape}
             label={r.element.id}
+            title={`${r.element.id} (${r.element.type})${r.element.locked ? ", locked" : r.shape.kind === "patch" ? ", placed by its projection" : ""}. Alt-click selects the element underneath.`}
             selected={i === selected}
+            hovered={i === hover && !drag}
             locked={!!r.element.locked || r.shape.kind === "patch"}
             toSvg={toSvg}
             profile={profile}
             centerU={centerU}
             onDown={(e) => onElementDown(e, i)}
+            onEnter={() => setHover(i)}
+            onLeave={() => setHover((h) => (h === i ? null : h))}
           />
         ))}
         {selected !== null &&
@@ -270,8 +300,9 @@ export function UnwrapEditor(props: Props) {
           )}
       </svg>
       <p className="muted small">
-        Click to select, drag to move; corner handle scales, round handle rotates. Drag the background to pan,
-        scroll to zoom, double-click to reset. Seen from outside the arm, shoulder at the top.
+        Click to select, drag to move, Alt-click for the element underneath; corner handle scales, round
+        handle rotates. Drag the background to pan, scroll to zoom, double-click to reset. Seen from outside
+        the arm, shoulder at the top.
       </p>
     </div>
   );
@@ -282,15 +313,19 @@ type ToSvg = (u: number, y: number) => { x: number; y: number };
 function ShapeOverlay(props: {
   shape: Shape;
   label: string;
+  title: string;
   selected: boolean;
+  hovered: boolean;
   locked: boolean;
   toSvg: ToSvg;
   profile: ArmProfile;
   centerU: number;
   onDown: (e: ReactPointerEvent) => void;
+  onEnter: () => void;
+  onLeave: () => void;
 }) {
-  const { shape, label, selected, locked, toSvg, profile, onDown } = props;
-  const cls = `shape${selected ? " selected" : ""}${locked ? " locked" : ""}`;
+  const { shape, label, title, selected, hovered, locked, toSvg, profile, onDown } = props;
+  const cls = `shape shape-${shape.kind}${selected ? " selected" : ""}${hovered ? " hovered" : ""}${locked ? " locked" : ""}`;
   let body: React.ReactNode;
   let labelAt: { x: number; y: number };
   switch (shape.kind) {
@@ -343,7 +378,8 @@ function ShapeOverlay(props: {
     }
   }
   return (
-    <g className={cls} onPointerDown={onDown}>
+    <g className={cls} onPointerDown={onDown} onPointerEnter={props.onEnter} onPointerLeave={props.onLeave}>
+      <title>{title}</title>
       {body}
       <text x={labelAt.x} y={labelAt.y} textAnchor="middle" className="shape-label">
         {label}
