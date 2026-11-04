@@ -18,10 +18,10 @@ export function ArmPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
   return (
     <div className="arm-page">
       {!loadedMeasurements.ok && (
-        <section className="card notice error" role="alert">
-          <h2>config/measurements.yaml is invalid</h2>
-          <p>{loadedMeasurements.error}. Showing placeholders.</p>
-        </section>
+        <p className="notice error" role="alert">
+          <strong>config/measurements.yaml is invalid:</strong> {loadedMeasurements.error}. Showing
+          placeholders.
+        </p>
       )}
       <PlaceholderNotice count={placeholders.length} />
       <div className="arm-layout">
@@ -47,14 +47,12 @@ export function ArmPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
 export function PlaceholderNotice({ count }: { count: number }) {
   if (count === 0) return null;
   return (
-    <section className="card notice warn" role="status">
-      <h2>
-        Placeholder arm: {count} of {INPUT_COUNT} values not measured yet
-      </h2>
-      <p>
-        Proportions are generic until <code>config/measurements.yaml</code> is filled in (see{" "}
-        <code>docs/measuring.md</code>).
-      </p>
-    </section>
+    <p className="notice warn" role="status">
+      <strong>
+        Placeholder arm: {count} of {INPUT_COUNT} values not measured yet.
+      </strong>{" "}
+      Proportions are generic until <code>config/measurements.yaml</code> is filled in (see{" "}
+      <code>docs/measuring.md</code>).
+    </p>
   );
 }

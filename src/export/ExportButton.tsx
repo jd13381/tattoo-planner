@@ -68,11 +68,9 @@ export function ExportButton({ input, blocked }: Props) {
       >
         {running ? "Exporting…" : "Export"}
       </button>
-      {(state.phase !== "idle" || (status && !status.enabled)) && (
-        <div className="export-status small" role="status" aria-live="polite">
-          {status && !status.enabled && state.phase === "idle" && (
-            <span className="muted">Export disabled: {status.reason}</span>
-          )}
+      {/* Why export is unavailable lives in the button's tooltip and the header's data-folder chip. */}
+      {state.phase !== "idle" && (
+        <div className="export-status" role="status" aria-live="polite">
           {state.phase === "running" && (
             <>
               <progress max={state.progress.total} value={state.progress.done} />{" "}
@@ -80,17 +78,19 @@ export function ExportButton({ input, blocked }: Props) {
             </>
           )}
           {state.phase === "done" && (
-            <span className="export-done">
-              Written in {(state.result.ms / 1000).toFixed(1)} s: <code>{state.result.pdf.absolute}</code> and{" "}
-              {state.result.pngs.length} PNGs in <code>{state.result.reservation.folder}</code>{" "}
+            <span
+              className="export-done chip ok"
+              title={`${state.result.pdf.absolute}\n${state.result.pngs.length} PNGs in ${state.result.reservation.folder}`}
+            >
+              Exported in {(state.result.ms / 1000).toFixed(1)} s: PDF and {state.result.pngs.length} PNGs{" "}
               <button type="button" className="link" onClick={() => setState({ phase: "idle" })}>
                 dismiss
               </button>
             </span>
           )}
           {state.phase === "error" && (
-            <span className="error">
-              Export failed: {state.message}{" "}
+            <span className="chip error" title={state.message}>
+              Export failed (hover for details){" "}
               <button type="button" className="link" onClick={() => setState({ phase: "idle" })}>
                 dismiss
               </button>

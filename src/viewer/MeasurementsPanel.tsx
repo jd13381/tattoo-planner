@@ -32,7 +32,7 @@ export function MeasurementsPanel({ fileValues, overrides, onChange, onReset, wa
     <aside className="panel" aria-label="Measurements">
       <div className="panel-head">
         <h2>Measurements (cm)</h2>
-        <button type="button" onClick={onReset} disabled={!hasOverrides}>
+        <button type="button" className="ghost" onClick={onReset} disabled={!hasOverrides}>
           Reset
         </button>
       </div>

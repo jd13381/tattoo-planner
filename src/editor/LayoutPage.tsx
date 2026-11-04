@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AssetBrowser } from "../assets/AssetBrowser.tsx";
 import type { AssetInfo } from "../assets/types.ts";
 import { useAssetListing } from "../assets/useAssets.ts";
@@ -19,7 +19,6 @@ import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
 import { renderUnwrap, timed, type RenderMode } from "../render/unwrapCanvas.ts";
 import { ExportButton } from "../export/ExportButton.tsx";
 import type { ExportInput } from "../export/runExport.ts";
-import { PlaceholderNotice } from "../viewer/ArmPage.tsx";
 import { ArmViewer } from "../viewer/ArmViewer.tsx";
 import { anubisSize, INPUT_COUNT, type ArmState, type Pose } from "../viewer/useArm.ts";
 import { newElement, reorder, suggestVariantName, uniqueId } from "./edit.ts";
@@ -282,12 +281,41 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
     setElement(selected, { ...sel, asset: a.id, crop: sel.asset === a.id ? sel.crop : undefined });
   };
 
+  // Errors stay as banners; warnings fold into one compact group when there are several.
+  const warnings: { key: string; text: ReactNode }[] = [
+    ...(arm.placeholders.length > 0
+      ? [
+          {
+            key: "placeholder",
+            text: (
+              <>
+                Placeholder arm: {arm.placeholders.length} of {INPUT_COUNT} values not measured yet;
+                proportions are generic until <code>config/measurements.yaml</code> is filled in.
+              </>
+            ),
+          },
+        ]
+      : []),
+    ...[...patchIssues].map(([id, issue]) => ({
+      key: `patch-${id}`,
+      text: (
+        <>
+          {id}: {patches.has(id) ? "" : "projection not shown, the element's own box is used instead: "}
+          {issue}.
+        </>
+      ),
+    })),
+    ...(flagged.length > 0
+      ? [{ key: "height", text: <>Height not set, shown at 10 cm: {flagged.join(", ")}.</> }]
+      : []),
+  ];
+  const errors = [loadError, parseError, validationError, saveError].some(Boolean);
+
   return (
     <div className="layout-page">
-      <PlaceholderNotice count={arm.placeholders.length} />
       <div className="toolbar layout-toolbar">
         <label className="inline">
-          Variant{" "}
+          <span className="toolbar-label">Variant</span>
           <select value={name ?? ""} onChange={(e) => switchTo(e.target.value)} disabled={!files}>
             {(files ?? []).map((f) => (
               <option key={f.name} value={f.name}>
@@ -299,10 +327,12 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
         </label>
         <button
           type="button"
+          className={dirty ? "primary" : ""}
           onClick={() => layout && void doSave(layout)}
           disabled={!dirty || !!validationError}
+          title={dirty ? "Save the changes to the variant's YAML file" : "No unsaved changes"}
         >
-          Save{dirty ? " *" : ""}
+          Save
         </button>
         <button
           type="button"
@@ -312,25 +342,28 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
         >
           Save as…
         </button>
+        <span className="toolbar-sep" aria-hidden="true" />
         <ExportButton input={exportInput} blocked={exportBlocked} />
         <span className="spacer" />
-        <span className="segmented" role="group" aria-label="Mode">
+        <span
+          className="segmented"
+          role="group"
+          aria-label="Mode"
+          title={`Texture render time: ${Math.round(renderMs)} ms`}
+        >
           {MODES.map((m) => (
             <button
               key={m.id}
               type="button"
               className={mode === m.id ? "active" : ""}
+              aria-pressed={mode === m.id}
               onClick={() => setMode(m.id)}
             >
               {m.label}
             </button>
           ))}
         </span>
-        <span
-          className="muted small render-ms"
-          data-render-ms={renderMs.toFixed(1)}
-          title="Texture render time"
-        >
+        <span className="render-ms" data-render-ms={renderMs.toFixed(1)} title="Texture render time">
           {Math.round(renderMs)} ms
         </span>
         <label className="inline check">
@@ -339,43 +372,69 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
             checked={grid}
             onChange={(e) => setGrid(e.target.checked)}
             disabled={mode === "grid"}
-          />{" "}
-          grid overlay
+          />
+          Grid overlay
         </label>
+        <span className="toolbar-sep" aria-hidden="true" />
+        <span className="toolbar-label">Centred</span>
         <span className="segmented" role="group" aria-label="Editor centre">
-          <button type="button" className={centerU === 0 ? "active" : ""} onClick={() => setCenterU(0)}>
-            Outer side centred
+          <button
+            type="button"
+            className={centerU === 0 ? "active" : ""}
+            aria-pressed={centerU === 0}
+            onClick={() => setCenterU(0)}
+            title="Centre the 2D editor on the outer side"
+          >
+            Outer side
           </button>
-          <button type="button" className={centerU === 0.5 ? "active" : ""} onClick={() => setCenterU(0.5)}>
-            Inner side centred
+          <button
+            type="button"
+            className={centerU === 0.5 ? "active" : ""}
+            aria-pressed={centerU === 0.5}
+            onClick={() => setCenterU(0.5)}
+            title="Centre the 2D editor on the inner side"
+          >
+            Inner side
           </button>
         </span>
       </div>
 
-      {loadError && <p className="card notice error">{loadError}</p>}
-      {parseError && (
-        <section className="card notice error" role="alert">
-          <h2>{name}.yaml is invalid</h2>
-          <p>{parseError}</p>
-        </section>
-      )}
-      {validationError && <p className="card notice error">Not saved: {validationError}</p>}
-      {saveError && <p className="card notice error">Save failed: {saveError}</p>}
-      {[...patchIssues].map(([id, issue]) => (
-        <p key={id} className="card notice warn small">
-          {id}: {patches.has(id) ? "" : "projection not shown, the element's own box is used instead: "}
-          {issue}.
-        </p>
-      ))}
-      {flagged.length > 0 && (
-        <p className="card notice warn small">Height not set, shown at 10 cm: {flagged.join(", ")}.</p>
+      {(errors || warnings.length > 0) && (
+        <div className="notices">
+          {loadError && <p className="notice error">{loadError}</p>}
+          {parseError && (
+            <p className="notice error" role="alert">
+              <strong>{name}.yaml is invalid:</strong> {parseError}
+            </p>
+          )}
+          {validationError && <p className="notice error">Not saved: {validationError}</p>}
+          {saveError && <p className="notice error">Save failed: {saveError}</p>}
+          {warnings.length === 1 && (
+            <p className="notice warn" role="status">
+              {warnings[0]!.text}
+            </p>
+          )}
+          {warnings.length > 1 && (
+            <details className="notice warn notice-group">
+              <summary>
+                <strong>{warnings.length} notices</strong>
+                <span className="notice-preview">{warnings[0]!.text}</span>
+              </summary>
+              <ul>
+                {warnings.map((w) => (
+                  <li key={w.key}>{w.text}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
       )}
 
       {layout && (
         <div className="layout-grid">
           <div className="editor-head">
             <div className="toolbar">
-              <span className="muted small">Add:</span>
+              <span className="toolbar-label">Add</span>
               {ELEMENT_TYPES.map((t) => (
                 <button key={t} type="button" onClick={() => addElement(t)}>
                   {t}
@@ -384,36 +443,16 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
             </div>
           </div>
           <div className="viewer-head">
-            <div className="toolbar draw-toolbar">
-              <button
-                type="button"
-                className={drawing ? "active" : ""}
-                aria-pressed={drawing}
-                onClick={() => setDrawing((d) => !d)}
-                title="Drag on the 3D arm to draw a red line; it becomes a line element you can edit in the 2D editor"
-              >
-                Draw red line
-              </button>
-              {drawing && sel?.type === "line" && !sel.locked && (
-                <label className="inline check small">
-                  <input
-                    type="checkbox"
-                    checked={appendStrokes}
-                    onChange={(e) => setAppendStrokes(e.target.checked)}
-                  />{" "}
-                  continue {sel.id}
-                </label>
-              )}
-              {drawing && (
-                <span className="muted small">
-                  {appendTarget !== null
-                    ? `Strokes extend ${sel?.id} at its nearer end.`
-                    : "Each stroke becomes a new red line."}{" "}
-                  Rotation is off while drawing (right-drag pans, scroll zooms).
-                </span>
-              )}
-            </div>
-            <div ref={setViewerToolbar} />
+            <button
+              type="button"
+              className={`draw-button${drawing ? " active" : ""}`}
+              aria-pressed={drawing}
+              onClick={() => setDrawing((d) => !d)}
+              title="Drag on the 3D arm to draw a red line; it becomes a line element you can edit in the 2D editor"
+            >
+              Draw red line
+            </button>
+            <div ref={setViewerToolbar} className="viewer-tools" />
           </div>
           <div className="editor-col">
             <UnwrapEditor
@@ -442,6 +481,28 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
               draw={{ active: drawing, onStroke }}
               onPick={pickOnArm}
               toolbarTarget={viewerToolbar}
+              overlay={
+                drawing && (
+                  <div className="canvas-toolbar top">
+                    {sel?.type === "line" && !sel.locked && (
+                      <label className="inline check">
+                        <input
+                          type="checkbox"
+                          checked={appendStrokes}
+                          onChange={(e) => setAppendStrokes(e.target.checked)}
+                        />
+                        continue {sel.id}
+                      </label>
+                    )}
+                    <span>
+                      {appendTarget !== null
+                        ? `Strokes extend ${sel?.id} at its nearer end.`
+                        : "Each stroke becomes a new red line."}{" "}
+                      <span className="muted">Rotation is off (right-drag pans, scroll zooms).</span>
+                    </span>
+                  </div>
+                )
+              }
             />
           </div>
           <div className="side-col">

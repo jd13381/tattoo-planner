@@ -1,6 +1,6 @@
 import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ArmProfile } from "../arm/profile.ts";
@@ -27,7 +27,7 @@ type Props = {
   label?: string;
   /** Elbow flexion in degrees (0 = straight). */
   bendDeg?: number;
-  /** When set, the toolbar shows the pose control. */
+  /** When set, the pose control floats at the bottom of the canvas. */
   onBendDeg?: (deg: number) => void;
   /**
    * Brush tool: while active, dragging on the skin draws instead of rotating (zoom and right-drag pan
@@ -38,6 +38,8 @@ type Props = {
   onPick?: (p: UV) => void;
   /** Renders the toolbar into this element instead of above the canvas (lets a page align columns). */
   toolbarTarget?: HTMLElement | null;
+  /** Floats on top of the canvas (e.g. the drawing hint); use a .canvas-toolbar.top inside. */
+  overlay?: ReactNode;
 };
 
 export function ArmViewer(props: Props) {
@@ -81,13 +83,8 @@ export function ArmViewer(props: Props) {
   };
 
   const toolbarEl = toolbar && (
-    <div className="toolbar" role="toolbar" aria-label="Views">
+    <div className="toolbar viewer-toolbar" role="toolbar" aria-label="3D view">
       <ViewButtons state={vs} />
-      {props.onBendDeg && <PoseControl bendDeg={bendDeg} onChange={props.onBendDeg} />}
-      <span className="spacer" />
-      <button type="button" onClick={screenshot}>
-        Screenshot
-      </button>
     </div>
   );
 
@@ -98,6 +95,22 @@ export function ArmViewer(props: Props) {
         : props.toolbarTarget === undefined && toolbarEl}
       <div className={`canvas-wrap${drawing ? " drawing" : ""}`}>
         {label && <span className="viewer-label">{label}</span>}
+        {props.overlay}
+        {toolbar && (
+          <button
+            type="button"
+            className="canvas-action"
+            onClick={screenshot}
+            title="Save this view as a PNG in the browser's download folder"
+          >
+            Screenshot
+          </button>
+        )}
+        {toolbar && props.onBendDeg && (
+          <div className="canvas-toolbar bottom">
+            <PoseControl bendDeg={bendDeg} onChange={props.onBendDeg} />
+          </div>
+        )}
         <Canvas
           ref={canvasRef}
           camera={{ fov: CAMERA_FOV, near: 1, far: 2000 }}
@@ -138,19 +151,23 @@ export function ArmViewer(props: Props) {
 /** The four fixed view buttons (front = inner, back = outer, medial, lateral). */
 export function ViewButtons({ state }: { state: ViewState }) {
   return (
-    <>
-      {VIEWS.map((v) => (
-        <button
-          key={v.name}
-          type="button"
-          className={!state.free && state.view === v.name ? "active" : ""}
-          title={v.hint}
-          onClick={() => state.select(v.name)}
-        >
-          {v.label}
-        </button>
-      ))}
-    </>
+    <span className="segmented" role="group" aria-label="View">
+      {VIEWS.map((v) => {
+        const on = !state.free && state.view === v.name;
+        return (
+          <button
+            key={v.name}
+            type="button"
+            className={on ? "active" : ""}
+            aria-pressed={on}
+            title={v.hint}
+            onClick={() => state.select(v.name)}
+          >
+            {v.label}
+          </button>
+        );
+      })}
+    </span>
   );
 }
 
@@ -159,10 +176,20 @@ export function PoseControl({ bendDeg, onChange }: { bendDeg: number; onChange: 
   return (
     <span className="pose-control" role="group" aria-label="Elbow pose">
       <span className="segmented">
-        <button type="button" className={bendDeg === 0 ? "active" : ""} onClick={() => onChange(0)}>
+        <button
+          type="button"
+          className={bendDeg === 0 ? "active" : ""}
+          aria-pressed={bendDeg === 0}
+          onClick={() => onChange(0)}
+        >
           Straight
         </button>
-        <button type="button" className={bendDeg === 90 ? "active" : ""} onClick={() => onChange(90)}>
+        <button
+          type="button"
+          className={bendDeg === 90 ? "active" : ""}
+          aria-pressed={bendDeg === 90}
+          onClick={() => onChange(90)}
+        >
           Bent 90°
         </button>
       </span>
