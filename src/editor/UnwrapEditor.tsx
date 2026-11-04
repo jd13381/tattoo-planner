@@ -28,6 +28,7 @@ import {
   resizeBox,
   resizeCursor,
   resizeOptions,
+  skinAt,
   svgToSkin,
   type Box,
   type Handle,
@@ -53,7 +54,19 @@ type Props = {
   onChange: (index: number, element: LayoutElement, gesture?: string) => void;
   /** A drag ended (pointer up). */
   onGestureEnd?: () => void;
+  /** The skin point under the pointer, null when it leaves the sheet (status bar readout). */
+  onCursor?: (p: { u: number; v: number } | null) => void;
+  /** The zoom in percent of the whole sheet (100 = fitted), whenever it changes. */
+  onZoom?: (pct: number) => void;
+  /** Changing this number fits the whole sheet again (the status bar's Fit button). */
+  fitRequest?: number;
+  /** false leaves out the usage hint under the editor (the page shows EDITOR_HINT elsewhere). */
+  hint?: boolean;
 };
+
+/** How to use the editor, shown under it or as a tooltip. */
+export const EDITOR_HINT =
+  "Click to select, drag to move, Alt-click for the element underneath. Corner handles resize in proportion, edge handles stretch one side (Shift swaps this, Alt resizes from the centre, sizes snap to 0.5 cm unless Ctrl/⌘ is held); the round handle rotates. Drag the background to pan, scroll to zoom, double-click to reset. Seen from outside the arm, shoulder at the top.";
 
 type Drag =
   | { kind: "pan"; startX: number; startY: number; box: ViewBox }
@@ -94,11 +107,23 @@ export function UnwrapEditor(props: Props) {
     onSelect,
     onChange,
     onGestureEnd,
+    onCursor,
+    onZoom,
+    fitRequest,
+    hint = true,
   } = props;
   const L = profile.length;
   const half = profile.maxCircumference / 2;
   const fullView = useMemo<ViewBox>(() => ({ x: -half - 1, y: -1, w: 2 * half + 2, h: L + 2 }), [half, L]);
   const [view, setView] = useState<ViewBox>(fullView);
+  // Fit on request (adjusting state during render, so no extra effect pass).
+  const [fitSeen, setFitSeen] = useState(fitRequest);
+  if (fitRequest !== fitSeen) {
+    setFitSeen(fitRequest);
+    setView(fullView);
+  }
+  const reportZoom = useEffectEvent((pct: number) => onZoom?.(pct));
+  useEffect(() => reportZoom(Math.round((100 * fullView.w) / view.w)), [view.w, fullView.w]);
   const [drag, setDrag] = useState<Drag | null>(null);
   // Every drag gets its own id; all changes of one drag share it.
   const gestureSeq = useRef(0);
@@ -251,6 +276,11 @@ export function UnwrapEditor(props: Props) {
   };
 
   const onMove = (e: ReactPointerEvent) => {
+    if (onCursor) {
+      const ctm = svgRef.current?.getScreenCTM();
+      const q = ctm && new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+      onCursor(q ? skinAt(profile, centerU, q.x, q.y) : null);
+    }
     if (!drag) return;
     const p = pointer(e);
     if (!p) return;
@@ -313,7 +343,10 @@ export function UnwrapEditor(props: Props) {
         onPointerMove={onMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        onPointerLeave={() => setHover(null)}
+        onPointerLeave={() => {
+          setHover(null);
+          onCursor?.(null);
+        }}
         onWheel={onWheel}
         onDoubleClick={() => setView(fullView)}
         role="application"
@@ -393,12 +426,7 @@ export function UnwrapEditor(props: Props) {
           )}
         {drag?.kind === "resize" && <ResizeFeedback drag={drag} px={px} view={view} />}
       </svg>
-      <p className="muted small">
-        Click to select, drag to move, Alt-click for the element underneath. Corner handles resize in
-        proportion, edge handles stretch one side (Shift swaps this, Alt resizes from the centre, sizes snap
-        to 0.5 cm unless Ctrl/⌘ is held); the round handle rotates. Drag the background to pan, scroll to
-        zoom, double-click to reset. Seen from outside the arm, shoulder at the top.
-      </p>
+      {hint && <p className="muted small">{EDITOR_HINT}</p>}
     </div>
   );
 }

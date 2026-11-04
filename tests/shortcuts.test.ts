@@ -52,6 +52,15 @@ describe("shortcutAction", () => {
     expect(shortcutAction(press("?", { shiftKey: true }), "mac")).toEqual({ type: "help" });
   });
 
+  it("maps the tool keys V and R, not with modifiers or while typing", () => {
+    expect(shortcutAction(press("v"), "mac")).toEqual({ type: "tool", tool: "select" });
+    expect(shortcutAction(press("R"), "other")).toEqual({ type: "tool", tool: "draw" });
+    expect(shortcutAction(press("r", { shiftKey: true }), "mac")).toBeNull();
+    expect(shortcutAction(press("r", { altKey: true }), "mac")).toBeNull();
+    expect(shortcutAction(press("r", { metaKey: true }), "mac")).toBeNull();
+    expect(shortcutAction(press("v", { isEditableTarget: true }), "mac")).toBeNull();
+  });
+
   it("accepts [ and ] typed with Option/AltGr", () => {
     expect(shortcutAction(press("[", { altKey: true }), "mac")).toEqual({ type: "layerDown" });
   });

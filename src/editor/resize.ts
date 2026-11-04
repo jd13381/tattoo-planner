@@ -167,6 +167,18 @@ export function svgToSkin(profile: ArmProfile, centerU: number, x: number, y: nu
   return { u: wrapU(centerU - x / profile.circumferenceAt(skinY)), v: skinY / L };
 }
 
+/**
+ * The skin point under an SVG position, or null when it lies off the unwrap sheet (above the
+ * shoulder, below the wrist, or beyond half the local circumference). For the cursor readout.
+ */
+export function skinAt(profile: ArmProfile, centerU: number, x: number, y: number) {
+  const L = profile.length;
+  const skinY = L - y;
+  if (skinY < 0 || skinY > L) return null;
+  if (Math.abs(x) > profile.circumferenceAt(skinY) / 2) return null;
+  return svgToSkin(profile, centerU, x, y);
+}
+
 const round = (n: number, digits: number) => Math.round(n * 10 ** digits) / 10 ** digits;
 
 /**

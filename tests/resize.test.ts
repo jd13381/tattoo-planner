@@ -9,6 +9,7 @@ import {
   resizeBox,
   resizeCursor,
   resizeOptions,
+  skinAt,
   svgToSkin,
   type Box,
   type Handle,
@@ -182,6 +183,19 @@ describe("svgToSkin", () => {
       expect(p.u).toBeCloseTo(u, 9);
       expect(p.v).toBeCloseTo(v, 9);
     }
+  });
+});
+
+describe("skinAt", () => {
+  const profile = buildProfile(PLACEHOLDERS);
+  const L = profile.length;
+  it("returns the skin point on the sheet and null beside or beyond it", () => {
+    const half = profile.circumferenceAt(L / 2) / 2;
+    expect(skinAt(profile, 0, 0, L / 2)).toEqual(svgToSkin(profile, 0, 0, L / 2));
+    expect(skinAt(profile, 0, half * 0.9, L / 2)).not.toBeNull();
+    expect(skinAt(profile, 0, half * 1.1, L / 2)).toBeNull();
+    expect(skinAt(profile, 0, 0, -0.5)).toBeNull();
+    expect(skinAt(profile, 0, 0, L + 0.5)).toBeNull();
   });
 });
 

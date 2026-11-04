@@ -1,7 +1,11 @@
 // Side-by-side comparison of two layout variants (PROJECT_BRIEF.md §14 Phase 6): both on the 3D arm
 // with one camera, their coverage next to each other and the elements that differ. Read-only;
 // editing stays in the Layout tab.
-import { useMemo, useState } from "react";
+//
+// Full-bleed workspace: the two arms meet at a seam in the middle, each with its coverage table
+// floating at its outer edge; the A/B pickers (swap on the seam), mode and view float on top; the
+// summary, the pose and the element differences sit in the inspector column on the right.
+import { useMemo, useState, type ReactNode } from "react";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { useLayoutSources, type LayoutSources } from "../assets/useLayoutSources.ts";
 import type { ArmProfile } from "../arm/profile.ts";
@@ -9,10 +13,11 @@ import type { Layout } from "../layout/schema.ts";
 import { classify } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
 import { parseLayout } from "../layout/yamlDoc.ts";
-import { coverage, type Coverage } from "../metrics/coverage.ts";
+import { coverage, DIFF_THRESHOLD_PCT, type Coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
-import { ArmViewer, PoseControl, ViewButtons } from "../viewer/ArmViewer.tsx";
+import { SwapIcon } from "../ui/icons.tsx";
+import { ArmViewer, ORBIT_HINT, PoseControl, ViewButtons } from "../viewer/ArmViewer.tsx";
 import { createCameraSync } from "../viewer/cameraSync.ts";
 import { useViewState } from "../viewer/useViewState.ts";
 import { anubisSize, type ArmState, type Pose } from "../viewer/useArm.ts";
@@ -20,6 +25,7 @@ import { diffLayouts } from "./diff.ts";
 import { compareSummary } from "./summary.ts";
 
 type Mode = "blockout" | "reference";
+type Side = "a" | "b";
 const WORKING = "@working";
 const PX_PER_CM = 12;
 const METRICS_PX_PER_CM = 6;
@@ -59,7 +65,7 @@ type Props = {
 
 export function ComparePage({ arm, pose, working, onOpenLayout }: Props) {
   const { profile } = arm;
-  const [keys, setKeys] = useState<{ a: string; b: string } | null>(null);
+  const [keys, setKeys] = useState<Record<Side, string> | null>(null);
   const { files, error: loadError } = useLayouts((list) => {
     const names = list.map((f) => f.name);
     // Unsaved edits: compare them with the saved file; otherwise the open variant with the next one.
@@ -96,183 +102,300 @@ export function ComparePage({ arm, pose, working, onOpenLayout }: Props) {
 
   if (loadError)
     return (
-      <p className="notice error" role="alert">
-        {loadError}
-      </p>
+      <div className="compare-page cmp-blank">
+        <p className="notice error" role="alert">
+          {loadError}
+        </p>
+      </div>
     );
   // One variant and no unsaved edits: A and B would be the same file.
   if (files && files.length < 2 && !working?.dirty)
     return (
-      <section className="empty compare-empty">
-        <h2>Only one variant so far</h2>
-        <p>
-          Compare shows two layout variants side by side, with their coverage and the elements that differ.
-          Create a second one with <strong>Save as…</strong> in the Layout tab, or make an edit there to
-          compare it with the saved file.
-        </p>
-        {onOpenLayout && (
-          <button type="button" className="primary" onClick={onOpenLayout}>
-            Open Layout
-          </button>
-        )}
-      </section>
+      <div className="compare-page cmp-blank">
+        <section className="empty compare-empty">
+          <h2>Only one variant so far</h2>
+          <p>
+            Compare shows two layout variants side by side, with their coverage and the elements that differ.
+            Create a second one with <strong>Save as…</strong> in the Layout tab, or make an edit there to
+            compare it with the saved file.
+          </p>
+          {onOpenLayout && (
+            <button type="button" className="primary" onClick={onOpenLayout}>
+              Open Layout
+            </button>
+          )}
+        </section>
+      </div>
     );
+
+  const sides = [
+    { side: "a", picked: a, other: b, src: srcA, cov: covA, otherCov: covB },
+    { side: "b", picked: b, other: a, src: srcB, cov: covB, otherCov: covA },
+  ] as const;
+  const differing = diff ? diff.onlyA.length + diff.onlyB.length + diff.changed.length : 0;
 
   return (
     <div className="compare-page">
-      <div className="toolbar layout-toolbar">
-        <label className="inline">
-          A{" "}
-          <select
-            value={keys?.a ?? ""}
-            onChange={(e) => keys && setKeys({ ...keys, a: e.target.value })}
-            disabled={!keys}
-            aria-label="Variant A"
-          >
-            {options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
+      <div className="cmp-arms">
+        {a && b ? (
+          sides.map((s) => (
+            <CompareSide
+              key={s.side}
+              side={s.side}
+              picked={s.picked!}
+              other={s.other!}
+              src={s.src}
+              cov={s.cov}
+              otherCov={s.otherCov}
+              mode={mode}
+              profile={profile}
+              viewState={viewState}
+              bendDeg={pose.bendDeg}
+              sync={{ bus, id: s.side }}
+            />
+          ))
+        ) : (
+          <p className="cmp-loading faint">Loading variants…</p>
+        )}
+
+        <div className="float float-bar cmp-mode-bar">
+          <span className="segmented" role="group" aria-label="Mode">
+            {(["blockout", "reference"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={mode === m ? "active" : ""}
+                aria-pressed={mode === m}
+                onClick={() => setMode(m)}
+              >
+                {m === "blockout" ? "Blockout" : "Reference"}
+              </button>
             ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          onClick={() => keys && setKeys({ a: keys.b, b: keys.a })}
-          disabled={!keys}
-          className="ghost"
-          title="Swap A and B"
-          aria-label="Swap A and B"
-        >
-          ⇄
-        </button>
-        <label className="inline">
-          B{" "}
-          <select
-            value={keys?.b ?? ""}
-            onChange={(e) => keys && setKeys({ ...keys, b: e.target.value })}
-            disabled={!keys}
-            aria-label="Variant B"
-          >
-            {options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="segmented" role="group" aria-label="Mode">
-          {(["blockout", "reference"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={mode === m ? "active" : ""}
-              aria-pressed={mode === m}
-              onClick={() => setMode(m)}
-            >
-              {m === "blockout" ? "Blockout" : "Reference"}
-            </button>
+          </span>
+        </div>
+
+        <div className="cmp-pickers" role="group" aria-label="Variants">
+          {sides.map(({ side, picked }) => (
+            <div key={side} className={`float float-bar cmp-picker cmp-picker-${side}`}>
+              <span className="cmp-badge" aria-hidden="true">
+                {side.toUpperCase()}
+              </span>
+              <span className="select-wrap">
+                <select
+                  className="variant-select"
+                  value={keys?.[side] ?? ""}
+                  onChange={(e) => keys && setKeys({ ...keys, [side]: e.target.value })}
+                  disabled={!keys}
+                  aria-label={`Variant ${side.toUpperCase()}`}
+                >
+                  {options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                {keys?.[side] === WORKING && (
+                  <span className="dirty-dot" role="img" aria-label="unsaved edits" title="Unsaved edits" />
+                )}
+              </span>
+              {picked?.error && (
+                <span className="chip error" title={picked.error}>
+                  invalid
+                </span>
+              )}
+            </div>
           ))}
-        </span>
-        <span className="spacer" />
-        <ViewButtons state={viewState} sides />
-        <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} />
-      </div>
-      <div className="compare-summary">
-        {summary && (
           <button
             type="button"
-            className="link compare-summary-link"
-            onClick={() => {
-              const el = document.getElementById(DIFF_ID);
-              el?.scrollIntoView({ behavior: "smooth", block: "start" });
-              el?.focus({ preventScroll: true });
-            }}
-            title="Show the element differences"
+            onClick={() => keys && setKeys({ a: keys.b, b: keys.a })}
+            disabled={!keys}
+            className="float icon-button cmp-swap"
+            title="Swap A and B"
+            aria-label="Swap A and B"
           >
-            {summary.text}
+            <SwapIcon />
           </button>
-        )}
-        {sameDescription && descA && <span className="compare-desc">{descA}</span>}
-        <span className="spacer" />
-        <span className="faint small">
-          Read-only: edit in the Layout tab. Drag either arm to rotate both.
-        </span>
-      </div>
-      {a && b && (
-        <div className="compare-grid">
-          <CompareSide
-            side="A"
-            picked={a}
-            other={b}
-            src={srcA}
-            cov={covA}
-            otherCov={covB}
-            showDescription={!sameDescription}
-            mode={mode}
-            profile={profile}
-            viewState={viewState}
-            bendDeg={pose.bendDeg}
-            sync={{ bus, id: "a" }}
-          />
-          <CompareSide
-            side="B"
-            picked={b}
-            other={a}
-            src={srcB}
-            cov={covB}
-            otherCov={covA}
-            showDescription={!sameDescription}
-            mode={mode}
-            profile={profile}
-            viewState={viewState}
-            bendDeg={pose.bendDeg}
-            sync={{ bus, id: "b" }}
-          />
         </div>
-      )}
-      {diff && a && b && (
-        <section className="panel compare-diff" id={DIFF_ID} tabIndex={-1} aria-label="Element differences">
-          <h2>Elements</h2>
-          {diff.onlyA.length + diff.onlyB.length + diff.changed.length === 0 ? (
-            <p className="muted small">Both variants have the same elements with the same values.</p>
-          ) : (
-            <ul className="small">
+
+        <div className="float float-bar cmp-view-bar" title={`${ORBIT_HINT} Both arms move together.`}>
+          <ViewButtons state={viewState} sides />
+        </div>
+      </div>
+
+      <aside className="cmp-inspector" aria-label="Comparison">
+        <section className="float cmp-summary" aria-label="Summary">
+          <div className="float-head">
+            <h2 className="float-title">Comparison</h2>
+            <span className="spacer" />
+            <span className="chip plain muted">read-only</span>
+          </div>
+          <div className="cmp-summary-body">
+            {summary ? (
+              <>
+                <button
+                  type="button"
+                  className="link cmp-summary-line"
+                  onClick={() => document.getElementById(DIFF_ID)?.focus()}
+                  title={`${summary.text}: show the element differences`}
+                >
+                  {differing === 0
+                    ? "Same elements"
+                    : `${differing} element${differing === 1 ? " differs" : "s differ"}`}
+                </button>
+                {summary.open && <OpenSkin open={summary.open} />}
+              </>
+            ) : (
+              <p className="faint small cmp-none">
+                {a && b ? "Pick two valid variants to compare them." : "Loading…"}
+              </p>
+            )}
+            <dl className="cmp-descs">
+              {sameDescription ? (
+                descA && (
+                  <div>
+                    <dt className="cmp-badge pair" title="Both variants">
+                      AB
+                    </dt>
+                    <dd>{descA}</dd>
+                  </div>
+                )
+              ) : (
+                <>
+                  <div>
+                    <dt className="cmp-badge">A</dt>
+                    <dd>{descA || <span className="faint">No description.</span>}</dd>
+                  </div>
+                  <div>
+                    <dt className="cmp-badge">B</dt>
+                    <dd>{descB || <span className="faint">No description.</span>}</dd>
+                  </div>
+                </>
+              )}
+            </dl>
+            <p className="cmp-legend faint">
+              Coverage cells tinted where a variant has <span className="cmp-swatch more">more</span> or{" "}
+              <span className="cmp-swatch less">less</span> than the other, by {DIFF_THRESHOLD_PCT}+ points;
+              hover for the difference.
+            </p>
+          </div>
+        </section>
+
+        <div className="float cmp-pose">
+          <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} variant="panel" />
+        </div>
+
+        <section className="float cmp-diff" id={DIFF_ID} tabIndex={-1} aria-label="Element differences">
+          <div className="float-head">
+            <h2 className="float-title">Elements</h2>
+            <span className="spacer" />
+            {diff && (
+              <span className="faint mono cmp-count" title="Differing / all elements">
+                {differing} / {differing + diff.same.length}
+              </span>
+            )}
+          </div>
+          {diff && a && b ? (
+            <div className="cmp-diff-body">
+              {differing === 0 && (
+                <p className="faint small cmp-none">
+                  Both variants have the same elements with the same values.
+                </p>
+              )}
               {diff.onlyA.length > 0 && (
-                <li>
-                  Only in A ({a.label}): <code>{diff.onlyA.join(", ")}</code>
-                </li>
+                <DiffGroup title="Only in A" sub={a.label}>
+                  {diff.onlyA.map((id) => (
+                    <li key={id} className="cmp-row">
+                      <span className="cmp-tag">A</span>
+                      <code>{id}</code>
+                    </li>
+                  ))}
+                </DiffGroup>
               )}
               {diff.onlyB.length > 0 && (
-                <li>
-                  Only in B ({b.label}): <code>{diff.onlyB.join(", ")}</code>
-                </li>
+                <DiffGroup title="Only in B" sub={b.label}>
+                  {diff.onlyB.map((id) => (
+                    <li key={id} className="cmp-row">
+                      <span className="cmp-tag">B</span>
+                      <code>{id}</code>
+                    </li>
+                  ))}
+                </DiffGroup>
               )}
-              {diff.changed.map((c) => (
-                <li key={c.id}>
-                  <code>{c.id}</code> changed: {c.fields.join(", ")}
-                </li>
-              ))}
-            </ul>
+              {diff.changed.length > 0 && (
+                <DiffGroup title="Changed">
+                  {diff.changed.map((c) => (
+                    <li key={c.id} className="cmp-row">
+                      <span className="cmp-tag changed" title="Changed">
+                        Δ
+                      </span>
+                      <code>{c.id}</code>
+                      <span className="cmp-fields">
+                        {c.fields.map((f) => (
+                          <span key={f} className="cmp-field mono">
+                            {f}
+                          </span>
+                        ))}
+                      </span>
+                    </li>
+                  ))}
+                </DiffGroup>
+              )}
+              <DiffGroup title="Identical" count={diff.same.length}>
+                <li className="cmp-same">{diff.same.length > 0 ? diff.same.join(", ") : "none"}</li>
+              </DiffGroup>
+            </div>
+          ) : (
+            <p className="faint small cmp-none">
+              {a && b ? "No element list without two valid variants." : "Loading…"}
+            </p>
           )}
-          <p className="muted small">
-            {diff.same.length} element{diff.same.length === 1 ? "" : "s"} identical
-            {diff.same.length > 0 ? `: ${diff.same.join(", ")}` : ""}.
-          </p>
         </section>
-      )}
+        <p className="cmp-hint faint">Read-only: edit in the Layout tab. Drag either arm to rotate both.</p>
+      </aside>
+    </div>
+  );
+}
+
+/** Whole-arm open skin, A → B, with the change in points. */
+function OpenSkin({ open }: { open: { a: number; b: number } }) {
+  const d = open.b - open.a;
+  return (
+    <div className="cmp-open">
+      <span className="cmp-open-label">Open skin</span>
+      <span className="cmp-open-values mono">
+        {open.a}
+        <span className="faint"> % → </span>
+        {open.b}
+        <span className="faint"> %</span>
+      </span>
+      <span className={`cmp-delta mono${d !== 0 ? " changed" : ""}`} title="Whole arm, B minus A, in points">
+        {d > 0 ? "+" : d < 0 ? "−" : "±"}
+        {Math.abs(d)}
+      </span>
+    </div>
+  );
+}
+
+function DiffGroup(props: { title: string; sub?: string; count?: number; children: ReactNode }) {
+  return (
+    <div className="cmp-group">
+      <h3 className="section-label">
+        {props.title}
+        {props.sub && <span className="cmp-group-sub"> · {props.sub}</span>}
+        {props.count !== undefined && <span className="cmp-group-sub mono"> {props.count}</span>}
+      </h3>
+      <ul>{props.children}</ul>
     </div>
   );
 }
 
 function CompareSide(props: {
-  side: "A" | "B";
+  side: Side;
   picked: Picked;
   other: Picked;
   src: LayoutSources;
   cov: Coverage | null;
   otherCov: Coverage | null;
-  showDescription: boolean;
   mode: Mode;
   profile: ArmProfile;
   viewState: ReturnType<typeof useViewState>;
@@ -281,7 +404,8 @@ function CompareSide(props: {
 }) {
   const { side, picked, other, src, cov, otherCov, mode, profile, viewState, bendDeg, sync } = props;
   const { layout } = picked;
-  const { aspects, sources, loading } = src;
+  const { aspects, sources } = src;
+  const letter = side.toUpperCase();
 
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
@@ -296,12 +420,7 @@ function CompareSide(props: {
   }, [profile, mode, layout, aspects, sources]);
 
   return (
-    <div className="compare-side">
-      {picked.error && (
-        <p className="notice error small">
-          {picked.label}.yaml is invalid: {picked.error}
-        </p>
-      )}
+    <section className={`cmp-side cmp-side-${side}`} aria-label={`Arm ${letter}: ${picked.label}`}>
       <ArmViewer
         profile={profile}
         canvas={texture}
@@ -310,18 +429,29 @@ function CompareSide(props: {
         viewState={viewState}
         bendDeg={bendDeg}
         sync={sync}
-        label={`${side}: ${picked.label}${mode === "reference" && loading ? " (loading images…)" : ""}`}
       />
-      {props.showDescription && (
-        <p className="muted small compare-desc">{layout?.description || "No description."}</p>
+      {(picked.error || (mode === "reference" && src.loading)) && (
+        <div className="cmp-side-status">
+          {picked.error && (
+            <p className="notice error compact" role="alert">
+              {picked.label}.yaml is invalid: {picked.error}
+            </p>
+          )}
+          {mode === "reference" && src.loading && (
+            <span className="float chip plain" role="status">
+              Loading images…
+            </span>
+          )}
+        </div>
       )}
       {cov && (
         <MetricsPanel
           coverage={cov}
-          title={`Coverage ${side}`}
+          title={`Coverage ${letter}`}
+          variant="float"
           compareTo={otherCov ? { coverage: otherCov, label: other.label } : undefined}
         />
       )}
-    </div>
+    </section>
   );
 }

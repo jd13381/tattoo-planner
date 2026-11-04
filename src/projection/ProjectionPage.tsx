@@ -9,14 +9,21 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import type { ArmProfile } from "../arm/profile.ts";
 import { requestImage, useAssetImages, useAssetListing } from "../assets/useAssets.ts";
+import type { HeaderSlots } from "../editor/LayoutPage.tsx";
+import { formatKeys } from "../editor/shortcuts.ts";
+import { currentPlatform } from "../editor/useLayoutShortcuts.ts";
 import type { Layout } from "../layout/schema.ts";
 import type { AssetImage } from "../render/reference.ts";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
+import { WarnIcon } from "../ui/icons.tsx";
+import { Popover } from "../ui/Popover.tsx";
 import { ToastRegion, useToast } from "../ui/Toast.tsx";
-import { ArmViewer } from "../viewer/ArmViewer.tsx";
+import { ArmViewer, ORBIT_HINT, PoseControl } from "../viewer/ArmViewer.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
 import { modelGrid, photoFrame, turnedSize, type GridLine } from "./model.ts";
 import type { ProjectedPatch } from "./patch.ts";
@@ -30,43 +37,67 @@ const PREVIEW_PX_PER_CM = 10;
 const TEXTURE_PX_PER_CM = 12;
 const PREVIEW_ID = "projection-preview";
 
+const PHOTO_HINT =
+  "Drag the orange edge ends onto the forearm's outline and the red marks onto points whose distance " +
+  "from the wrist crease you know. Red line: inner centre line, green: lateral and medial, yellow: every " +
+  "2 cm, magenta: every 10 cm from the wrist crease.";
+const VIEW_HINT = `${ORBIT_HINT} Shows the combined patch alone, in reference mode.`;
+
 export function ProjectionPage({
   arm,
   pose,
   onDirty,
+  header,
 }: {
   arm: ArmState;
   pose: Pose;
   /** Reports unsaved edits, so the app can warn before a reload. */
   onDirty?: (dirty: boolean) => void;
+  /** Top-bar slots (App.tsx); without them the picker and Save sit in a bar above the workspace. */
+  header?: HeaderSlots;
 }) {
   const { files, calibrations, errors, loadError } = useProjections();
   const [name, setName] = useState<string | null>(null);
   if (loadError)
     return (
-      <p className="notice error" role="alert">
-        {loadError}
-      </p>
+      <div className="projection-page">
+        <div className="projection-message">
+          <p className="notice error" role="alert">
+            {loadError}
+          </p>
+        </div>
+      </div>
     );
-  if (files === null) return <p className="muted">Loading projections…</p>;
+  if (files === null)
+    return (
+      <div className="projection-page">
+        <p className="projection-message muted">Loading projections…</p>
+      </div>
+    );
   const names = files.map((f) => f.name);
   if (names.length === 0)
     return (
-      <section className="empty">
-        <h2>No projections yet</h2>
-        <p>
-          A projection maps the photos of an existing tattoo onto the arm. Add{" "}
-          <code>config/projections/&lt;name&gt;.yaml</code> (see{" "}
-          <code>docs/adr/0006-anubis-projection.md</code>) and reload.
-        </p>
-      </section>
+      <div className="projection-page">
+        <section className="empty">
+          <h2>No projections yet</h2>
+          <p>
+            A projection maps the photos of an existing tattoo onto the arm. Add{" "}
+            <code>config/projections/&lt;name&gt;.yaml</code> (see{" "}
+            <code>docs/adr/0006-anubis-projection.md</code>) and reload.
+          </p>
+        </section>
+      </div>
     );
   const current = name && names.includes(name) ? name : names[0]!;
   const saved = calibrations.get(current) ?? null;
-  const picker = (
-    <label className="inline">
-      Projection{" "}
-      <select value={current} onChange={(e) => setName(e.target.value)}>
+  const picker = (dirty: boolean) => (
+    <span className="select-wrap" title={dirty ? "Unsaved edits" : undefined}>
+      <select
+        className="variant-select"
+        aria-label="Projection"
+        value={current}
+        onChange={(e) => setName(e.target.value)}
+      >
         {names.map((n) => (
           <option key={n} value={n}>
             {n}
@@ -74,15 +105,21 @@ export function ProjectionPage({
           </option>
         ))}
       </select>
-    </label>
+      {dirty && <span className="dirty-dot" role="img" aria-label="unsaved changes" />}
+    </span>
   );
   if (!saved)
     return (
       <div className="projection-page">
-        <div className="layout-toolbar toolbar">{picker}</div>
-        <p className="notice error" role="alert">
-          <strong>{current}.yaml is invalid:</strong> {errors.get(current)}
-        </p>
+        <TopBar header={header}>
+          <span className="header-sep" aria-hidden="true" />
+          {picker(false)}
+        </TopBar>
+        <div className="projection-message">
+          <p className="notice error" role="alert">
+            <strong>{current}.yaml is invalid:</strong> {errors.get(current)}
+          </p>
+        </div>
       </div>
     );
   return (
@@ -93,7 +130,34 @@ export function ProjectionPage({
       profile={arm.profile}
       pose={pose}
       onDirty={onDirty}
+      header={header}
     />
+  );
+}
+
+/** Puts the page's actions into the top bar, or (without slots) into a bar above the workspace. */
+function TopBar({
+  header,
+  notices,
+  children,
+}: {
+  header?: HeaderSlots;
+  notices?: ReactNode;
+  children: ReactNode;
+}) {
+  if (header?.actions)
+    return (
+      <>
+        {header.notices && notices && createPortal(notices, header.notices)}
+        {createPortal(children, header.actions)}
+      </>
+    );
+  return (
+    <div className="toolbar projection-topbar">
+      <span className="spacer" />
+      {notices}
+      {children}
+    </div>
   );
 }
 
@@ -101,12 +165,13 @@ type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "failed"; messa
 
 function ProjectionEditor(props: {
   saved: ProjectionCalibration;
-  picker: React.ReactNode;
+  picker: (dirty: boolean) => ReactNode;
   profile: ArmProfile;
   pose: Pose;
   onDirty?: (dirty: boolean) => void;
+  header?: HeaderSlots;
 }) {
-  const { saved, picker, profile, pose, onDirty } = props;
+  const { saved, picker, profile, pose, onDirty, header } = props;
   const current = saved.name;
   const { listing } = useAssetListing();
   const assetMap = useMemo(
@@ -246,37 +311,74 @@ function ProjectionEditor(props: {
 
   const photoReady = status?.kind === "ready";
   const noData = listingState === "unset" || listingState === "error";
+  const [platform] = useState(currentPlatform);
+  const kbdSave = formatKeys("Mod+S", platform);
+  const [noticesOpen, setNoticesOpen] = useState(false);
+  const [viewBar, setViewBar] = useState<HTMLDivElement | null>(null);
+  const share = patch?.share ?? null;
+
+  const noticesChip = patchNotice && (
+    <span className="popover-anchor">
+      <button
+        type="button"
+        className="chip warn"
+        aria-expanded={noticesOpen}
+        aria-haspopup="dialog"
+        onClick={() => setNoticesOpen((o) => !o)}
+      >
+        <WarnIcon />1 notice
+      </button>
+      <Popover
+        open={noticesOpen}
+        onClose={() => setNoticesOpen(false)}
+        label="Notices"
+        align="end"
+        className="notices-popover"
+      >
+        <p className="popover-title">Notices</p>
+        <ul className="notice-list">
+          <li>
+            {patchNotice.text} The photo tabs say why.
+            {patchNotice.detail && <span className="notice-detail">{patchNotice.detail}</span>}
+          </li>
+        </ul>
+      </Popover>
+    </span>
+  );
 
   return (
     <div className="projection-page">
-      <ToastRegion toast={toast} />
-      <div className="layout-toolbar toolbar">
-        {picker}
-        <span className="toolbar-sep" />
-        <button
-          type="button"
-          className={dirty ? "primary" : ""}
-          disabled={!canSave}
-          onClick={() => void save()}
-          title={validationError ? `Fix first: ${validationError}` : "Save (⌘S)"}
-        >
-          {saveState.kind === "saving" ? "Saving…" : "Save"}
-        </button>
+      <TopBar header={header} notices={noticesChip}>
+        <span className="header-sep" aria-hidden="true" />
+        {picker(dirty)}
         <button
           type="button"
           className="ghost"
           disabled={!dirty}
           onClick={() => setDraft(structuredClone(saved))}
-          title="Discard the unsaved changes"
+          title={dirty ? "Discard the unsaved changes" : "No unsaved changes"}
         >
           Revert
         </button>
-        {dirty && <span className="muted small">Unsaved changes</span>}
-        <span className="spacer" />
-        <span className="faint small">⌘S saves</span>
-      </div>
-      {(validationError || saveState.kind === "failed" || patchNotice) && (
-        <div className="notices">
+        <button
+          type="button"
+          className={dirty ? "primary" : ""}
+          disabled={!canSave}
+          onClick={() => void save()}
+          aria-keyshortcuts={platform === "mac" ? "Meta+S" : "Control+S"}
+          title={
+            validationError
+              ? `Fix first: ${validationError}`
+              : dirty
+                ? `Save config/projections/${current}.yaml (${kbdSave})`
+                : "No unsaved changes"
+          }
+        >
+          {saveState.kind === "saving" ? "Saving…" : "Save"} <kbd className="kbd">{kbdSave}</kbd>
+        </button>
+      </TopBar>
+      {(validationError || saveState.kind === "failed") && (
+        <div className="notices projection-errors">
           {validationError && (
             <p className="notice error">
               <strong>Not saved:</strong> {validationError}
@@ -287,24 +389,13 @@ function ProjectionEditor(props: {
               <strong>Save failed:</strong> {saveState.message}
             </p>
           )}
-          {patchNotice && (
-            <p className="notice warn" title={patchNotice.detail}>
-              {patchNotice.text} The photo tabs say why.
-            </p>
-          )}
         </div>
       )}
       {photo && status && (
-        <div className="projection-grid">
-          <section className="projection-photo" aria-label="Photo calibration">
-            <PhotoTabs
-              photos={draft.photos}
-              index={photoIndex}
-              share={patch?.share ?? null}
-              onSelect={setPhotoIndex}
-            />
+        <div className="projection-workspace">
+          <section className="proj-photo" aria-label="Photo calibration">
             <div
-              className="photo-panel"
+              className="proj-stage"
               role="tabpanel"
               id="projection-photo-panel"
               aria-labelledby={`projection-photo-tab-${photoIndex}`}
@@ -317,32 +408,50 @@ function ProjectionEditor(props: {
                 )
               )}
             </div>
-            <p className="muted small">
-              Drag the orange edge ends onto the forearm's outline and the red marks onto points whose
-              distance from the wrist crease you know. Red line: inner centre line, green: lateral and medial,
-              magenta: every 10 cm from the wrist crease.
-            </p>
+            <div className="float float-bar proj-photo-bar">
+              <PhotoTabs photos={draft.photos} index={photoIndex} share={share} onSelect={setPhotoIndex} />
+            </div>
+            <div className="float status-bar proj-status" title={PHOTO_HINT}>
+              <GridLegend />
+              <span className="spacer" />
+              <PhotoMeta status={status} image={image} turn={photo.turn} />
+            </div>
           </section>
-          <section className="projection-views" aria-label="Preview">
-            <ArmViewer
-              profile={profile}
-              canvas={texture}
-              version={0}
-              bendDeg={pose.bendDeg}
-              onBendDeg={pose.setBendDeg}
-              viewSides
-              hint="Shows the combined patch alone, in reference mode."
-            />
-            <figure className="projection-preview">
-              <figcaption className="section-label">Combined patch · inner side centred</figcaption>
+          <section className="proj-views" aria-label="Preview">
+            <div className="proj-3d">
+              <ArmViewer
+                profile={profile}
+                canvas={texture}
+                version={0}
+                bendDeg={pose.bendDeg}
+                viewSides
+                toolbarTarget={viewBar}
+                screenshotInToolbar
+                footer={false}
+              />
+              <div className="float float-bar proj-3d-bar" title={VIEW_HINT}>
+                <div ref={setViewBar} className="viewer-tools" />
+              </div>
+              <div className="float float-bar proj-pose-bar">
+                <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} />
+              </div>
+            </div>
+            <figure className="proj-patch">
               <CanvasHost canvas={innerImage} />
+              <figcaption className="float float-bar proj-patch-label">
+                <span className="float-title">Combined patch</span>
+                <span className="faint">inner side centred</span>
+              </figcaption>
             </figure>
           </section>
-          <aside className="side-col projection-side" aria-label="Calibration">
-            <section className="panel">
-              <div className="panel-head">
-                <h2>This photo</h2>
-                <span className="muted small photo-name" title={photo.file}>
+          <aside className="proj-inspector" aria-label="Calibration">
+            <section className="insp-section" aria-labelledby="proj-photo-head">
+              <div className="insp-head">
+                <h2 className="float-title" id="proj-photo-head">
+                  This photo
+                </h2>
+                <span className="spacer" />
+                <span className="mono photo-name" title={photo.file}>
                   {photo.file.split("/").pop()}
                 </span>
               </div>
@@ -350,18 +459,115 @@ function ProjectionEditor(props: {
                 <PhotoFields photo={photo} onChange={setPhoto} />
               </fieldset>
             </section>
-            <section className="panel">
-              <div className="panel-head">
-                <h2>Patch (all photos)</h2>
+            <section className="insp-section" aria-labelledby="proj-patch-head">
+              <div className="insp-head">
+                <h2 className="float-title" id="proj-patch-head">
+                  Patch (all photos)
+                </h2>
+                <span className="spacer" />
+                {share && (
+                  <span className="faint xs" title="Photos that supply part of the patch">
+                    <span className="mono">{share.filter((x) => x > 0).length}</span> of{" "}
+                    <span className="mono">{photoCount}</span> photos
+                  </span>
+                )}
               </div>
               <fieldset disabled={noData}>
                 <PatchFields cal={draft} onChange={setDraft} />
               </fieldset>
             </section>
+            <section className="insp-section" aria-labelledby="proj-share-head">
+              <div className="insp-head">
+                <h2 className="float-title" id="proj-share-head">
+                  Share of the patch
+                </h2>
+              </div>
+              <PhotoShares photos={draft.photos} index={photoIndex} share={share} onSelect={setPhotoIndex} />
+            </section>
           </aside>
         </div>
       )}
+      <ToastRegion toast={toast} />
     </div>
+  );
+}
+
+/** Each photo's share of the patch as a bar, with its weight; a row selects that photo. */
+function PhotoShares(props: {
+  photos: PhotoCalibration[];
+  index: number;
+  share: number[] | null;
+  onSelect: (i: number) => void;
+}) {
+  const { photos, index, share, onSelect } = props;
+  if (!share) return <p className="faint xs share-empty">Shown once the patch is built from the photos.</p>;
+  return (
+    <ul className="share-list">
+      {photos.map((p, i) => {
+        const pct = Math.round((share[i] ?? 0) * 100);
+        return (
+          <li key={p.file}>
+            <button
+              type="button"
+              className={`share-row${i === index ? " active" : ""}`}
+              aria-current={i === index ? "true" : undefined}
+              onClick={() => onSelect(i)}
+              title={`${p.file}: ${pct} % of the patch, weight ${p.weight}`}
+            >
+              <span className="share-name">{photoLabel(p.file)}</span>
+              <span className="share-bar" aria-hidden="true">
+                <span style={{ width: `${pct}%` }} />
+              </span>
+              <span className="mono share-pct">{pct}%</span>
+              <span className="mono faint share-weight">×{p.weight}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Colour key of the grid drawn on the photo (the full explanation is the status bar's tooltip). */
+function GridLegend() {
+  const items: { kind: GridLine["kind"] | "edge"; label: string }[] = [
+    { kind: "inner", label: "inner" },
+    { kind: "side", label: "lat / med" },
+    { kind: "s10", label: "10 cm" },
+    { kind: "s", label: "2 cm" },
+    { kind: "edge", label: "outline" },
+  ];
+  return (
+    <span className="grid-legend" aria-label="Grid colours">
+      {items.map((it) => (
+        <span key={it.kind} className="legend-item">
+          <span
+            className="legend-swatch"
+            style={{ background: it.kind === "edge" ? EDGE_COLOR : GRID_COLORS[it.kind] }}
+            aria-hidden="true"
+          />
+          {it.label}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Right end of the photo status bar: the photo's size and turn, or why it is not shown. */
+function PhotoMeta(props: { status: PhotoStatus; image: AssetImage | undefined; turn: number }) {
+  const { status, image, turn } = props;
+  if (status.kind !== "ready") return <span className={`photo-state ${status.kind}`}>{status.title}</span>;
+  return (
+    <>
+      {image?.status === "ready" && (
+        <span className="mono" title="Photo size in pixels">
+          {image.width} × {image.height}
+        </span>
+      )}
+      <span className="mono" title="Turned clockwise before calibration">
+        {turn}°
+      </span>
+    </>
   );
 }
 
@@ -391,7 +597,7 @@ function PhotoTabs(props: {
     document.getElementById(`projection-photo-tab-${next}`)?.focus();
   };
   return (
-    <div className="photo-tabs" role="tablist" aria-label="Photos">
+    <div className="photo-tabs segmented" role="tablist" aria-label="Photos">
       {photos.map((p, i) => (
         <button
           key={p.file}
@@ -399,18 +605,25 @@ function PhotoTabs(props: {
           type="button"
           role="tab"
           aria-selected={i === index}
+          className={i === index ? "active" : ""}
           aria-controls="projection-photo-panel"
           tabIndex={i === index ? 0 : -1}
           onClick={() => onSelect(i)}
           onKeyDown={onKey}
           title={p.file}
         >
-          {p.file.split("/").pop()}
-          {share && <span className="share">{Math.round((share[i] ?? 0) * 100)} %</span>}
+          <span className="photo-tab-name">{photoLabel(p.file)}</span>
+          {share && <span className="share mono">{Math.round((share[i] ?? 0) * 100)}%</span>}
         </button>
       ))}
     </div>
   );
+}
+
+/** A photo's file name without folder and extension (the tab's tooltip has the full path). */
+function photoLabel(file: string): string {
+  const base = file.split("/").pop() ?? file;
+  return base.replace(/\.[a-z0-9]+$/i, "");
 }
 
 /** Stands in for the photo while it cannot be shown, and says why. */
@@ -440,10 +653,12 @@ function CanvasHost({ canvas }: { canvas: HTMLCanvasElement }) {
   useEffect(() => {
     ref.current?.replaceChildren(canvas);
   }, [canvas]);
-  return <div ref={ref} />;
+  return <div ref={ref} className="proj-patch-host" />;
 }
 
 type Handle = { kind: "edge"; side: "left" | "right"; end: 0 | 1 } | { kind: "along"; index: 0 | 1 };
+
+const EDGE_COLOR = "#ff9800";
 
 const GRID_COLORS: Record<GridLine["kind"], string> = {
   inner: "#e53935",
@@ -537,7 +752,7 @@ function PhotoEditor(props: {
           const [a, b] = photo.edges[side].map(px) as [{ x: number; y: number }, { x: number; y: number }];
           return (
             <g key={side} className="edge">
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#ff9800" strokeWidth={r / 3} />
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={EDGE_COLOR} strokeWidth={r / 3} />
               {[a, b].map((p, end) => (
                 <circle
                   key={end}
@@ -546,7 +761,7 @@ function PhotoEditor(props: {
                   r={r}
                   className="handle"
                   fill="rgba(255, 152, 0, 0.5)"
-                  stroke="#ff9800"
+                  stroke={EDGE_COLOR}
                   strokeWidth={r / 4}
                   onPointerDown={start({ kind: "edge", side, end: end as 0 | 1 })}
                 >

@@ -42,12 +42,21 @@ const TITLES: Record<Category, string> = {
 type Props = {
   coverage: Coverage;
   title?: string;
-  /** Compare tab: highlight cells that differ from this coverage by at least DIFF_THRESHOLD_PCT. */
+  /**
+   * Compare tab: highlight cells that differ from this coverage by at least DIFF_THRESHOLD_PCT. The
+   * panel variant explains the tint under the table; with "float" the page shows that legend.
+   */
   compareTo?: { coverage: Coverage; label: string };
+  /**
+   * "float": the compact Pro table for a floating panel over a canvas: swatch-only column heads,
+   * numbers without "%", zeros as a dot, and a bar for the open skin.
+   */
+  variant?: "panel" | "float";
 };
 
 /** Coverage per zone (PROJECT_BRIEF.md §10.1 F7): the share of skin each element type takes. */
-export function MetricsPanel({ coverage, title = "Coverage", compareTo }: Props) {
+export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant = "panel" }: Props) {
+  const float = variant === "float";
   const rows: { key: ZoneKey; label: string }[] = [
     ...ZONES.map((z) => ({ key: z.id, label: z.label })),
     { key: "total", label: "Whole arm" },
@@ -55,9 +64,11 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo }: Props)
   const delta = compareTo ? coverageDelta(compareTo.coverage, coverage) : null;
   const [noteOpen, setNoteOpen] = useState(false);
   return (
-    <section className="panel metrics" aria-label={title}>
-      <div className="panel-head">
-        <h2>{title}</h2>
+    <section className={float ? "float metrics compact" : "panel metrics"} aria-label={title}>
+      <div className={float ? "float-head" : "panel-head"}>
+        <h2 className={float ? "float-title" : undefined}>{title}</h2>
+        {float && <span className="spacer" />}
+        {float && <span className="faint mono">% of zone</span>}
         <button
           type="button"
           className="ghost icon-button"
@@ -75,7 +86,7 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo }: Props)
             <th>Zone</th>
             {CATEGORIES.map((c) => (
               <th key={c} className={`num cat-${c}`} title={TITLES[c]}>
-                {LABELS[c]}
+                {float && c !== "open" ? <span className="sr-only">{TITLES[c]}</span> : LABELS[c]}
               </th>
             ))}
           </tr>
@@ -90,17 +101,37 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo }: Props)
                   // This variant minus the other one, in whole percentage points.
                   const d = delta?.[key][c] ?? 0;
                   const marked = Math.abs(d) >= DIFF_THRESHOLD_PCT;
+                  const pct = sharePct(zone, c);
+                  const diffTitle =
+                    compareTo && d !== 0 ? `${d > 0 ? "+" : ""}${d} points vs ${compareTo.label}` : undefined;
+                  if (float)
+                    return (
+                      <td
+                        key={c}
+                        className={`num${pct === 0 && c !== "open" ? " zero" : ""}${c === "line" ? " line" : ""}${c === "open" ? " open" : ""}${marked ? (d > 0 ? " diff more" : " diff less") : ""}`}
+                        title={`${TITLES[c]}: ${pct}%${diffTitle ? ` (${diffTitle})` : ""}`}
+                      >
+                        {c === "open" ? (
+                          <>
+                            <span className="share-bar" aria-hidden="true">
+                              <i style={{ width: `${pct}%` }} />
+                            </span>
+                            {pct}
+                          </>
+                        ) : pct === 0 ? (
+                          "·"
+                        ) : (
+                          pct
+                        )}
+                      </td>
+                    );
                   return (
                     <td
                       key={c}
                       className={`num${marked ? (d > 0 ? " diff more" : " diff less") : ""}`}
-                      title={
-                        compareTo && d !== 0
-                          ? `${d > 0 ? "+" : ""}${d} points vs ${compareTo.label}`
-                          : undefined
-                      }
+                      title={diffTitle}
                     >
-                      {sharePct(zone, c)}%
+                      {pct}%
                     </td>
                   );
                 })}
@@ -109,8 +140,8 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo }: Props)
           })}
         </tbody>
       </table>
-      {noteOpen && <p className="muted small">{NOTE}</p>}
-      {compareTo && (
+      {noteOpen && <p className="muted small metrics-note">{NOTE}</p>}
+      {compareTo && !float && (
         <p className="muted small">
           Tinted: at least {DIFF_THRESHOLD_PCT} points more (red) or less (blue) than {compareTo.label}.
         </p>

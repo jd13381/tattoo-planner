@@ -10,10 +10,13 @@ type Props = {
   /** Why clicking does not assign, or null when it does. */
   assignBlocked: string | null;
   onPick: (asset: AssetInfo) => void;
+  /** false leaves out the heading (a tabbed panel names the browser and offers Reload). */
+  heading?: boolean;
 };
 
 /** Thumbnails of the manifest assets; clicking one assigns it to the selected figure. */
-export function AssetBrowser({ listing, onReload, current, assignBlocked, onPick }: Props) {
+export function AssetBrowser(props: Props) {
+  const { listing, onReload, current, assignBlocked, onPick, heading = true } = props;
   const [filter, setFilter] = useState<AssetFilter>(NO_FILTER);
   const assets = useMemo(() => (listing?.status === "ok" ? listing.assets : []), [listing]);
   const kinds = useMemo(() => facets(assets.map((a) => a.kind)), [assets]);
@@ -102,18 +105,20 @@ export function AssetBrowser({ listing, onReload, current, assignBlocked, onPick
 
   const warnings = listing?.status === "ok" ? listing.warnings : [];
   return (
-    <section className="panel asset-browser" aria-label="Assets">
-      <div className="panel-head">
-        <h2>Assets</h2>
-        <button
-          type="button"
-          className="ghost"
-          onClick={onReload}
-          title="Re-read manifest.yaml and the images"
-        >
-          Reload
-        </button>
-      </div>
+    <section className={heading ? "panel asset-browser" : "asset-browser"} aria-label="Assets">
+      {heading && (
+        <div className="panel-head">
+          <h2>Assets</h2>
+          <button
+            type="button"
+            className="ghost"
+            onClick={onReload}
+            title="Re-read manifest.yaml and the images"
+          >
+            Reload
+          </button>
+        </div>
+      )}
       {body}
       {warnings.length > 0 && (
         <details className="small warn">

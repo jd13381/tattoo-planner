@@ -1,5 +1,6 @@
 import { AssetThumb } from "../assets/AssetBrowser.tsx";
-import { LockIcon } from "../ui/icons.tsx";
+import { ArrowDownIcon, ArrowUpIcon, DuplicateIcon, LockIcon, TrashIcon, WarnIcon } from "../ui/icons.tsx";
+import type { ReactNode } from "react";
 import type { AssetInfo } from "../assets/types.ts";
 import { FULL_IMAGE } from "../layout/imageFit.ts";
 import {
@@ -49,10 +50,11 @@ export function ElementPanel({
   const num = (
     value: number | null | undefined,
     set: (n: number | null) => void,
-    opts: { step?: number; nullable?: boolean } = {},
+    opts: { step?: number; nullable?: boolean; label?: string } = {},
   ) => (
     <input
       type="number"
+      aria-label={opts.label}
       step={opts.step ?? 0.01}
       value={value ?? ""}
       placeholder={opts.nullable ? "not set" : undefined}
@@ -76,51 +78,77 @@ export function ElementPanel({
 
   return (
     <section className="panel element-panel" aria-label="Element">
-      <div className="panel-head">
-        <h2>
-          {el.id} <span className="muted small">{el.type}</span>
-        </h2>
+      <div className="panel-head inspector-head">
+        <span className={`swatch cat-${el.type}`} aria-hidden="true" />
+        <h2>{el.id}</h2>
+        <span className="faint">{el.type}</span>
+        <span className="spacer" />
         <button
           type="button"
-          className={`ghost lock-toggle${locked ? " on" : ""}`}
+          className={`ghost icon-button lock-toggle${locked ? " on" : ""}`}
           aria-pressed={locked}
+          aria-label={locked ? "Unlock" : "Lock"}
           title={
             locked ? "Locked: cannot be moved, edited or deleted. Click to unlock." : "Lock against edits"
           }
           onClick={() => onChange({ ...el, locked: locked ? undefined : true })}
         >
           <LockIcon open={!locked} />
-          {locked ? "Locked" : "Lock"}
         </button>
       </div>
       {flags.length > 0 && (
-        <p className="warn small">
-          {flags.includes("height not set") ? "Height not set: drawn 10 cm tall. " : ""}
-          {flags.includes("width assumed") ? "Width not set: drawn at 0.55 × height." : ""}
+        <p className="notice warn compact">
+          <WarnIcon />
+          <span>
+            {flags.includes("height not set") ? "Height not set: drawn 10 cm tall. " : ""}
+            {flags.includes("width assumed") ? "Width not set: drawn at 0.55 × height." : ""}
+          </span>
         </p>
       )}
-      <div className="toolbar element-actions">
+      <div className="element-actions">
         <span className="layer-label" title="Layer 1 is drawn at the bottom">
-          Layer {index + 1} of {count}
+          Layer <b>{index + 1}</b> of {count}
         </span>
         <span className="spacer" />
         <button
           type="button"
-          className="ghost"
+          className="ghost icon-button"
           onClick={() => onLayer(1)}
           disabled={index === count - 1}
+          aria-label="Bring forward"
           title={`Bring forward: draw above the next element${hint("forward")}`}
         >
-          Bring forward
+          <ArrowUpIcon />
         </button>
         <button
           type="button"
-          className="ghost"
+          className="ghost icon-button"
           onClick={() => onLayer(-1)}
           disabled={index === 0}
+          aria-label="Send back"
           title={`Send back: draw below the previous element${hint("back")}`}
         >
-          Send back
+          <ArrowDownIcon />
+        </button>
+        <button
+          type="button"
+          className="ghost icon-button"
+          onClick={onDuplicate}
+          disabled={locked}
+          aria-label="Duplicate"
+          title={`Duplicate: a copy on top, with a new id${hint("duplicate")}`}
+        >
+          <DuplicateIcon />
+        </button>
+        <button
+          type="button"
+          className="ghost icon-button danger"
+          onClick={onDelete}
+          disabled={locked}
+          aria-label="Delete"
+          title={locked ? "Unlock it to delete" : `Delete ${el.id}; Undo brings it back${hint("delete")}`}
+        >
+          <TrashIcon />
         </button>
       </div>
       <div className="props">
@@ -143,41 +171,49 @@ export function ElementPanel({
                 projection {text(el.projection, (projection) => onChange({ ...el, projection }))}
               </label>
             )}
-            <h3 className="props-head">Position</h3>
-            <label>
-              u (around){" "}
-              {num(el.position.u, (u) => onChange({ ...el, position: { ...el.position, u: u ?? 0 } }))}
-            </label>
-            <label>
-              v (along){" "}
-              {num(el.position.v, (v) => onChange({ ...el, position: { ...el.position, v: v ?? 0 } }))}
-            </label>
+            <h3 className="props-head">
+              Position <span className="props-head-note">u around · v along</span>
+            </h3>
+            <div className="field-pair">
+              <Box k="u">
+                {num(el.position.u, (u) => onChange({ ...el, position: { ...el.position, u: u ?? 0 } }), {
+                  label: "u (around)",
+                })}
+              </Box>
+              <Box k="v">
+                {num(el.position.v, (v) => onChange({ ...el, position: { ...el.position, v: v ?? 0 } }), {
+                  label: "v (along)",
+                })}
+              </Box>
+            </div>
             {cm}
             <h3 className="props-head">Size</h3>
-            <label>
-              height cm{" "}
-              {num(el.size_cm.h, (h) => onChange({ ...el, size_cm: { ...el.size_cm, h } }), {
-                step: 0.1,
-                nullable: true,
-              })}
-            </label>
-            <label>
-              width cm{" "}
-              {num(el.size_cm.w, (w) => onChange({ ...el, size_cm: { ...el.size_cm, w: w ?? undefined } }), {
-                step: 0.1,
-                nullable: true,
-              })}
-            </label>
-            <label>
-              rotation °{" "}
-              {num(el.rotation_deg, (r) => onChange({ ...el, rotation_deg: r ?? undefined }), {
-                step: 1,
-                nullable: true,
-              })}
-            </label>
+            <div className="field-pair">
+              <Box k="H" unit="cm">
+                {num(el.size_cm.h, (h) => onChange({ ...el, size_cm: { ...el.size_cm, h } }), {
+                  step: 0.1,
+                  nullable: true,
+                  label: "height cm",
+                })}
+              </Box>
+              <Box k="W" unit="cm">
+                {num(
+                  el.size_cm.w,
+                  (w) => onChange({ ...el, size_cm: { ...el.size_cm, w: w ?? undefined } }),
+                  { step: 0.1, nullable: true, label: "width cm" },
+                )}
+              </Box>
+              <Box k="↻" unit="°">
+                {num(el.rotation_deg, (r) => onChange({ ...el, rotation_deg: r ?? undefined }), {
+                  step: 1,
+                  nullable: true,
+                  label: "rotation °",
+                })}
+              </Box>
+            </div>
             <h3 className="props-head">Style</h3>
             <label>style {text(el.style, (style) => onChange({ ...el, style }))}</label>
-            <label className="check">
+            <label className="check red-accents">
               <input
                 type="checkbox"
                 checked={!!el.red_accents}
@@ -285,27 +321,24 @@ export function ElementPanel({
           onChange={(e) => onChange({ ...el, notes: e.target.value || undefined })}
         />
       </div>
-      <div className="toolbar element-footer">
-        <button
-          type="button"
-          onClick={onDuplicate}
-          disabled={locked}
-          title={`Duplicate: a copy on top, with a new id${hint("duplicate")}`}
-        >
-          Duplicate
-        </button>
-        <span className="spacer" />
-        <button
-          type="button"
-          className="danger"
-          onClick={onDelete}
-          disabled={locked}
-          title={locked ? "Unlock it to delete" : `Delete ${el.id}; Undo brings it back${hint("delete")}`}
-        >
-          Delete
-        </button>
-      </div>
     </section>
+  );
+}
+
+/** A compact number field: a short key in front, an optional unit behind (Pro inspector). */
+function Box({ k, unit, children }: { k: string; unit?: string; children: ReactNode }) {
+  return (
+    <label className="field-box">
+      <span className="k" aria-hidden="true">
+        {k}
+      </span>
+      {children}
+      {unit && (
+        <span className="u" aria-hidden="true">
+          {unit}
+        </span>
+      )}
+    </label>
   );
 }
 

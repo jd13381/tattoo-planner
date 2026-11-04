@@ -160,3 +160,14 @@ Details in `docs/adr/0009-create-images.md`.
 
 - **No click-to-select on the 3D arm** (Jan, 2026-11-04: it collided with the orbit gestures). The 3D view only shows the result; selection happens in the 2D editor and the elements list.
 - **Eight resize handles** instead of one corner square: corners keep the aspect ratio around the opposite corner, edges stretch one side; Shift swaps, Alt resizes around the centre, Ctrl/⌘ turns snapping off. Sizes snap to 0.5 cm (a size holds its start value until it has moved a quarter centimetre, so a derived 9.9 cm width does not jump), at least 1 cm per side. A figure whose width is not set keeps it unset when resized in proportion; a free resize writes the width. _Alternative:_ aspect kept on every handle by default. _Change:_ `SNAP_CM`, `MIN_SIZE_CM` and `resizeOptions` in `src/editor/resize.ts`.
+
+### UI: "Pro creative tool" design, wave 1 (tokens, shell, Layout tab)
+
+Jan chose the "Pro creative tool" proposal (graphite chrome, translucent floating panels, one blue-violet accent).
+
+- **Dark only** (`color-scheme: dark`, no light theme). The design is built around the skin being the only light surface; a second theme would double the token work for every tab. _Alternative:_ keep the old warm-paper light theme as `prefers-color-scheme: light`. _Change:_ add a light token block in `src/styles.css`.
+- **Fonts bundled from npm** (`@fontsource-variable/inter`, `@fontsource/jetbrains-mono` 400/500, imported in `src/main.tsx`) instead of a Google Fonts link, so the planner keeps working offline. Fallback stack: system UI / system monospace. _Alternative:_ system fonts only (no new dependency).
+- **Colour roles:** blue-violet `--accent` (#8f84ff) for selection, focus, the primary Save and pressed tools, also the selected element's outline drawn into the blockout texture (was yellow); sleeve red `--red` only for red lines, the brand mark and the Draw red line tool; a lighter `--danger` for errors so error text passes AA. Text 3 is `#868693` (the mockup's `#6c6c79` failed AA).
+- **Layout tab as a full-bleed workspace:** tool rail (Select V, add figure/existing/filler/band/line, Draw red line R, shortcuts), 2D editor with a floating mode bar and a status bar (u/v and cm under the cursor, else the selection; zoom, Fit), 3D view with floating view bar, elbow pose, coverage and a right stack (Elements / Assets tabs, inspector). Variant, Undo/Redo, Save as…, Save and Export moved into the top bar; warnings became an "N notices" chip there (errors stay as banners). No separate pan tool: dragging the background pans, as before. _Change:_ `src/editor/LayoutPage.tsx`.
+- **New shortcuts V and R** (select tool, toggle Draw red line), only without modifiers and outside text fields.
+- **3D canvas is transparent** so the CSS gradient shows; Screenshot flattens it onto `VIEWER_BACKGROUND`. The PDF export keeps its white background.

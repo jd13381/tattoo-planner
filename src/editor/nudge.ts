@@ -110,3 +110,10 @@ export function formatPositionCm(profile: ArmProfile, el: LayoutElement): string
       : `${pos.aroundCm.toFixed(1)} cm ${pos.side} of the outer line`;
   return `≈ ${around} · ${along}`;
 }
+
+/** A compact cursor readout for the status bar, e.g. "3.6 cm lateral · 53.3 cm from wrist". */
+export function formatPointCm(profile: ArmProfile, p: UV): string {
+  const pos = positionCm(profile, p);
+  const around = pos.side === "outer" ? "on the outer line" : `${pos.aroundCm.toFixed(1)} cm ${pos.side}`;
+  return `${around} · ${pos.fromWristCm.toFixed(1)} cm from wrist`;
+}
