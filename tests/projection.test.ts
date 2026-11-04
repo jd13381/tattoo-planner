@@ -11,6 +11,7 @@ import { coverage } from "../src/metrics/coverage.ts";
 import { buildProfile } from "../src/arm/profile.ts";
 import {
   alongArm,
+  modelGrid,
   photoFrame,
   projectPoint,
   sectionView,
@@ -338,5 +339,18 @@ describe("projections API", () => {
     await expect(saveProjection(dir, "other", { calibration: r.calibration })).rejects.toThrow(/match/);
     await expect(saveProjection(dir, "../x", { calibration: r.calibration })).rejects.toThrow(/invalid/);
     expect(await listProjections(path.join(dir, "missing"))).toEqual([]);
+  });
+});
+
+describe("modelGrid", () => {
+  it("draws the inner line down the middle of a frontal photo and stops at the silhouette", () => {
+    const frame = photoFrame(calibration().photos[0]!, 1000, 2000, profile.elbowAt)!;
+    const grid = modelGrid(frame, profile, { sMax: 20 });
+    const inner = grid.find((l) => l.kind === "inner")!;
+    for (const p of inner.pts) expect(p.x).toBeCloseTo(500, 6);
+    expect(grid.some((l) => l.kind === "s10")).toBe(true);
+    for (const l of grid) for (const p of l.pts) expect(p.x).toBeGreaterThanOrEqual(300 - 1e-6);
+    // The outer line faces away and is not drawn.
+    expect(grid.filter((l) => l.kind === "u").length).toBeLessThan(19);
   });
 });

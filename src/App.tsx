@@ -3,12 +3,14 @@ import { ComparePage } from "./compare/ComparePage.tsx";
 import { DataFolderPage } from "./data/DataFolderPage.tsx";
 import { LayoutPage } from "./editor/LayoutPage.tsx";
 import type { WorkingLayout } from "./layout/useLayouts.ts";
+import { ProjectionPage } from "./projection/ProjectionPage.tsx";
 import { ArmPage } from "./viewer/ArmPage.tsx";
 import { useArm } from "./viewer/useArm.ts";
 
 const TABS = [
   { id: "layout", label: "Layout" },
   { id: "compare", label: "Compare" },
+  { id: "projection", label: "Projection" },
   { id: "arm", label: "Arm & measurements" },
   { id: "data", label: "Data folder" },
 ] as const;
@@ -45,6 +47,7 @@ export function App() {
         <LayoutPage arm={arm} pose={pose} onWorking={setWorking} />
       </div>
       {tab === "compare" && <ComparePage arm={arm} pose={pose} working={working} />}
+      {tab === "projection" && <ProjectionPage arm={arm} pose={pose} />}
       {tab === "arm" && <ArmPage arm={arm} pose={pose} />}
       {tab === "data" && <DataFolderPage />}
     </main>

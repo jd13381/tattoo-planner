@@ -182,3 +182,50 @@ export function turnedToStored(x: number, y: number, turn: 0 | 90 | 180 | 270): 
 export function turnedSize(width: number, height: number, turn: 0 | 90 | 180 | 270) {
   return turn === 90 || turn === 270 ? { width: height, height: width } : { width, height };
 }
+
+export type GridLine = { kind: "inner" | "side" | "u" | "s10" | "s"; pts: Vec[] };
+
+/**
+ * The model's skin grid as seen in a photo (px), for checking a calibration by eye: lines of equal u
+ * every `uStep` (inner, lateral and medial lines marked) and of equal distance from the wrist crease
+ * every `sStep` cm up to `sMax`, only where they face the camera.
+ */
+export function modelGrid(
+  frame: PhotoFrame,
+  profile: ArmProfile,
+  opts: { uStep?: number; sStep?: number; sMax?: number } = {},
+): GridLine[] {
+  const uStep = opts.uStep ?? 0.05;
+  const sStep = opts.sStep ?? 2;
+  const sMax = opts.sMax ?? profile.elbowAt;
+  const lines: GridLine[] = [];
+  const visible = (u: number, s: number) => {
+    const q = projectPoint(frame, profile, u, s);
+    return q && q.cos > 0 ? { x: q.x, y: q.y } : null;
+  };
+  const steps = Math.round(1 / uStep);
+  for (let k = 0; k < steps; k++) {
+    const u = k / steps;
+    const pts: Vec[] = [];
+    for (let s = 0; s <= sMax + 1e-9; s += 0.5) {
+      const p = visible(u, s);
+      if (p) pts.push(p);
+    }
+    const kind =
+      Math.abs(u - 0.5) < 1e-9
+        ? "inner"
+        : Math.abs(u - 0.25) < 1e-9 || Math.abs(u - 0.75) < 1e-9
+          ? "side"
+          : "u";
+    if (pts.length > 1) lines.push({ kind, pts });
+  }
+  for (let s = 0; s <= sMax + 1e-9; s += sStep) {
+    const pts: Vec[] = [];
+    for (let u = 0; u <= 1 + 1e-9; u += 0.01) {
+      const p = visible(u, s);
+      if (p) pts.push(p);
+    }
+    if (pts.length > 1) lines.push({ kind: Math.round(s) % 10 === 0 ? "s10" : "s", pts });
+  }
+  return lines;
+}
