@@ -10,14 +10,15 @@ type Props = {
   canvas: HTMLCanvasElement;
   /** Bumped whenever the canvas content changes. */
   version: number;
-  /** Pointer handlers on the mesh (the brush tool); hits carry the skin's UV. */
+  /**
+   * Pointer handlers on the mesh, set only while the brush draws; hits carry the skin's UV. The 3D
+   * view has no click-to-select, so otherwise nothing on the mesh competes with the orbit gestures.
+   */
   onPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
   onPointerMove?: (e: ThreeEvent<PointerEvent>) => void;
-  /** Click on the mesh without dragging (selection). */
-  onClick?: (e: ThreeEvent<MouseEvent>) => void;
 };
 
-export function ArmModel({ geometry, canvas, version, onPointerDown, onPointerMove, onClick }: Props) {
+export function ArmModel({ geometry, canvas, version, onPointerDown, onPointerMove }: Props) {
   const texture = useMemo(
     () => skinTexture(canvas),
     // A new texture per content version: the canvas may have changed size, which needsUpdate cannot handle.
@@ -28,7 +29,7 @@ export function ArmModel({ geometry, canvas, version, onPointerDown, onPointerMo
   useEffect(() => () => texture.dispose(), [texture]);
 
   return (
-    <mesh geometry={geometry} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onClick={onClick}>
+    <mesh geometry={geometry} onPointerDown={onPointerDown} onPointerMove={onPointerMove}>
       <meshStandardMaterial attach="material-0" map={texture} roughness={SKIN_ROUGHNESS} />
       <meshStandardMaterial attach="material-1" color={CAP_COLOR} roughness={CAP_ROUGHNESS} />
     </mesh>
