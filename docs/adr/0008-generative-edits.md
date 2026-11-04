@@ -5,7 +5,7 @@
 
 ## Decision
 
-**A second engine in the "Edit images" tab: the OpenAI Images API with `gpt-image-2.5-sunburst`, called directly from the dev server.** The tab gets a switch _Local (Claude, keeps the pixels)_ / _Generative (GPT Image, redraws)_; everything else (jobs, before/after, Keep, Edit further, Discard, `edits/` and the manifest entry) is shared with ADR 0007.
+**A second engine in the "Edit images" tab (now "Image studio", ADR 0009): the OpenAI Images API with `gpt-image-2.5-sunburst`, called directly from the dev server.** The tab gets a switch _Local (Claude, keeps the pixels)_ / _Generative (GPT Image, redraws)_; everything else (jobs, before/after, Keep, Edit further, Discard, `edits/` and the manifest entry) is shared with ADR 0007.
 
 - `POST /api/edits` takes `engine: "openai"`. The server copies the image into a temp folder as before, sends it with a short prompt (`buildGenerativePrompt` in `src/edits/openai.ts`: apply exactly this change, keep everything else, no frame/text/watermark; Jan's instruction verbatim, German is fine) as `multipart/form-data` to `POST https://api.openai.com/v1/images/edits` with `n=1`, `size=auto`, `quality=high`, `output_format=png` and `input_fidelity=high` (keeps style and features of the input closer). If the model refuses `input_fidelity`, the request is sent once more without it.
 - The answer (`b64_json`) is checked like Claude's output (real PNG, at most 50 MB) and becomes the job's `output.png`. The job shows a rough cost from the reported token usage (`estimateCostUsd`; GPT Image 2.5 list prices of Nov 2026: $5 per M text input, $8 per M image input, $30 per M image output tokens).

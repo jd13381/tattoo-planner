@@ -13,7 +13,10 @@ const NEEDS: { feature: string; uses: string }[] = [
   { feature: "Assets panel", uses: "manifest.yaml and the images in ideas/, refs/, cards/" },
   { feature: "Projection photos", uses: "the Anubis photos in arm-photos/" },
   { feature: "Export", uses: "writes the artist handout and PNGs into exports/" },
-  { feature: "Edit images", uses: "edits reference images and keeps results in edits/" },
+  {
+    feature: "Image studio",
+    uses: "edits reference images (results in edits/) and creates new ones (results in generated/)",
+  },
 ];
 
 function useDataListing(): { state: State; checking: boolean; check: () => void } {

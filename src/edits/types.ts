@@ -11,6 +11,30 @@ export const EDITS_FOLDER = "edits";
 /** Tag added to every kept edit, so the Assets panel can filter them. */
 export const EDITED_TAG = "edited";
 
+/** Folder in the data folder where kept new images (created, not edited) are written. */
+export const GENERATED_FOLDER = "generated";
+/** Tag added to every kept new image. */
+export const GENERATED_TAG = "generated";
+/** Kind of a kept new image in the manifest. */
+export const GENERATED_KIND = "idea";
+
+/** "edit": change an existing image; "create": make a new one (GPT Image only). */
+export type EditMode = "edit" | "create";
+export type CreateSize = "auto" | "1024x1024" | "1536x1024" | "1024x1536";
+export type CreateBackground = "auto" | "transparent" | "opaque";
+
+export const CREATE_SIZES: readonly { value: CreateSize; label: string }[] = [
+  { value: "1024x1024", label: "Square" },
+  { value: "1024x1536", label: "Portrait (tall)" },
+  { value: "1536x1024", label: "Landscape (wide)" },
+  { value: "auto", label: "Let the model choose" },
+];
+export const CREATE_BACKGROUNDS: readonly { value: CreateBackground; label: string }[] = [
+  { value: "transparent", label: "Transparent" },
+  { value: "opaque", label: "White / opaque" },
+  { value: "auto", label: "Let the model choose" },
+];
+
 /** "claude": local tools driven by `claude -p`; "openai": generative edit with GPT Image. */
 export type EditEngine = "claude" | "openai";
 
@@ -39,6 +63,10 @@ export type EditJob = {
   /** Claude's closing summary. */
   summary?: string;
   error?: string;
+  /** Set for a new image (mode "create"): the name its kept file and id are built from. */
+  created?: { name: string };
+  /** Asset ids sent as reference images with this job. */
+  references?: string[];
   /** Rough cost in USD of a generative edit, from the token usage the API reported. */
   costUsd?: number;
   /** Set when state is "done" or "kept". */
@@ -55,7 +83,22 @@ export type EditOverview = {
   jobs: EditJob[];
 };
 
-export type EditRequest = { assetId: string; instruction: string; fromJob?: string; engine?: EditEngine };
+export type EditRequest = {
+  /** The image to edit (mode "edit" without fromJob). */
+  assetId?: string;
+  instruction: string;
+  fromJob?: string;
+  engine?: EditEngine;
+  /** Default "edit". "create" makes a new image and needs engine "openai". */
+  mode?: EditMode;
+  /** Asset ids to send as reference images (GPT Image only). */
+  references?: string[];
+  /** Mode "create": name of the new image (becomes its id and file name). */
+  name?: string;
+  /** Mode "create": output size and background. */
+  size?: CreateSize;
+  background?: CreateBackground;
+};
 
 /** Generative variants one click may ask for (each one is its own job). */
 export const MAX_VARIANTS_PER_RUN = 3;

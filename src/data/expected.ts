@@ -11,7 +11,8 @@ export const EXPECTED_ENTRIES: ExpectedEntry[] = [
   { name: "cards", kind: "folder", purpose: "MTG card art" },
   { name: "existing", kind: "folder", purpose: "photos of existing tattoos" },
   { name: "arm-photos", kind: "folder", purpose: "left arm from four sides" },
-  { name: "edits", kind: "folder", purpose: "images kept from the Edit images tab" },
+  { name: "edits", kind: "folder", purpose: "edited images kept in the Image studio" },
+  { name: "generated", kind: "folder", purpose: "new images created in the Image studio" },
   { name: "exports", kind: "folder", purpose: "generated PNG / PDF handouts (Phase 5)" },
 ];
 

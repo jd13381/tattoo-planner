@@ -145,3 +145,13 @@ Details in `docs/adr/0008-generative-edits.md`. Engine choice (OpenAI API key, `
 - **Prompt** wraps Jan's instruction verbatim with "apply exactly this change, keep everything else, no frame/text/watermark". _Change:_ `buildGenerativePrompt` in `src/edits/openai.ts`.
 - **Two generative presets** (Simplify, Remove an object): generic wording only, no motif decisions.
 - **Rule change:** "no uploading assets to third-party services" in CLAUDE.md and the brief now reads: the planner stays local, image-edit services are fine, nothing from the data folder in git (Jan, 2026-11-04).
+
+### Image studio: new images and reference images
+
+Details in `docs/adr/0009-create-images.md`.
+
+- **One tab "Image studio" with modes Edit / Create** instead of a second tab. _Change:_ split later if the tab gets crowded.
+- **Defaults for new images:** square 1024 × 1024, transparent background, 2 variants, name `generated` when empty. _Change:_ the selects in the tab, or the defaults in `ImageEditPage.tsx` / `editsApi.ts`.
+- **Up to four references per request**, sent after the image to edit. _Change:_ `MAX_REFERENCES` in `src/edits/openai.ts` (the API takes up to 16).
+- **Kept new images:** `generated/<name>-N.png`, kind `idea`, tag `generated`.
+- **Create prompt** asks for one centred motif as a clean sketch on a plain background without frame, text, watermark or skin, unless the description says otherwise. _Change:_ `buildCreatePrompt`.
