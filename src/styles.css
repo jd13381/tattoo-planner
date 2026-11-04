@@ -368,7 +368,9 @@ textarea,
   width: 100%;
   height: min(78vh, 820px);
   min-height: 420px;
-  background: #2a2725;
+  position: relative;
+  display: block;
+  background: transparent;
   border-radius: 10px;
   border: 1px solid var(--border);
   touch-action: none;
@@ -492,11 +494,23 @@ textarea,
 }
 
 /* Reference mode and assets (Phase 4) */
-.unwrap-image-host {
+.unwrap-editor {
+  position: relative;
+}
+
+/* The unwrap canvas lies behind the SVG (see UnwrapEditor.tsx), clipped to the SVG's box. */
+.unwrap-image-layer {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #2a2725;
   pointer-events: none;
 }
 
-.unwrap-image-host div,
+.unwrap-image-host {
+  position: absolute;
+}
+
 .unwrap-image-host canvas {
   display: block;
   width: 100%;

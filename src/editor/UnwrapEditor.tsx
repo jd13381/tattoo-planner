@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import type { ArmProfile } from "../arm/profile.ts";
 import { wrapU } from "../arm/uv.ts";
 import type { ElementAspects } from "../layout/imageFit.ts";
@@ -11,6 +18,7 @@ import {
   type Shape,
 } from "../layout/shapes.ts";
 import { moveElement, movePoint, scaleFigure } from "./edit.ts";
+import { imagePlacement } from "./viewBox.ts";
 
 type Props = {
   profile: ArmProfile;
@@ -60,14 +68,52 @@ export function UnwrapEditor(props: Props) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // The rendered canvas is shown as it is, inside a foreignObject: encoding it as a PNG data URL
-  // on every change cost seconds per mode switch with reference images (Phase 4 acceptance).
+  // The rendered canvas is shown as it is (encoding it as a PNG data URL on every change cost
+  // seconds per mode switch). It sits in a clipped layer behind the SVG and is placed with CSS to
+  // match the SVG's viewBox. A canvas inside a <foreignObject> is drawn at the wrong place and size
+  // when the browser composites it on the GPU (Chrome and Safari on a Mac), so it is kept out of the SVG.
   const hostRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     host.replaceChildren(image);
   }, [image, version]);
+
+  const [svgSize, setSvgSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const ro = new ResizeObserver(() => setSvgSize({ w: svg.clientWidth, h: svg.clientHeight }));
+    ro.observe(svg);
+    return () => ro.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    const host = hostRef.current;
+    if (!svg || !host) return;
+    const box = imagePlacement(
+      view,
+      { w: svg.clientWidth, h: svg.clientHeight },
+      { x: -half, y: 0, w: 2 * half, h: L },
+    );
+    const layer = host.parentElement;
+    const wrapper = layer?.parentElement;
+    if (layer && wrapper) {
+      const a = svg.getBoundingClientRect();
+      const b = wrapper.getBoundingClientRect();
+      layer.style.left = `${a.left - b.left + svg.clientLeft}px`;
+      layer.style.top = `${a.top - b.top + svg.clientTop}px`;
+      layer.style.width = `${svg.clientWidth}px`;
+      layer.style.height = `${svg.clientHeight}px`;
+    }
+    Object.assign(host.style, {
+      left: `${box.x}px`,
+      top: `${box.y}px`,
+      width: `${box.w}px`,
+      height: `${box.h}px`,
+    });
+  }, [view, svgSize, half, L, image, version]);
 
   const resolved = useMemo(
     () =>
@@ -159,6 +205,9 @@ export function UnwrapEditor(props: Props) {
 
   return (
     <div className="unwrap-editor">
+      <div className="unwrap-image-layer" aria-hidden="true">
+        <div ref={hostRef} className="unwrap-image-host" />
+      </div>
       <svg
         ref={svgRef}
         viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
@@ -175,9 +224,6 @@ export function UnwrapEditor(props: Props) {
         role="application"
         aria-label="Unwrap editor"
       >
-        <foreignObject x={-half} y={0} width={2 * half} height={L} className="unwrap-image-host">
-          <div ref={hostRef} />
-        </foreignObject>
         <text className="edge-label" x={-half + 0.3} y={-0.3}>
           {centerU === 0 ? "lateral ←" : "medial ←"}
         </text>
