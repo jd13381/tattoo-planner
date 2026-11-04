@@ -5,6 +5,7 @@ import { uToCm } from "../src/arm/uv.ts";
 import {
   cmToDelta,
   elementAnchor,
+  formatPointCm,
   formatPositionCm,
   nudgeElement,
   nudgeStepCm,
@@ -105,5 +106,15 @@ describe("positionCm", () => {
     expect(formatPositionCm(profile, fig(0, 0))).toBe("≈ on the outer line · 0.0 cm from the wrist");
     const band: LayoutElement = { type: "band", id: "b", pattern: "meander", v: 0.5, width_cm: 2 };
     expect(formatPositionCm(profile, band)).toBe(`≈ ${(0.5 * L).toFixed(1)} cm from the wrist`);
+  });
+});
+
+describe("formatPointCm", () => {
+  it("formats a point for the status bar", () => {
+    const c = profile.circumferenceAt(0.5 * L);
+    expect(formatPointCm(profile, { u: 1 - 3 / c, v: 0.5 })).toBe(
+      `3.0 cm medial · ${(0.5 * L).toFixed(1)} cm from wrist`,
+    );
+    expect(formatPointCm(profile, { u: 0, v: 0 })).toBe("on the outer line · 0.0 cm from wrist");
   });
 });

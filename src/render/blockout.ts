@@ -16,6 +16,8 @@ export const BLOCKOUT_COLORS: Record<ElementType | "open" | "outside", RGB> = {
 
 const EXISTING_OUTLINE: RGB = [30, 26, 24];
 const EXISTING_FILL: RGB = [222, 211, 199];
+/** The selected element's outline: the UI's selection accent (--accent, #8f84ff). */
+export const SELECTION_OUTLINE: RGB = [143, 132, 255];
 
 /** Paints the classification into RGBA pixels (row 0 = shoulder, as the texture expects). */
 export function blockoutPixels(cls: Classification, selected?: number): Uint8ClampedArray<ArrayBuffer> {
@@ -36,7 +38,7 @@ export function blockoutPixels(cls: Classification, selected?: number): Uint8Cla
         if (type === "existing")
           color = isEdge(cells, width, height, i, j, v, outlinePx) ? EXISTING_OUTLINE : EXISTING_FILL;
         if (selected !== undefined && v === selected + 1 && isEdge(cells, width, height, i, j, v, outlinePx))
-          color = [255, 196, 0];
+          color = SELECTION_OUTLINE;
       }
       out[idx * 4] = color[0];
       out[idx * 4 + 1] = color[1];
