@@ -294,3 +294,13 @@ export function createdAsset(
     tags: [GENERATED_TAG],
   };
 }
+
+/** Kinds and folders the Image studio does not offer: arm photos and photos of existing tattoos. */
+const STUDIO_HIDDEN_KINDS = new Set(["arm-photo", "existing"]);
+const STUDIO_HIDDEN_FOLDERS = ["arm-photos/", "existing/"];
+
+/** Whether an asset belongs in the Image studio's picker (to edit or as a reference). */
+export function showInStudio(asset: Pick<Asset, "kind" | "file">): boolean {
+  const file = asset.file.replaceAll("\\", "/").toLowerCase();
+  return !STUDIO_HIDDEN_KINDS.has(asset.kind) && !STUDIO_HIDDEN_FOLDERS.some((f) => file.startsWith(f));
+}
