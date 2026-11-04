@@ -107,7 +107,7 @@ export const SHORTCUTS: readonly { keys: readonly string[]; description: string 
   { keys: ["Shift+Mod+Z", "Mod+Y"], description: "Redo" },
   { keys: ["Mod+D"], description: "Duplicate the selected element" },
   { keys: ["Delete", "Backspace"], description: "Delete the selected element (unless locked)" },
-  { keys: ["Esc"], description: "Deselect" },
+  { keys: ["Esc"], description: "Deselect, or leave Draw mode" },
   { keys: ["←", "→", "↑", "↓"], description: "Nudge the selected element by 0.5 cm" },
   { keys: ["Shift+Arrow"], description: "Nudge by 2 cm" },
   { keys: ["]"], description: "Bring forward one layer" },

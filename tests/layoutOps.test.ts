@@ -7,6 +7,7 @@ import {
   dropIndex,
   duplicateAt,
   elementIssues,
+  followSelection,
   moveLayer,
   moveLayerTo,
   nextBurst,
@@ -60,6 +61,15 @@ describe("layout operations", () => {
     expect(ids(moveLayerTo(layout, 2, dropIndex(2, 0, true)).layout)).toEqual(["a", "c", "b"]);
     expect(dropIndex(1, 1, true)).toBe(2);
     expect(dropIndex(1, 1, false)).toBe(1);
+  });
+
+  it("follows the selected element through undo and redo", () => {
+    const swapped = moveLayer(layout, 0, 1).layout;
+    expect(followSelection(layout, swapped, 0)).toBe(1);
+    const renamed = { ...layout, elements: [fig("a"), fig("b2"), fig("c")] };
+    expect(followSelection(layout, renamed, 1)).toBe(1);
+    expect(followSelection(layout, deleteAt(layout, 1).layout, 1)).toBeNull();
+    expect(followSelection(layout, layout, null)).toBeNull();
   });
 
   it("clamps a stale selection", () => {

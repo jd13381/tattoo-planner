@@ -61,9 +61,23 @@ export function dropIndex(from: number, over: number, above: boolean): number {
   return above ? k + 1 : k;
 }
 
-/** A selection that still points at an element after the list changed (undo, redo), else null. */
+/** A selection that still points at an element after the list changed, else null. */
 export function clampSelection(selected: number | null, count: number): number | null {
   return selected !== null && selected >= 0 && selected < count ? selected : null;
+}
+
+/**
+ * The selection after undo or redo swapped `prev` for `next`: the same element by id, wherever its
+ * layer is now; the same index when only its id changed; nothing when it is gone.
+ */
+export function followSelection(prev: Layout, next: Layout, selected: number | null): number | null {
+  if (selected === null) return null;
+  const id = prev.elements[selected]?.id;
+  const j = id === undefined ? -1 : next.elements.findIndex((e) => e.id === id);
+  if (j >= 0) return j;
+  return next.elements.length === prev.elements.length
+    ? clampSelection(selected, next.elements.length)
+    : null;
 }
 
 /** Variant names the layouts endpoint accepts (src/data/server/layoutsApi.ts). */

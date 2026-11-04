@@ -736,6 +736,155 @@ legend,
   max-width: none;
 }
 
+/* Icon buttons: square, for an icon or a single glyph ("?"). */
+button.icon-button {
+  width: var(--control-h);
+  padding: 0;
+}
+
+button .icon {
+  flex: none;
+}
+
+/* Popover: a small panel under its trigger; trigger and panel share a .popover-anchor. */
+.popover-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: max-content;
+  min-width: 260px;
+  max-width: min(380px, calc(100vw - 32px));
+  padding: var(--s-3);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+  text-align: left;
+  white-space: normal;
+  cursor: auto;
+}
+
+.popover.end {
+  left: auto;
+  right: 0;
+}
+
+.popover:focus {
+  outline: none;
+}
+
+.popover-title {
+  display: block;
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.popover .toolbar {
+  margin-top: var(--s-2);
+}
+
+/* A one-line hint under a field; .error and .warn tint it. */
+.field-hint {
+  margin: 6px 0 0;
+  min-height: calc(2 * var(--lh) * var(--fs-xs));
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.field-hint.error {
+  color: var(--accent);
+}
+
+.field-hint.warn {
+  color: var(--warn);
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--accent-line);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 5px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  font: 500 var(--fs-2xs) / 1.4 var(--font-ui);
+  text-align: center;
+  color: var(--text);
+}
+
+/* Toast: a short confirmation at the bottom centre ("Saved v1-baseline"). */
+.toast-region {
+  position: fixed;
+  left: 50%;
+  bottom: var(--s-6);
+  z-index: 60;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  background: var(--text);
+  color: var(--on-ink);
+  box-shadow: var(--shadow-2);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: default;
+  animation: toast-in 160ms ease-out;
+}
+
+.toast::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.toast.ok::before {
+  background: #5fb884;
+}
+
+.toast.warn::before {
+  background: #e3a64a;
+}
+
+.toast.error::before {
+  background: #ef6a62;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
 /* Tables */
 table {
   width: 100%;
@@ -827,24 +976,29 @@ th[class*="cat-"]::before {
   margin: 0 0 3px auto;
 }
 
-th.cat-figure::before {
+th.cat-figure::before,
+.swatch.cat-figure {
   background: #3d3936;
 }
 
-th.cat-existing::before {
+th.cat-existing::before,
+.swatch.cat-existing {
   box-shadow: inset 0 0 0 1.5px var(--text);
 }
 
-th.cat-filler::before {
+th.cat-filler::before,
+.swatch.cat-filler {
   background: #bdb6ad;
 }
 
-th.cat-band::before {
+th.cat-band::before,
+.swatch.cat-band {
   background: repeating-linear-gradient(45deg, var(--text) 0 1px, transparent 1px 3px);
   box-shadow: inset 0 0 0 0.5px var(--border-strong);
 }
 
-th.cat-line::before {
+th.cat-line::before,
+.swatch.cat-line {
   background: var(--accent);
 }
 
@@ -853,7 +1007,8 @@ th.cat-open::before {
 }
 
 @media (prefers-color-scheme: dark) {
-  th.cat-figure::before {
+  th.cat-figure::before,
+  .swatch.cat-figure {
     background: #8a827a;
     box-shadow: inset 0 0 0 1px #5a544e;
   }
@@ -1350,8 +1505,30 @@ button.draw-button[aria-pressed="true"] {
   stroke-dasharray: none;
 }
 
+/* Hover: a solid white outline shows what a click will select. */
+.unwrap-editor .shape.hovered rect,
+.unwrap-editor .shape.hovered polygon {
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 0.12;
+  stroke-dasharray: none;
+}
+
+.unwrap-editor .shape.hovered .line-hit {
+  stroke: rgba(255, 255, 255, 0.22);
+}
+
+/* Locked shapes can be selected (pointer) but not moved. */
 .unwrap-editor .shape.locked {
-  cursor: not-allowed;
+  cursor: pointer;
+}
+
+.unwrap-editor svg.panning {
+  cursor: grabbing;
+}
+
+.unwrap-editor svg.dragging,
+.unwrap-editor svg.dragging .shape {
+  cursor: move;
 }
 
 .unwrap-editor .shape-label,
@@ -1448,6 +1625,243 @@ label.props {
 
 .props label.crop-field input {
   width: 5em;
+}
+
+/* Sub-heads inside the element panel (Position, Size, Style, Notes). */
+.props-head {
+  margin: var(--s-2) 0 0;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* The element's position in cm, read-only, aligned with the fields. */
+.cm-readout {
+  margin: -2px 0 0 calc(7.5em + var(--s-2));
+  font-size: var(--fs-xs);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.cm-readout.flush {
+  margin: 0;
+}
+
+.element-panel .panel-head {
+  margin-bottom: 0;
+}
+
+/* "Reference image" reads as one more group: same rule above, legend as a normal row. */
+.element-panel .image-fields {
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--border);
+}
+
+.element-panel .image-fields > legend {
+  float: left;
+  width: 100%;
+  margin: 0;
+}
+
+.save-as-form {
+  width: 300px;
+}
+
+.save-as-form input {
+  width: 100%;
+}
+
+.element-actions {
+  gap: var(--s-1);
+}
+
+.layer-label {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.element-footer {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border);
+}
+
+button.lock-toggle {
+  height: 24px;
+  padding: 0 6px;
+  gap: 4px;
+  font-size: var(--fs-xs);
+}
+
+button.lock-toggle[aria-pressed="true"] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+}
+
+button.lock-toggle[aria-pressed="true"]:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+/* Elements list: every element, top layer first. */
+.element-list ul {
+  list-style: none;
+  margin: 0 calc(-1 * var(--s-2));
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.element-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 2px;
+  border-radius: var(--r-sm);
+}
+
+.element-row:hover {
+  background: var(--surface-2);
+}
+
+.element-row.selected {
+  background: var(--info-soft);
+  box-shadow: inset 2px 0 0 var(--info);
+}
+
+.element-row.dragging {
+  opacity: 0.45;
+}
+
+.element-row.drop-above::before,
+.element-row.drop-below::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--info);
+}
+
+.element-row.drop-above::before {
+  top: -1px;
+}
+
+.element-row.drop-below::after {
+  bottom: -1px;
+}
+
+button.element-select {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: var(--s-2);
+  height: 28px;
+  padding: 0 var(--s-2);
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+button.element-select:hover:not(:disabled),
+button.element-select:active:not(:disabled) {
+  background: transparent;
+}
+
+.element-row.selected .element-id {
+  font-weight: 600;
+}
+
+.element-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.element-type {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+
+.issue-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.element-row .lock-toggle {
+  width: 24px;
+  padding: 0;
+  color: var(--faint);
+  opacity: 0;
+}
+
+.element-row:hover .lock-toggle,
+.element-row .lock-toggle:focus-visible,
+.element-row .lock-toggle[aria-pressed="true"] {
+  opacity: 1;
+}
+
+.element-list .panel-head .faint {
+  font-size: var(--fs-xs);
+}
+
+.swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.swatch.cat-filler {
+  box-shadow: inset 0 0 0 0.5px var(--border-strong);
+}
+
+/* Shortcuts popover */
+.shortcut-list {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-xs);
+}
+
+.shortcut-list > div {
+  display: grid;
+  grid-template-columns: 8.5em minmax(0, 1fr);
+  gap: var(--s-2);
+  align-items: baseline;
+}
+
+.shortcut-list dt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.shortcut-list dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+.kbd-plus {
+  color: var(--muted);
+}
+
+.button-pair {
+  display: inline-flex;
+  gap: 2px;
 }
 
 /* Assets */
