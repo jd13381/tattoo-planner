@@ -2808,92 +2808,273 @@ button.asset-card {
   word-break: break-all;
 }
 
-/* ── Arm & measurements tab ───────────────────────────────────────────────────────────────────── */
+/* === Arm & measurements (Pro) === ─────────────────────────────────────────────────────────── */
 
-.arm-layout {
+/* Full-bleed workspace: the 3D arm fills the view (framed left of the inspector), view + screenshot
+ * and pose float top left, a grid legend bottom left, the measurements float on the right. */
+.arm-page {
+  --arm-side-w: 320px;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--header-h));
+  min-height: 560px;
+}
+
+.arm-errors {
+  flex: none;
+  margin: 0;
+  border-radius: 0;
+}
+
+.arm-workspace {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.arm-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(
+    ellipse 520px 62% at calc((100% - var(--arm-side-w) - 24px) / 2) 46%,
+    #1d1c26 0%,
+    #121218 48%,
+    #0a0a0d 100%
+  );
+}
+
+.arm-stage > .viewer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: calc(var(--arm-side-w) + 24px);
+}
+
+.arm-stage .canvas-wrap {
+  flex: 1;
+  height: auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.arm-view-bar {
+  top: 12px;
+  left: 12px;
+}
+
+.arm-view-bar .viewer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.arm-pose {
+  top: 60px;
+}
+
+.arm-pose .pose-control.panel {
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.arm-legend {
+  left: 12px;
+  bottom: 12px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
-  gap: var(--s-4);
+  gap: 3px;
+  padding: 8px 12px;
+  color: var(--muted);
+  font-size: var(--fs-2xs);
 }
 
-.arm-layout > .panel {
-  align-self: start;
+.arm-legend > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.arm-page .canvas-wrap {
-  height: max(420px, calc(100dvh - var(--header-h) - 130px));
+.arm-key {
+  flex: none;
+  width: 14px;
+  height: 10px;
 }
 
-@media (max-width: 860px) {
-  .arm-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.arm-key.grid {
+  border-radius: 2px;
+  background:
+    linear-gradient(90deg, transparent 6px, rgba(255, 255, 255, 0.35) 6px 7px, transparent 7px),
+    linear-gradient(transparent 4px, rgba(255, 255, 255, 0.35) 4px 5px, transparent 5px), var(--skin);
+  background-blend-mode: normal;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  filter: brightness(0.75);
 }
 
-.field {
+.arm-key.red {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--red);
+}
+
+/* The measurements inspector: a full-height float on the right; the values scroll. */
+.float.measurements {
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: var(--arm-side-w);
+  display: flex;
+  flex-direction: column;
+  z-index: 3;
+}
+
+.measurements .float-head {
+  gap: 6px;
+}
+
+.measurements-unit {
+  font-size: var(--fs-2xs);
+}
+
+.measurements .edited-count {
+  height: 20px;
+  padding: 0 7px;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent-text);
+  font-size: var(--fs-2xs);
+}
+
+.measurements-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 12px 12px;
+}
+
+.measurements-intro {
+  margin: 0 0 8px;
+  font-size: var(--fs-2xs);
+  line-height: 1.5;
+}
+
+.measurements-intro code {
+  font-size: inherit;
+}
+
+.measurements-body > .notice {
+  margin: 0 0 8px;
+}
+
+.measurements fieldset {
+  margin: 12px 0 0;
+}
+
+.measurements legend {
+  margin-bottom: 2px;
+}
+
+/* One value: name | number | source. */
+.measurements .field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px 5.2em;
+  grid-template-columns: minmax(0, 1fr) 56px 46px;
   gap: 6px;
   align-items: center;
-  min-height: 30px;
+  min-height: 28px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  border-radius: var(--r-sm);
   font-size: var(--fs-sm);
 }
 
-.field input {
-  width: 100%;
+.measurements .field:hover {
+  background: var(--hover);
 }
 
-.field .tag {
-  justify-self: start;
-  font-size: var(--fs-2xs);
-  padding: 1px 6px;
-  border-radius: var(--r-pill);
-  background: var(--surface-2);
+.field-name {
+  min-width: 0;
+  padding: 4px 0;
   color: var(--muted);
-  text-align: center;
+  line-height: var(--lh-tight);
+}
+
+.measurements .field input {
+  width: 100%;
+  height: 24px;
+  padding: 0 6px;
+  text-align: right;
+  font: 500 var(--fs-xs) var(--font-mono);
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.measurements .field input::-webkit-inner-spin-button,
+.measurements .field input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.measurements .field .tag {
+  justify-self: start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+  color: var(--faint);
+  font-size: var(--fs-2xs);
+}
+
+.measurements .field .tag .mono {
+  font-size: inherit;
 }
 
 .field.placeholder input {
-  border-style: dashed;
-  border-color: var(--warn);
-  color: var(--warn);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
+  color: var(--warn-text);
 }
 
-.field.placeholder .tag {
+.measurements .field.placeholder .tag {
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
   background: var(--warn-soft);
   color: var(--warn);
 }
 
-.field.edited .tag {
+.measurements .field.edited .tag {
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* An edit that differs from the file: the whole row is marked, so changes stand out in the list. */
-.field.changed {
-  margin: 0 -8px;
-  padding: 0 8px;
-  border-radius: var(--r-sm);
+.measurements .field.changed,
+.measurements .field.changed:hover {
   background: var(--accent-soft);
-  box-shadow: inset 3px 0 0 var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
-.field.changed > span:first-child {
+.field.changed > .field-name {
   color: var(--text);
   font-weight: 600;
 }
 
 .field.changed input {
-  border-color: var(--accent-line);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--text);
   font-weight: 600;
 }
 
 .changed-values {
-  margin: var(--s-2) 0 var(--s-1);
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--accent-line);
+  margin: 0 0 4px;
+  padding: 8px 10px 8px;
   border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--accent-soft) 50%, var(--surface));
+  background: color-mix(in srgb, var(--accent-soft) 60%, transparent);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
 }
 
 .changed-values-head {
@@ -2906,13 +3087,13 @@ button.asset-card {
 }
 
 .changed-values pre {
-  margin: var(--s-2) 0 4px;
-  padding: 6px var(--s-2);
+  margin: 8px 0 6px;
+  padding: 6px 8px;
   max-height: 10em;
   overflow: auto;
   background: var(--field-bg);
-  border: 1px solid var(--border);
   border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1px var(--border);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   line-height: 1.5;
@@ -2921,6 +3102,31 @@ button.asset-card {
 
 .changed-values p {
   margin: 0;
+  font-size: var(--fs-2xs);
+}
+
+/* Narrow windows: the inspector moves under the arm. */
+@media (max-width: 860px) {
+  .arm-page {
+    height: auto;
+  }
+  .arm-workspace {
+    display: grid;
+    grid-template-rows: max(520px, calc(100dvh - var(--header-h))) auto;
+  }
+  .arm-stage {
+    position: relative;
+    background: var(--canvas-3d);
+  }
+  .arm-stage > .viewer {
+    right: 0;
+  }
+  .float.measurements {
+    position: relative;
+    inset: auto;
+    width: auto;
+    margin: 12px;
+  }
 }
 
 /* "Front (inner)": the skin side on the view buttons. */
@@ -2934,93 +3140,510 @@ button.asset-card {
   color: rgba(236, 232, 226, 0.55);
 }
 
-/* ── Compare tab ──────────────────────────────────────────────────────────────────────────────── */
+/* === Compare (Pro) === ─────────────────────────────────────────────────────────────────────── */
 
-/* One line under the toolbar: what differs (jumps to the element list) and the shared description. */
-.compare-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px var(--s-3);
-  margin: calc(-1 * var(--s-1)) 0 var(--s-2);
-  min-height: 22px;
+/* Full-bleed workspace: two arms meeting at a seam | inspector column. Each arm is framed between
+ * the seam and its coverage table (A's table floats at the left edge, B's at the right), so the two
+ * arms stand close together; pickers (swap on the seam), mode and view float along the top. */
+.compare-page {
+  --cmp-cov-w: 288px;
+  --cmp-top: 56px; /* below the top floats */
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(var(--side-w) + 12px);
+  height: calc(100dvh - var(--header-h));
+  min-height: 560px;
+  background: var(--bg);
 }
 
-button.link.compare-summary-link {
+.compare-page.cmp-blank {
+  display: block;
+  padding: var(--s-5);
+  background: var(--canvas-3d);
+}
+
+.cmp-blank > .notice {
+  max-width: 720px;
+  margin: 8vh auto 0;
+}
+
+.empty.compare-empty button {
+  margin-top: var(--s-2);
+}
+
+.cmp-arms {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.cmp-loading {
+  grid-column: 1 / -1;
+  place-self: center;
+  margin: 0;
+}
+
+/* One arm: its own spotlight, centred on where the arm stands (between table and seam). */
+.cmp-side {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  --cmp-frame: calc(var(--cmp-cov-w) + 24px);
+  background: radial-gradient(ellipse 280px 62% at var(--arm-x) 48%, #1d1c26 0%, #121218 52%, #0a0a0d 100%);
+}
+
+.cmp-side-a {
+  --arm-x: calc(var(--cmp-frame) + (100% - var(--cmp-frame)) / 2);
+  border-right: 1px solid var(--border);
+}
+
+.cmp-side-b {
+  --arm-x: calc((100% - var(--cmp-frame)) / 2);
+}
+
+.cmp-side > .viewer {
+  position: absolute;
+  top: var(--cmp-top);
+  bottom: 12px;
+  left: 0;
+  right: 0;
+}
+
+.cmp-side-a > .viewer {
+  left: var(--cmp-frame);
+}
+
+.cmp-side-b > .viewer {
+  right: var(--cmp-frame);
+}
+
+.cmp-side .canvas-wrap {
+  flex: 1;
+  height: auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.cmp-side .metrics.compact {
+  bottom: 12px;
+  width: var(--cmp-cov-w);
+}
+
+.cmp-side-a .metrics.compact {
+  left: 12px;
+}
+
+.cmp-side-b .metrics.compact {
+  right: 12px;
+}
+
+/* Invalid file, images loading: over the arm, under the pickers. */
+.cmp-side-status {
+  position: absolute;
+  z-index: 2;
+  top: var(--cmp-top);
+  left: 12px;
+  right: 12px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.cmp-side-status > * {
+  pointer-events: auto;
+}
+
+.cmp-side-status .notice {
+  margin: 0;
+  max-width: 100%;
+  backdrop-filter: var(--panel-blur);
+}
+
+.cmp-side-status .notice.error {
+  background: rgba(60, 22, 26, 0.85);
+  color: var(--text);
+}
+
+.cmp-side-status .float.chip {
+  position: relative;
+  height: 26px;
+  border-radius: var(--r-pill);
+  color: var(--muted);
+}
+
+/* Top floats: mode (left), A ⇄ B centred on the seam, view (right). */
+.cmp-mode-bar {
+  top: 12px;
+  left: 12px;
+}
+
+.cmp-view-bar {
+  top: 12px;
+  right: 12px;
+}
+
+.cmp-pickers {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.cmp-pickers > * {
+  pointer-events: auto;
+}
+
+.cmp-picker {
+  position: relative;
+  gap: 6px;
+  padding: 4px 4px 4px 6px;
+}
+
+.cmp-picker-a {
+  grid-column: 1;
+  justify-self: end;
+}
+
+.cmp-picker-b {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.cmp-picker select.variant-select {
+  max-width: 172px;
+  height: 26px;
+}
+
+button.cmp-swap {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--muted);
+}
+
+button.cmp-swap:hover:not(:disabled) {
+  background: var(--surface-2);
+  box-shadow: none;
+  color: var(--text);
+}
+
+/* The variant letter: on the pickers, the descriptions and the element rows. */
+.cmp-badge,
+.cmp-tag {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text);
+  font: 600 10px / 1 var(--font-mono);
+}
+
+.cmp-tag {
+  min-width: 16px;
+  height: 16px;
+  font-size: 9.5px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.cmp-tag.changed {
+  font-family: var(--font-ui);
+}
+
+/* Inspector column: summary, pose, element differences (fills the rest, scrolls). */
+.cmp-inspector {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 10px 0;
+}
+
+.cmp-inspector > .float {
+  position: relative;
+  flex: none;
+}
+
+.cmp-summary-body {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px 12px;
+}
+
+button.link.cmp-summary-line {
+  justify-self: start;
   padding: 0;
   color: var(--text);
+  font-size: var(--fs-lg);
   font-weight: 600;
-  text-decoration-color: var(--border-strong);
-  text-underline-offset: 3px;
+  letter-spacing: -0.01em;
+  text-decoration-color: transparent;
+  text-underline-offset: 4px;
 }
 
-button.link.compare-summary-link:hover:not(:disabled) {
-  text-decoration-color: currentColor;
+button.link.cmp-summary-line:hover:not(:disabled) {
+  text-decoration-color: var(--border-hover);
 }
 
-.compare-summary .compare-desc {
-  min-width: 0;
+.cmp-open {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.cmp-open-label {
   color: var(--muted);
   font-size: var(--fs-xs);
 }
 
-.compare-summary .compare-desc::before {
-  content: "·";
-  margin-right: var(--s-3);
+.cmp-open-values {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.cmp-delta {
+  min-width: 34px;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
   color: var(--faint);
+  font-size: var(--fs-2xs);
+  text-align: center;
 }
 
-.compare-grid {
+.cmp-delta.changed {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.cmp-descs {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--s-4);
+  gap: 6px;
+  margin: 0;
 }
 
-@media (max-width: 860px) {
-  .compare-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.cmp-descs > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
 }
 
-.compare-side {
+.cmp-descs dd {
+  margin: 1px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: var(--lh);
+}
+
+.cmp-legend {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  line-height: 1.5;
+}
+
+.cmp-swatch {
+  padding: 0 4px;
+  border-radius: var(--r-xs);
+  font-weight: 600;
+}
+
+.cmp-swatch.more {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.cmp-swatch.less {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.cmp-pose {
+  padding: 10px 12px 12px;
+}
+
+/* The pose panel sits in a float already: no second box around it. */
+.cmp-pose .pose-control.panel {
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.cmp-inspector > .cmp-diff {
+  flex: 0 1 auto;
+  min-height: 120px;
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
-  min-width: 0;
-}
-
-.compare-side > p.compare-desc {
-  margin: 0 2px;
-}
-
-/* The arms leave room for the coverage tables below them on a laptop screen. */
-.compare-side .canvas-wrap {
-  height: max(300px, calc(100dvh - var(--header-h) - 410px));
-}
-
-.compare-diff {
-  margin-top: var(--s-3);
   scroll-margin-top: calc(var(--header-h) + var(--s-3));
 }
 
-.compare-diff:focus {
+.cmp-diff:focus {
   outline: none;
 }
 
-.compare-diff ul {
-  margin: var(--s-2) 0;
-  padding-left: 1.2em;
+.cmp-diff:focus-visible {
+  box-shadow: var(--shadow-float), var(--focus-ring);
 }
 
-/* Below this width the toolbar would wrap: views go back to the short names. */
+.cmp-count {
+  font-size: var(--fs-2xs);
+}
+
+.cmp-diff-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 12px 12px;
+}
+
+.cmp-none {
+  margin: 10px 12px;
+}
+
+.cmp-diff-body > .cmp-none,
+.cmp-summary-body > .cmp-none {
+  margin: 0;
+}
+
+.cmp-group {
+  margin-top: 10px;
+}
+
+.cmp-group h3 {
+  margin-bottom: 2px;
+}
+
+.cmp-group-sub {
+  color: var(--muted);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.cmp-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cmp-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 26px;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border-radius: var(--r-sm);
+}
+
+.cmp-row:hover {
+  background: var(--hover);
+}
+
+.cmp-row code {
+  padding: 0;
+  background: none;
+  color: var(--text);
+  font: 500 var(--fs-xs) var(--font-mono);
+}
+
+.cmp-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.cmp-field {
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+}
+
+.cmp-same {
+  color: var(--faint);
+  font: var(--fs-2xs) / 1.6 var(--font-mono);
+}
+
+.cmp-hint {
+  flex: none;
+  margin: auto 4px 0;
+  font-size: var(--fs-2xs);
+}
+
+/* Below this width the top floats would touch: views go back to the short names. */
 @media (max-width: 1360px) {
   .compare-page .view-side {
     display: none;
   }
 }
 
-.empty.compare-empty button {
-  margin-top: var(--s-2);
+@media (max-width: 1240px) {
+  .compare-page {
+    --cmp-cov-w: 264px;
+  }
+}
+
+/* Narrow windows: the inspector moves under the arms. */
+@media (max-width: 1100px) {
+  .compare-page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: max(560px, calc(100dvh - var(--header-h))) auto;
+    height: auto;
+  }
+  .cmp-inspector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    align-items: start;
+    padding: 12px;
+  }
+  .cmp-hint {
+    grid-column: 1 / -1;
+  }
+  .compare-page .cmp-mode-bar {
+    top: auto;
+    bottom: 12px;
+    left: 50%;
+    translate: -50% 0;
+  }
+  .compare-page .cmp-view-bar {
+    top: 56px;
+    right: auto;
+    left: 50%;
+    translate: -50% 0;
+  }
+  .compare-page {
+    --cmp-top: 100px;
+  }
 }
 
 /* ── Projection tab (docs/adr/0006) ───────────────────────────────────────────────────────────── */
