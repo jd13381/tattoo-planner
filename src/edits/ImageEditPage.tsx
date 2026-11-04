@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Rea
 import { facets, filterAssets, NO_FILTER, type AssetFilter } from "../assets/filter.ts";
 import { announceManifestChanged, useAssetListing } from "../assets/useAssets.ts";
 import { assetImageUrl, type AssetInfo } from "../assets/types.ts";
-import { rootAssetId, staleJobs } from "./edit.ts";
+import { rootAssetId, showInStudio, staleJobs } from "./edit.ts";
 import { FocusView, JobTile } from "./StudioResults.tsx";
 import {
   artboardAspect,
@@ -106,7 +106,7 @@ export function ImageEditPage() {
   const [backdrop, setBackdrop] = useState<"light" | "dark">("light");
 
   const assets = useMemo(
-    () => (listing?.status === "ok" ? listing.assets.filter((a) => a.exists) : []),
+    () => (listing?.status === "ok" ? listing.assets.filter((a) => a.exists && showInStudio(a)) : []),
     [listing],
   );
   const kinds = useMemo(() => facets(assets.map((a) => a.kind)), [assets]);

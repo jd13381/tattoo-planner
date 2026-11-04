@@ -13,6 +13,7 @@ import {
   parseStreamLine,
   readPngInfo,
   rootAssetId,
+  showInStudio,
   staleJobs,
 } from "../src/edits/edit.ts";
 import { EditManager, editOptionsFromEnv, type Runner } from "../src/edits/server/editsApi.ts";
@@ -328,5 +329,16 @@ describe("staleJobs", () => {
       { id: "f", assetId: "m", state: "done" as const },
     ];
     expect(staleJobs(jobs, "m", new Set(["f"]))).toEqual(["a", "c"]);
+  });
+});
+
+describe("showInStudio", () => {
+  it("hides arm photos and photos of existing tattoos", () => {
+    expect(showInStudio({ kind: "reference", file: "refs/medusa.png" })).toBe(true);
+    expect(showInStudio({ kind: "idea", file: "generated/dreieck-1.png" })).toBe(true);
+    expect(showInStudio({ kind: "arm-photo", file: "arm-photos/front.JPG" })).toBe(false);
+    expect(showInStudio({ kind: "existing", file: "existing/anubis.jpg" })).toBe(false);
+    // By folder too, whatever the kind says.
+    expect(showInStudio({ kind: "reference", file: "Arm-Photos/anubis1_nr.JPG" })).toBe(false);
   });
 });
