@@ -548,7 +548,7 @@ To be copied into `CLAUDE.md`:
 - **Documentation, code comments, commit messages: English.** (Conversation with Jan may be German.)
 - **Never commit images, PDFs or exports.** All binary/visual data lives in `TATTOO_DATA_DIR` (Seafile). Respect the pre-commit guard; never bypass it.
 - Read paths only via `TATTOO_DATA_DIR`; never hard-code Jan's absolute paths in committed files.
-- No public deployment, no uploading assets to third-party services.
+- No public deployment; the planner stays local. Sending an image to an image-edit service (OpenAI, for generative edits; Jan, 2026-11-04) is fine; never put data-folder files into a git repo or anywhere public.
 - Prefer small, reviewable commits per phase step; keep `README.md` current.
 - Record significant technical choices as ADRs in `docs/adr/`.
 - When in doubt about design intent (motifs, placement, style), consult `PROJECT_BRIEF.md` §3–§9; ask Jan rather than inventing design decisions. The tool visualises Jan's ideas — it does not design the tattoo.
