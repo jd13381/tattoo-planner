@@ -1,27 +1,30 @@
-// "Image studio" tab. Edit: pick a reference image, say what to change, and let either `claude -p` on
-// this Mac do it with local tools (ADR 0007) or GPT Image redraw it (ADR 0008). Create: describe a new
-// motif or pattern and let GPT Image draw it (ADR 0009). With GPT Image, assets can be attached as
-// reference images. Results are previews until kept; keeping writes a new image into edits/ or
-// generated/ and a new manifest entry, originals stay untouched. UI only: the rules live in edit.ts,
-// openai.ts, studio.ts and the server.
+// "Image studio" tab. Edit: pick a reference image, start an editing session on it and say what to
+// change; `claude -p` on this Mac does it with local tools (ADR 0007) or GPT Image redraws it (ADR 0008).
+// Create: describe a new motif and let GPT Image draw it (ADR 0009). A session (ADR 0010) is a version
+// strip v0 → v1 → …: every run starts from the last version, "Continue with this" makes a result the
+// next version, "Save & close" writes the last version into edits/ (or generated/) as a new manifest
+// entry and ends the session. Originals stay untouched. UI only: the rules live in session.ts,
+// studio.ts, edit.ts, openai.ts and the server.
 //
-// Layout (full-bleed workspace): asset browser | canvas (source, variants grid, focus view) | inspector.
+// Layout (full-bleed workspace): asset browser | canvas (version strip, attempts, focus view) | inspector.
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { facets, filterAssets, NO_FILTER, type AssetFilter } from "../assets/filter.ts";
 import { announceManifestChanged, useAssetListing } from "../assets/useAssets.ts";
 import { assetImageUrl, type AssetInfo } from "../assets/types.ts";
-import { rootAssetId, showInStudio, staleJobs } from "./edit.ts";
-import { FocusView, JobTile } from "./StudioResults.tsx";
+import { showInStudio } from "./edit.ts";
 import {
-  artboardAspect,
-  formatUsd,
-  hasResult,
-  runEstimate,
-  runLabel,
-  spentUsd,
-  splitRound,
-  stepId,
-} from "./studio.ts";
+  attemptsFrom,
+  closeQuestion,
+  dropQuestion,
+  familyOf,
+  parentIndex,
+  sessionForAsset,
+  sessionJobs,
+  unsavedWork,
+  versionLabel,
+} from "./session.ts";
+import { FocusView, JobTile, resultUrl, VersionStrip, type StripVersion } from "./StudioResults.tsx";
+import { artboardAspect, formatUsd, hasResult, runEstimate, runLabel, spentUsd, stepId } from "./studio.ts";
 import {
   CREATE_BACKGROUNDS,
   CREATE_SIZES,
@@ -36,6 +39,9 @@ import {
   type EditMode,
   type EditOverview,
   type EditRequest,
+  type EditSession,
+  type SessionRequest,
+  sessionUrl,
 } from "./types.ts";
 
 /** Running limits per engine; the server enforces the same numbers. */
@@ -84,13 +90,35 @@ function useEditOverview(): { overview: EditOverview | null; error: string | nul
   return { overview, error, refresh };
 }
 
+type Backdrop = "light" | "dark";
+const BACKDROP_KEY = "tattoo-planner:studio-backdrop";
+
+/** Dark by default (the whole planner is dark); Light stays one click away for black line work. */
+function useBackdrop(): [Backdrop, (b: Backdrop) => void] {
+  const [backdrop, setBackdrop] = useState<Backdrop>(() => {
+    try {
+      return localStorage.getItem(BACKDROP_KEY) === "light" ? "light" : "dark";
+    } catch {
+      return "dark";
+    }
+  });
+  const set = useCallback((b: Backdrop) => {
+    setBackdrop(b);
+    try {
+      localStorage.setItem(BACKDROP_KEY, b);
+    } catch {
+      // per-viewer convenience only
+    }
+  }, []);
+  return [backdrop, set];
+}
+
 export function ImageEditPage() {
-  const { listing, reload } = useAssetListing();
+  const { listing, reload, scanNote } = useAssetListing();
   const { overview, error: serviceError, refresh } = useEditOverview();
   const [filter, setFilter] = useState<AssetFilter>(NO_FILTER);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
-  const [refineFrom, setRefineFrom] = useState<EditJob | null>(null);
   const [engine, setEngine] = useState<EditEngine>("claude");
   const [variants, setVariants] = useState(2);
   const [mode, setMode] = useState<EditMode>("edit");
@@ -98,12 +126,14 @@ export function ImageEditPage() {
   const [name, setName] = useState("");
   const [size, setSize] = useState<CreateSize>("1024x1024");
   const [background, setBackground] = useState<CreateBackground>("transparent");
+  const [createSessionId, setCreateSessionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  // Canvas view: the job shown large (focus view), whether the grid shows the source, the backdrop.
+  const [flash, setFlash] = useState<string | null>(null);
+  // Canvas view: the version whose attempts are shown (null: the last one), the job shown large.
+  const [viewIndex, setViewIndex] = useState<number | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
-  const [showSource, setShowSource] = useState(true);
-  const [backdrop, setBackdrop] = useState<"light" | "dark">("light");
+  const [backdrop, setBackdrop] = useBackdrop();
 
   const assets = useMemo(
     () => (listing?.status === "ok" ? listing.assets.filter((a) => a.exists && showInStudio(a)) : []),
@@ -113,36 +143,74 @@ export function ImageEditPage() {
   const tags = useMemo(() => facets(assets.flatMap((a) => a.tags)), [assets]);
   const shown = useMemo(() => filterAssets(assets, filter), [assets, filter]);
   const selected = assets.find((a) => a.id === selectedId) ?? null;
-  const root = selected ? rootAssetId(selected) : null;
-  // A new image (create, not yet edited further) is always drawn by GPT Image.
-  const creatingNew = mode === "create" && !refineFrom;
+  const sessions = useMemo(() => overview?.sessions ?? [], [overview]);
+  const allJobs = useMemo(() => overview?.jobs ?? [], [overview]);
+  const editing = new Set(sessions.flatMap((s) => (s.mode === "edit" && s.assetId ? [s.assetId] : [])));
+  const createSessions = sessions.filter((s) => s.mode === "create");
+
+  // The session on screen: the one on the picked image, or the new image being made.
+  const session: EditSession | null =
+    mode === "edit"
+      ? selected
+        ? sessionForAsset(sessions, selected.id)
+        : null
+      : (createSessions.find((s) => s.id === createSessionId) ?? null);
+  const own = session ? sessionJobs(allJobs, session.id) : [];
+  const byId = new Map(own.map((j) => [j.id, j]));
+  const last = session?.versions.length ?? 0;
+  const view = viewIndex === null || viewIndex > last ? last : viewIndex;
+  const attempts = session ? attemptsFrom(session, allJobs, view) : [];
+  const focusJob = own.find((j) => j.id === focusId) ?? null;
+
+  const creatingNew = session?.mode === "create" && last === 0;
   const activeEngine: EditEngine = creatingNew ? "openai" : engine;
-  const jobs = (overview?.jobs ?? [])
-    .filter((j) => (mode === "create" ? !!j.created : !j.created && j.assetId === root))
-    .toReversed();
-  const { open: openJobs, earlier } = splitRound(jobs);
-  const focusJob = jobs.find((j) => j.id === focusId) ?? null;
   const availability = activeEngine === "openai" ? overview?.generative : overview?.availability;
-  const runningCount =
-    overview?.jobs.filter((j) => j.state === "running" && j.engine === activeEngine).length ?? 0;
+  const runningCount = allJobs.filter((j) => j.state === "running" && j.engine === activeEngine).length;
   const count =
     activeEngine === "openai" ? Math.max(1, Math.min(variants, MAX_RUNNING.openai - runningCount)) : 1;
-  const usesRefs = activeEngine === "openai";
-  const spent = spentUsd(jobs);
+  const usesRefs = activeEngine === "openai" && !!session;
+  const spent = spentUsd(own);
+
+  const versionSrc = (k: number): string | null => {
+    if (!session) return null;
+    if (k === 0) return session.mode === "edit" && session.assetId ? assetImageUrl(session.assetId) : null;
+    const job = byId.get(session.versions[k - 1]!);
+    return job ? resultUrl(job) : null;
+  };
+  const strip: StripVersion[] = session
+    ? Array.from({ length: last + 1 }, (_, k) => {
+        const job = k === 0 ? undefined : byId.get(session.versions[k - 1]!);
+        return {
+          index: k,
+          src: versionSrc(k),
+          ...(job?.kept ? { saved: job.kept.id } : {}),
+          title:
+            k === 0
+              ? (session.assetId ?? session.create?.name ?? "")
+              : [job?.instructions.at(-1), job?.kept && `saved as ${job.kept.id}`].filter(Boolean).join("\n"),
+        };
+      })
+    : [];
+  const sessionTitle = session
+    ? session.mode === "edit"
+      ? (session.assetId ?? "")
+      : session.create?.name || "new image"
+    : "";
+
   const toggleReference = (id: string) =>
     setReferences((r) => (r.includes(id) ? r.filter((x) => x !== id) : r.length < MAX_REFS ? [...r, id] : r));
+  const resetView = () => {
+    setViewIndex(null);
+    setFocusId(null);
+    setActionError(null);
+  };
   const switchMode = (m: EditMode) => {
     setMode(m);
-    setRefineFrom(null);
-    setActionError(null);
-    setFocusId(null);
+    resetView();
   };
-
   const select = (a: AssetInfo) => {
     setSelectedId(a.id);
-    setRefineFrom(null);
-    setActionError(null);
-    setFocusId(null);
+    resetView();
   };
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -158,56 +226,119 @@ export function ImageEditPage() {
     }
   };
 
-  const start = () =>
+  const startSession = () =>
     act(async () => {
-      if (!creatingNew && !refineFrom && !selected) return;
-      const body: EditRequest = {
-        instruction,
-        engine: activeEngine,
-        ...(creatingNew
+      const body: SessionRequest =
+        mode === "create"
           ? { mode: "create", name, size, background }
-          : refineFrom
-            ? { fromJob: refineFrom.id }
-            : { assetId: selected!.id }),
+          : { mode: "edit", assetId: selected!.id };
+      const s = await call<EditSession>(`${EDITS_ENDPOINT}/sessions`, "POST", body);
+      if (s.mode === "create") setCreateSessionId(s.id);
+      setInstruction("");
+      setFlash(null);
+      resetView();
+    });
+
+  const run = (text = instruction) =>
+    act(async () => {
+      if (!session) return;
+      const body: EditRequest = {
+        session: session.id,
+        instruction: text,
+        engine: activeEngine,
         ...(usesRefs && references.length > 0 ? { references } : {}),
       };
       // Each generative variant is its own request and its own result.
-      const started = await Promise.all(
-        Array.from({ length: count }, () => call<EditJob>(EDITS_ENDPOINT, "POST", body)),
-      );
-      // "Edit further" starts a new round from one result: the other unkept results of the last
-      // round no longer apply (the new jobs already hold their own copy of the chosen image).
-      if (refineFrom) {
-        const stale = staleJobs(overview?.jobs ?? [], refineFrom.assetId, new Set(started.map((j) => j.id)));
-        await Promise.all(stale.map((id) => call(jobUrl(id, "discard"), "POST")));
+      await Promise.all(Array.from({ length: count }, () => call<EditJob>(EDITS_ENDPOINT, "POST", body)));
+      setViewIndex(null);
+      setFocusId(null);
+    });
+
+  const pick = (job: EditJob) => {
+    if (!session) return;
+    const k = parentIndex(session.versions, job);
+    if (k === null || session.versions[k] === job.id) return;
+    const q = dropQuestion(k + 1, last);
+    if (q && !window.confirm(q)) return;
+    void act(async () => {
+      await call(sessionUrl(session.id, "pick"), "POST", { job: job.id });
+      setViewIndex(null);
+      setFocusId(null);
+    });
+  };
+
+  const continueFrom = (k: number) => {
+    if (!session) return;
+    const q = dropQuestion(k + 1, last);
+    if (q && !window.confirm(q)) return;
+    void act(async () => {
+      await call(sessionUrl(session.id, "truncate"), "POST", { length: k });
+      setViewIndex(null);
+      setFocusId(null);
+    });
+  };
+
+  const saved = (job: EditJob) => {
+    announceManifestChanged();
+    reload();
+    setFlash(`Saved as ${job.kept?.id ?? "a new image"}`);
+  };
+
+  const saveVersion = (k: number) => {
+    if (!session || k < 1) return;
+    void act(async () =>
+      saved(await call<EditJob>(sessionUrl(session.id, "save"), "POST", { job: session.versions[k - 1] })),
+    );
+  };
+
+  const saveAndClose = () => {
+    if (!session || last === 0) return;
+    const work = unsavedWork(session, allJobs);
+    if (
+      work.running > 0 &&
+      !window.confirm(`Stop ${work.running} running edit${work.running === 1 ? "" : "s"} and close?`)
+    )
+      return;
+    void act(async () => {
+      const top = byId.get(session.versions.at(-1)!);
+      const job = top?.kept ? top : await call<EditJob>(sessionUrl(session.id, "save"), "POST", {});
+      await call(sessionUrl(session.id, "close"), "POST");
+      saved(job);
+      setInstruction("");
+      resetView();
+      // Next round: the saved image is picked, one click on "Start editing" away.
+      if (job.kept) {
+        setMode("edit");
+        setSelectedId(job.kept.id);
       }
-      setInstruction("");
-      setRefineFrom(null);
-      setFocusId(null);
+      setCreateSessionId(null);
     });
+  };
 
-  const keep = (job: EditJob) =>
-    act(async () => {
-      await call<EditJob>(jobUrl(job.id, "keep"), "POST");
-      announceManifestChanged();
-      reload();
-    });
-
-  const actionsFor = (job: EditJob) => ({
-    busy,
-    onKeep: () => void keep(job),
-    onDiscard: () => void act(() => call(jobUrl(job.id, "discard"), "POST")),
-    onCancel: () => void act(() => call(jobUrl(job.id, "cancel"), "POST")),
-    onRefine: () => {
-      setRefineFrom(job);
+  const closeSession = () => {
+    if (!session) return;
+    const q = closeQuestion(unsavedWork(session, allJobs));
+    if (q && !window.confirm(q)) return;
+    void act(async () => {
+      await call(sessionUrl(session.id, "close"), "POST");
+      setCreateSessionId(null);
       setInstruction("");
-      setFocusId(null);
-      document.getElementById("edit-instruction")?.focus();
-    },
-  });
+      resetView();
+    });
+  };
 
-  // Focus view: Esc goes back to the grid, ← / → step through the results with an image.
-  const focusIds = jobs.filter(hasResult).map((j) => j.id);
+  const actionsFor = (job: EditJob) => {
+    const i = session ? session.versions.indexOf(job.id) : -1;
+    return {
+      busy,
+      versionIndex: i === -1 ? null : i + 1,
+      onPick: () => pick(job),
+      onCancel: () => void act(() => call(jobUrl(job.id, "cancel"), "POST")),
+    };
+  };
+
+  // Focus view: Esc goes back to the grid, ← / → step through the results of this version.
+  const focusIds = attempts.filter(hasResult).map((j) => j.id);
   const focusKey = focusIds.join(" ");
   useEffect(() => {
     if (!focusId) return;
@@ -256,30 +387,15 @@ export function ImageEditPage() {
       </div>
     );
 
-  const canRun =
-    (creatingNew || !!refineFrom || !!selected) &&
-    !!instruction.trim() &&
-    !busy &&
-    availability?.enabled === true &&
-    runningCount < MAX_RUNNING[activeEngine];
+  const atLimit = runningCount >= MAX_RUNNING[activeEngine];
+  const canRetry = !!session && !busy && availability?.enabled === true && !atLimit;
+  const canRun = canRetry && !!instruction.trim();
   const engineLabel = availability?.enabled
     ? "claude" in availability
       ? availability.claude
       : availability.model
     : null;
-  // What the edit starts from: a result being edited further, or the picked image.
-  const sourceSrc = refineFrom
-    ? `${jobUrl(refineFrom.id, "output")}?v=${refineFrom.finishedAt ?? ""}`
-    : selected && mode === "edit"
-      ? assetImageUrl(selected.id)
-      : null;
-  const sourceCaption = refineFrom
-    ? "Result being edited further"
-    : selected
-      ? [selected.file, selected.derived_from && `edit of ${selected.derived_from}`]
-          .filter(Boolean)
-          .join(" · ")
-      : "";
+  const lastAttempt = attempts.at(-1);
 
   // ── Left: asset browser ──
   let browser: ReactNode;
@@ -287,8 +403,8 @@ export function ImageEditPage() {
     browser = (
       <div className="studio-assets-empty">
         <p className="muted small">
-          No images in the manifest yet. Run <code>npm run assets:scan</code> after adding files to the data
-          folder, then Reload.
+          No images yet. Copy them into <code>refs/</code> (or <code>cards/</code>, <code>existing/</code>) in
+          the data folder, then click Reload.
         </p>
       </div>
     );
@@ -331,8 +447,8 @@ export function ImageEditPage() {
         <p className="studio-assets-hint faint">
           {mode === "edit"
             ? usesRefs
-              ? "Click to edit · corner button adds a reference"
-              : "Click an image to edit it"
+              ? "Click to pick · corner button adds a reference"
+              : "Click an image to pick it"
             : `Click to add as reference · up to ${MAX_REFS}`}
         </p>
         {shown.length === 0 ? (
@@ -349,11 +465,18 @@ export function ImageEditPage() {
                     type="button"
                     className={`studio-thumb${current ? " current" : ""}`}
                     aria-pressed={current}
-                    title={[a.id, a.file, a.notes].filter(Boolean).join("\n")}
+                    title={[a.id, a.file, a.notes, editing.has(a.id) && "editing session open"]
+                      .filter(Boolean)
+                      .join("\n")}
                     onClick={() => (mode === "edit" ? select(a) : toggleReference(a.id))}
                   >
                     <img src={assetImageUrl(a.id)} alt="" loading="lazy" decoding="async" />
                     <span className="studio-thumb-id">{a.id}</span>
+                    {editing.has(a.id) && (
+                      <span className="thumb-session" aria-label="Editing session open">
+                        editing
+                      </span>
+                    )}
                   </button>
                   {usesRefs && mode === "edit" && (
                     <button
@@ -384,58 +507,177 @@ export function ImageEditPage() {
   // ── Centre: canvas ──
   let canvas: ReactNode;
   let barTitle: ReactNode;
-  if (mode === "edit" && !selected) {
-    barTitle = <span className="muted">No image picked</span>;
-    canvas = (
-      <div className="studio-center">
-        <section className="empty studio-hint">
-          <h2>Pick an image on the left</h2>
-          <p>
-            Then describe the change on the right. <strong>Local</strong> edits (remove the background, crop,
-            contrast) run on this Mac with Claude Code and local tools and keep the pixels as they are.{" "}
-            <strong>Generative</strong> edits (fewer snakes, move the skull, fill in behind a hand) are
-            redrawn by GPT Image through the OpenAI API. The original stays as it is and each result is a
-            preview until you keep it.
-          </p>
-        </section>
-      </div>
-    );
-  } else {
-    barTitle =
-      mode === "create" ? (
-        <>
-          <strong>{refineFrom ? "Editing a new image" : name.trim() || "New image"}</strong>
-          {!refineFrom && (
-            <span className="faint mono">
-              {size === "auto" ? "auto" : size.replace("x", " × ")} · {background}
-            </span>
-          )}
-        </>
-      ) : (
-        <>
-          <strong>{selected!.id}</strong>
-          <span className="faint studio-bar-file">{sourceCaption}</span>
-        </>
-      );
-    if (focusJob) {
-      canvas = <FocusView job={focusJob} {...actionsFor(focusJob)} />;
-    } else if (jobs.length === 0) {
+  if (!session) {
+    // Browse: no session open. The picked image (or the artboard of a new one) and its saved versions.
+    if (mode === "edit" && !selected) {
+      barTitle = <span className="muted">No image picked</span>;
       canvas = (
         <div className="studio-center">
-          {sourceSrc ? (
+          <section className="empty studio-hint">
+            <h2>Pick an image on the left</h2>
+            <p>
+              Then click <strong>Start editing</strong>. In a session every run starts from the latest
+              version; pick the result you like with <strong>Continue with this</strong>, and when it is
+              right, <strong>Save &amp; close</strong> writes it as a new image. The original stays as it is.
+            </p>
+          </section>
+        </div>
+      );
+    } else if (mode === "edit") {
+      const family = familyOf(assets, selected!.id);
+      barTitle = (
+        <>
+          <strong>{selected!.id}</strong>
+          <span className="faint studio-bar-file">
+            {[selected!.file, selected!.derived_from && `edit of ${selected!.derived_from}`]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        </>
+      );
+      canvas = (
+        <div className="studio-browse">
+          <figure className="studio-hero">
+            <div className="checker">
+              <img src={assetImageUrl(selected!.id)} alt={selected!.id} />
+            </div>
+          </figure>
+          {family.length > 1 && (
+            <div className="float studio-family">
+              <span className="tile-label">Versions of {family[0]!.id}</span>
+              <ul>
+                {family.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      className={`family-item${a.id === selected!.id ? " current" : ""}`}
+                      aria-pressed={a.id === selected!.id}
+                      title={[a.id, a.notes].filter(Boolean).join("\n")}
+                      onClick={() => select(a)}
+                    >
+                      <span className="checker">
+                        <img src={assetImageUrl(a.id)} alt="" loading="lazy" />
+                      </span>
+                      <span className="mono">{a.id}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      );
+    } else {
+      barTitle = (
+        <>
+          <strong>{name.trim() || "New image"}</strong>
+          <span className="faint mono">
+            {size === "auto" ? "auto" : size.replace("x", " × ")} · {background}
+          </span>
+        </>
+      );
+      canvas = (
+        <div className="studio-center">
+          <figure className="studio-artboard" style={{ "--aspect": artboardAspect(size) } as CSSProperties}>
+            <div className={`artboard-frame${background === "transparent" ? " checker" : ""}`}>
+              <span className="mono">{size === "auto" ? "auto size" : size.replace("x", " × ")}</span>
+              <span className="faint">Name it on the right, then click New image</span>
+            </div>
+          </figure>
+        </div>
+      );
+    }
+  } else {
+    barTitle = (
+      <>
+        <strong>
+          {session.mode === "edit" ? "Editing" : "New image"} {sessionTitle}
+        </strong>
+        <span className="faint mono">
+          {last === 0 ? "no version yet" : `${last} version${last === 1 ? "" : "s"}`}
+        </span>
+      </>
+    );
+    const viewSrc = versionSrc(view);
+    const viewJob = view === 0 ? undefined : byId.get(session.versions[view - 1]!);
+    const head = (
+      <div className="studio-round-head">
+        <span className="tile-label">
+          {attempts.length === 0 ? versionLabel(view) : `Results from ${versionLabel(view)}`}
+        </span>
+        {view < last ? (
+          <>
+            <span className="faint small">
+              Earlier version · the next run starts from {versionLabel(last)}
+            </span>
+            <span className="spacer" />
+            <button type="button" className="small-button" disabled={busy} onClick={() => continueFrom(view)}>
+              Continue from {versionLabel(view)}
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="faint small">The next run starts here</span>
+            <span className="spacer" />
+            {lastAttempt && (
+              <button
+                type="button"
+                className="ghost small-button"
+                disabled={!canRetry}
+                title={`Run "${lastAttempt.instructions.at(-1) ?? ""}" again on ${versionLabel(view)}`}
+                onClick={() => {
+                  const text = lastAttempt.instructions.at(-1) ?? "";
+                  setInstruction(text);
+                  void run(text);
+                }}
+              >
+                Try again
+              </button>
+            )}
+          </>
+        )}
+        {viewJob && !viewJob.kept && (
+          <button
+            type="button"
+            className="ghost small-button"
+            disabled={busy}
+            onClick={() => saveVersion(view)}
+          >
+            Save {versionLabel(view)}
+          </button>
+        )}
+        {viewJob?.kept && <span className="chip ok">saved as {viewJob.kept.id}</span>}
+      </div>
+    );
+    let main: ReactNode;
+    if (focusJob) {
+      main = <FocusView job={focusJob} {...actionsFor(focusJob)} />;
+    } else if (attempts.length === 0) {
+      main = (
+        <div className="studio-center">
+          {viewSrc ? (
             <figure className="studio-hero">
               <div className="checker">
-                <img src={sourceSrc} alt="Image to edit" />
+                <img src={viewSrc} alt={versionLabel(view)} />
               </div>
               <figcaption>
-                <span className="tile-label">{refineFrom ? "Source" : "Original"}</span>
-                <span className="faint">Describe the change on the right, then run it.</span>
+                <span className="tile-label">{versionLabel(view)}</span>
+                <span className="faint">
+                  {view === last
+                    ? "Describe the change on the right, then run it."
+                    : "No other results from this version."}
+                </span>
               </figcaption>
             </figure>
           ) : (
-            <figure className="studio-artboard" style={{ "--aspect": artboardAspect(size) } as CSSProperties}>
-              <div className={`artboard-frame${background === "transparent" ? " checker" : ""}`}>
-                <span className="mono">{size === "auto" ? "auto size" : size.replace("x", " × ")}</span>
+            <figure
+              className="studio-artboard"
+              style={{ "--aspect": artboardAspect(session.create?.size ?? "1024x1024") } as CSSProperties}
+            >
+              <div
+                className={`artboard-frame${session.create?.background === "transparent" ? " checker" : ""}`}
+              >
+                <span className="mono">{session.create?.size.replace("x", " × ")}</span>
                 <span className="faint">
                   {references.length > 0
                     ? `${references.length} reference${references.length === 1 ? "" : "s"} attached`
@@ -447,66 +689,55 @@ export function ImageEditPage() {
         </div>
       );
     } else {
-      const tiles = openJobs.length;
-      const withSource = showSource && !!sourceSrc;
-      canvas = (
-        <div className="studio-results">
-          {(tiles > 0 || withSource) && (
-            <ul
-              className="studio-grid"
-              style={{ "--n": Math.max(1, tiles + (withSource ? 1 : 0)) } as CSSProperties}
-            >
-              {withSource && (
-                <li className="studio-tile source">
-                  <div className="tile-head">
-                    <span className="tile-label">{refineFrom ? "Source" : "Original"}</span>
-                    <span className="faint small">before</span>
-                  </div>
-                  <div className="tile-image checker">
-                    <img src={sourceSrc} alt="Before" />
-                  </div>
-                  <p className="tile-text faint">{sourceCaption}</p>
-                </li>
-              )}
-              {openJobs.map((job, i) => (
-                <JobTile
-                  key={job.id}
-                  job={job}
-                  label={tiles > 1 ? `Variant ${i + 1}` : "Result"}
-                  onFocus={() => setFocusId(job.id)}
-                  {...actionsFor(job)}
-                />
-              ))}
-            </ul>
+      main = (
+        <ul
+          className="studio-grid"
+          style={{ "--n": Math.max(1, attempts.length + (viewSrc ? 1 : 0)) } as CSSProperties}
+        >
+          {viewSrc && (
+            <li className="studio-tile source">
+              <div className="tile-head">
+                <span className="tile-label">{versionLabel(view)}</span>
+                <span className="faint small">before</span>
+              </div>
+              <div className="tile-image checker">
+                <img src={viewSrc} alt="Before" />
+              </div>
+              <p className="tile-text faint">
+                {view === 0 ? sessionTitle : (viewJob?.instructions.at(-1) ?? "")}
+              </p>
+            </li>
           )}
-          {earlier.length > 0 && (
-            <>
-              <h3 className="section-label studio-earlier-head">
-                Earlier <span className="mono">{earlier.length}</span>
-              </h3>
-              <ul className="studio-grid compact">
-                {earlier.map((job) => (
-                  <JobTile
-                    key={job.id}
-                    job={job}
-                    label={
-                      job.state === "kept" ? "Kept" : job.state === "discarded" ? "Discarded" : "Stopped"
-                    }
-                    compact
-                    onFocus={() => setFocusId(job.id)}
-                    {...actionsFor(job)}
-                  />
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
+          {attempts.map((job, i) => (
+            <JobTile
+              key={job.id}
+              job={job}
+              label={`Result ${i + 1}`}
+              onFocus={() => setFocusId(job.id)}
+              {...actionsFor(job)}
+            />
+          ))}
+        </ul>
       );
     }
+    canvas = (
+      <div className="studio-session">
+        <VersionStrip
+          versions={strip}
+          viewing={view}
+          onView={(k) => {
+            setViewIndex(k);
+            setFocusId(null);
+          }}
+        />
+        {head}
+        <div className="studio-session-main">{main}</div>
+      </div>
+    );
   }
 
-  const running = jobs.filter((j) => j.state === "running").length;
-  const ready = jobs.filter((j) => j.state === "done").length;
+  const running = own.filter((j) => j.state === "running").length;
+  const ready = own.filter((j) => j.state === "done" && !session?.versions.includes(j.id)).length;
 
   return (
     <div className={`studio backdrop-${backdrop}`}>
@@ -517,10 +748,16 @@ export function ImageEditPage() {
             {shown.length === assets.length ? assets.length : `${shown.length}/${assets.length}`}
           </span>
           <span className="spacer" />
-          <button type="button" className="ghost small-button" onClick={reload} title="Re-read manifest.yaml">
+          <button
+            type="button"
+            className="ghost small-button"
+            onClick={reload}
+            title="Look for new images in the data folder (as npm run assets:scan), then re-read manifest.yaml"
+          >
             Reload
           </button>
         </div>
+        {scanNote && <p className="studio-scan-note faint small">{scanNote}</p>}
         <div className="studio-assets-body">{browser}</div>
       </aside>
 
@@ -532,9 +769,7 @@ export function ImageEditPage() {
                 ← All results
               </button>
               <span className="toolbar-sep" />
-              <strong className="studio-bar-title">
-                {focusJob.kept?.id ?? focusJob.instructions.at(-1)}
-              </strong>
+              <strong className="studio-bar-title">{focusJob.instructions.at(-1)}</strong>
               {focusIds.length > 1 && (
                 <span className="button-pair">
                   <button
@@ -560,42 +795,61 @@ export function ImageEditPage() {
             <span className="studio-bar-title">{barTitle}</span>
           )}
           <span className="spacer" />
-          {!focusJob && jobs.length > 0 && sourceSrc && (
-            <label className="inline small studio-switch">
-              <input
-                type="checkbox"
-                role="switch"
-                className="switch"
-                checked={showSource}
-                onChange={(e) => setShowSource(e.target.checked)}
-              />
-              Before
-            </label>
-          )}
           <span className="segmented" role="group" aria-label="Backdrop">
-            {(["light", "dark"] as const).map((b) => (
+            {(["dark", "light"] as const).map((b) => (
               <button
                 key={b}
                 type="button"
                 aria-pressed={backdrop === b}
-                title={`${b === "light" ? "Light" : "Dark"} checkerboard behind the images`}
+                title={
+                  b === "dark"
+                    ? "Dark checkerboard behind the images"
+                    : "Light checkerboard: shows black line work on a transparent background"
+                }
                 onClick={() => setBackdrop(b)}
               >
                 {b === "light" ? "Light" : "Dark"}
               </button>
             ))}
           </span>
+          {session && (
+            <>
+              <span className="toolbar-sep" />
+              <button type="button" className="ghost" disabled={busy} onClick={closeSession}>
+                Close
+              </button>
+              <button
+                type="button"
+                className="primary"
+                disabled={busy || last === 0}
+                title={
+                  last === 0
+                    ? "Pick a result with “Continue with this” first"
+                    : `Save ${versionLabel(last)} as a new image and end the session`
+                }
+                onClick={saveAndClose}
+              >
+                Save &amp; close
+              </button>
+            </>
+          )}
         </div>
 
         <div className="studio-canvas">{canvas}</div>
 
         <div className="float status-bar studio-status">
           <span>
-            {jobs.length === 0 ? (
-              "No results yet"
+            {flash ? (
+              <span className="ok-text">{flash}</span>
+            ) : !session ? (
+              sessions.length === 0 ? (
+                "No editing session open"
+              ) : (
+                `${sessions.length} editing session${sessions.length === 1 ? "" : "s"} open`
+              )
             ) : (
               <>
-                <span className="mono">{jobs.length}</span> result{jobs.length === 1 ? "" : "s"}
+                <span className="mono">{own.length}</span> result{own.length === 1 ? "" : "s"}
                 {running > 0 && (
                   <>
                     {" "}
@@ -605,7 +859,7 @@ export function ImageEditPage() {
                 {ready > 0 && (
                   <>
                     {" "}
-                    · <span className="mono">{ready}</span> to review
+                    · <span className="mono">{ready}</span> to choose from
                   </>
                 )}
               </>
@@ -623,8 +877,8 @@ export function ImageEditPage() {
                 <kbd className="kbd">←</kbd> <kbd className="kbd">→</kbd> step ·{" "}
                 <kbd className="kbd">Esc</kbd> back
               </>
-            ) : jobs.some(hasResult) ? (
-              "Click a result to see it large"
+            ) : session ? (
+              "Unsaved versions are lost when npm run dev stops"
             ) : (
               ""
             )}
@@ -650,257 +904,329 @@ export function ImageEditPage() {
         </div>
 
         <div className="studio-inspector-body">
-          {(serviceError || (availability && !availability.enabled)) && (
+          {(serviceError || (session && availability && !availability.enabled)) && (
             <div className="notices">
               {serviceError && <p className="notice error">{serviceError}</p>}
-              {availability && !availability.enabled && <p className="notice warn">{availability.reason}</p>}
+              {session && availability && !availability.enabled && (
+                <p className="notice warn">{availability.reason}</p>
+              )}
             </div>
           )}
 
-          {mode === "edit" && (
-            <InspectorSection title="Source">
-              {selected ? (
-                <div className="studio-source">
-                  <div className="checker">
-                    <img src={sourceSrc ?? assetImageUrl(selected.id)} alt="" />
-                  </div>
-                  <div className="studio-source-text">
-                    <strong>{refineFrom ? "Result of the last edit" : selected.id}</strong>
-                    <span className="faint">{refineFrom ? `from ${selected.id}` : sourceCaption}</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="faint small">Pick an image on the left.</p>
-              )}
-            </InspectorSection>
-          )}
-          {mode === "create" && refineFrom && (
-            <InspectorSection title="Source">
-              <div className="studio-source">
-                <div className="checker">
-                  <img src={sourceSrc ?? ""} alt="" />
-                </div>
-                <div className="studio-source-text">
-                  <strong>Result of the last run</strong>
-                  <span className="faint">{refineFrom.created?.name}</span>
-                </div>
-              </div>
-            </InspectorSection>
-          )}
-
-          <InspectorSection
-            title="Engine"
-            note={
-              engineLabel ? (
-                <span className="mono" title="Model or command that runs the edit">
-                  {engineLabel}
-                </span>
-              ) : undefined
-            }
-          >
-            {creatingNew ? (
-              <div className="engine-options single">
-                <span className="engine-option static">
-                  <strong>GPT Image</strong>
-                  <span>Draws a new image via the OpenAI API</span>
-                </span>
-              </div>
-            ) : (
-              <div className="engine-options" role="radiogroup" aria-label="Engine">
-                {(
-                  [
-                    ["claude", "Local", "Claude on this Mac, keeps the pixels"],
-                    ["openai", "Generative", "GPT Image, redraws"],
-                  ] as const
-                ).map(([value, title, sub]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    role="radio"
-                    aria-checked={engine === value}
-                    className={`engine-option${engine === value ? " on" : ""}`}
-                    onClick={() => setEngine(value)}
-                  >
-                    <strong>{title}</strong>
-                    <span>{sub}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </InspectorSection>
-
-          <InspectorSection title="Prompt">
-            {!creatingNew && (
-              <div className="edit-presets" role="group" aria-label="Presets">
-                {EDIT_PRESETS.map((p) => (
-                  <button
-                    key={p.label}
-                    type="button"
-                    className={`chip plain${p.engine === "openai" ? " gen" : ""}`}
-                    title={p.engine === "openai" ? "Generative: switches to GPT Image" : undefined}
-                    onClick={() => {
-                      setInstruction(p.instruction);
-                      if (p.engine) setEngine(p.engine);
-                    }}
-                  >
-                    {p.label.replace(" (generative)", "")}
-                    {p.engine === "openai" && <span className="gen-tag">GPT</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-            <label className="sr-only" htmlFor="edit-instruction">
-              {creatingNew ? "What should it show?" : "What should change?"}
-            </label>
-            <textarea
-              id="edit-instruction"
-              rows={6}
-              value={instruction}
-              maxLength={2000}
-              placeholder={
-                creatingNew
-                  ? "What should it show? e.g. Ein rotes Dreieck als Rahmen, Linien wie im Referenzbild; or a dotwork pattern for the forearm."
-                  : activeEngine === "openai"
-                    ? "What should change? e.g. Mache ein rotes Dreieck drumherum wie im Referenzbild (German is fine)."
-                    : "What should change? e.g. Remove the background and the text at the bottom; keep the snake's tail."
-              }
-              onChange={(e) => setInstruction(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canRun) void start();
+          {!session ? (
+            <BrowseInspector
+              mode={mode}
+              selected={selected}
+              name={name}
+              size={size}
+              background={background}
+              onName={setName}
+              onSize={setSize}
+              onBackground={setBackground}
+              openSessions={sessions}
+              allJobs={allJobs}
+              onResume={(s) => {
+                resetView();
+                if (s.mode === "create") {
+                  setMode("create");
+                  setCreateSessionId(s.id);
+                } else {
+                  setMode("edit");
+                  setSelectedId(s.assetId ?? null);
+                }
               }}
             />
-            <span className="studio-charcount mono faint">{instruction.length} / 2000</span>
-          </InspectorSection>
-
-          {usesRefs && (
-            <InspectorSection
-              title="References"
-              note={
-                <span className="mono">
-                  {references.length}/{MAX_REFS}
-                </span>
-              }
-            >
-              {references.length === 0 ? (
-                <p className="faint small">
-                  {mode === "create"
-                    ? "Optional: click images on the left to send them along."
-                    : "Optional: the + on an image on the left sends it along."}
-                </p>
-              ) : (
-                <ul className="studio-refs" aria-label="Reference images">
-                  {references.map((id, i) => (
-                    <li key={id}>
-                      <span className="ref-num mono">{i + 1}</span>
-                      <img src={assetImageUrl(id)} alt="" />
-                      <span className="studio-ref-id">{id}</span>
+          ) : (
+            <>
+              <InspectorSection
+                title="Engine"
+                note={
+                  engineLabel ? (
+                    <span className="mono" title="Model or command that runs the edit">
+                      {engineLabel}
+                    </span>
+                  ) : undefined
+                }
+              >
+                {creatingNew ? (
+                  <div className="engine-options single">
+                    <span className="engine-option static">
+                      <strong>GPT Image</strong>
+                      <span>Draws a new image via the OpenAI API</span>
+                    </span>
+                  </div>
+                ) : (
+                  <div className="engine-options" role="radiogroup" aria-label="Engine">
+                    {(
+                      [
+                        ["claude", "Local", "Claude on this Mac, keeps the pixels"],
+                        ["openai", "Generative", "GPT Image, redraws"],
+                      ] as const
+                    ).map(([value, title, sub]) => (
                       <button
+                        key={value}
                         type="button"
-                        className="ghost icon-button small-button"
-                        aria-label={`Remove reference ${id}`}
-                        onClick={() => toggleReference(id)}
+                        role="radio"
+                        aria-checked={engine === value}
+                        className={`engine-option${engine === value ? " on" : ""}`}
+                        onClick={() => setEngine(value)}
                       >
-                        ×
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </InspectorSection>
-          )}
-
-          {(creatingNew || activeEngine === "openai") && (
-            <InspectorSection title="Settings">
-              <div className="props studio-props">
-                {creatingNew && (
-                  <>
-                    <label>
-                      Name
-                      <input
-                        type="text"
-                        value={name}
-                        maxLength={60}
-                        placeholder="e.g. red triangle"
-                        onChange={(e) => setName(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Format
-                      <select value={size} onChange={(e) => setSize(e.target.value as CreateSize)}>
-                        {CREATE_SIZES.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Background
-                      <select
-                        value={background}
-                        onChange={(e) => setBackground(e.target.value as CreateBackground)}
-                      >
-                        {CREATE_BACKGROUNDS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </>
-                )}
-                <div className="props-row">
-                  <span id="variants-label">Variants</span>
-                  <span className="segmented" role="group" aria-labelledby="variants-label">
-                    {VARIANT_CHOICES.map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        className="mono"
-                        aria-pressed={variants === n}
-                        onClick={() => setVariants(n)}
-                      >
-                        {n}
+                        <strong>{title}</strong>
+                        <span>{sub}</span>
                       </button>
                     ))}
-                  </span>
-                </div>
-              </div>
-            </InspectorSection>
+                  </div>
+                )}
+              </InspectorSection>
+
+              <InspectorSection title="Prompt">
+                {!creatingNew && (
+                  <div className="edit-presets" role="group" aria-label="Presets">
+                    {EDIT_PRESETS.map((p) => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        className={`chip plain${p.engine === "openai" ? " gen" : ""}`}
+                        title={p.engine === "openai" ? "Generative: switches to GPT Image" : undefined}
+                        onClick={() => {
+                          setInstruction(p.instruction);
+                          if (p.engine) setEngine(p.engine);
+                        }}
+                      >
+                        {p.label.replace(" (generative)", "")}
+                        {p.engine === "openai" && <span className="gen-tag">GPT</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <label className="sr-only" htmlFor="edit-instruction">
+                  {creatingNew ? "What should it show?" : "What should change?"}
+                </label>
+                <textarea
+                  id="edit-instruction"
+                  rows={6}
+                  value={instruction}
+                  maxLength={2000}
+                  placeholder={
+                    creatingNew
+                      ? "What should it show? e.g. Ein rotes Dreieck als Rahmen, Linien wie im Referenzbild; or a dotwork pattern for the forearm."
+                      : activeEngine === "openai"
+                        ? "What should change? e.g. Mache ein rotes Dreieck drumherum wie im Referenzbild (German is fine)."
+                        : "What should change? e.g. Remove the background and the text at the bottom; keep the snake's tail."
+                  }
+                  onChange={(e) => setInstruction(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canRun) void run();
+                  }}
+                />
+                <span className="studio-charcount mono faint">{instruction.length} / 2000</span>
+              </InspectorSection>
+
+              {usesRefs && (
+                <InspectorSection
+                  title="References"
+                  note={
+                    <span className="mono">
+                      {references.length}/{MAX_REFS}
+                    </span>
+                  }
+                >
+                  {references.length === 0 ? (
+                    <p className="faint small">
+                      {mode === "create"
+                        ? "Optional: click images on the left to send them along."
+                        : "Optional: the + on an image on the left sends it along."}
+                    </p>
+                  ) : (
+                    <ul className="studio-refs" aria-label="Reference images">
+                      {references.map((id, i) => (
+                        <li key={id}>
+                          <span className="ref-num mono">{i + 1}</span>
+                          <img src={assetImageUrl(id)} alt="" />
+                          <span className="studio-ref-id">{id}</span>
+                          <button
+                            type="button"
+                            className="ghost icon-button small-button"
+                            aria-label={`Remove reference ${id}`}
+                            onClick={() => toggleReference(id)}
+                          >
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </InspectorSection>
+              )}
+
+              {activeEngine === "openai" && (
+                <InspectorSection title="Settings">
+                  <div className="props studio-props">
+                    <div className="props-row">
+                      <span id="variants-label">Variants</span>
+                      <span className="segmented" role="group" aria-labelledby="variants-label">
+                        {VARIANT_CHOICES.map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            className="mono"
+                            aria-pressed={variants === n}
+                            onClick={() => setVariants(n)}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </span>
+                    </div>
+                  </div>
+                </InspectorSection>
+              )}
+            </>
           )}
         </div>
 
         <div className="studio-run">
-          <p className="studio-estimate faint">
-            <span>
-              {runningCount >= MAX_RUNNING[activeEngine]
-                ? `${MAX_RUNNING[activeEngine]} edits are running; wait for one.`
-                : runEstimate(activeEngine, count)}
-            </span>
-            {runningCount > 0 && (
-              <span className="mono">
-                {runningCount}/{MAX_RUNNING[activeEngine]} running
-              </span>
-            )}
-          </p>
-          <button
-            type="button"
-            className="primary studio-run-button"
-            disabled={!canRun}
-            onClick={() => void start()}
-          >
-            {runLabel({ creatingNew, refining: !!refineFrom, engine: activeEngine, count })}
-            <kbd className="kbd">⌘↵</kbd>
-          </button>
-          {refineFrom && (
-            <button type="button" className="ghost studio-run-alt" onClick={() => setRefineFrom(null)}>
-              {mode === "create" ? "Create a new one instead" : "Start from the original instead"}
+          {session ? (
+            <>
+              <p className="studio-estimate faint">
+                <span>
+                  {atLimit
+                    ? `${MAX_RUNNING[activeEngine]} edits are running; wait for one.`
+                    : runEstimate(activeEngine, count)}
+                </span>
+                {runningCount > 0 && (
+                  <span className="mono">
+                    {runningCount}/{MAX_RUNNING[activeEngine]} running
+                  </span>
+                )}
+              </p>
+              <button
+                type="button"
+                className="primary studio-run-button"
+                disabled={!canRun}
+                onClick={() => void run()}
+              >
+                {runLabel({ creatingNew, version: last, engine: activeEngine, count })}
+                <kbd className="kbd">⌘↵</kbd>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="primary studio-run-button"
+              disabled={busy || (mode === "edit" && !selected)}
+              onClick={() => void startSession()}
+            >
+              {mode === "edit" ? (selected ? `Start editing ${selected.id}` : "Start editing") : "New image"}
             </button>
           )}
           {actionError && <p className="error-text small studio-run-error">{actionError}</p>}
         </div>
       </aside>
     </div>
+  );
+}
+
+/** Inspector without an open session: what "Start editing" works on, settings of a new image, and the
+ * sessions still open elsewhere. */
+function BrowseInspector(props: {
+  mode: EditMode;
+  selected: AssetInfo | null;
+  name: string;
+  size: CreateSize;
+  background: CreateBackground;
+  onName: (v: string) => void;
+  onSize: (v: CreateSize) => void;
+  onBackground: (v: CreateBackground) => void;
+  openSessions: readonly EditSession[];
+  allJobs: readonly EditJob[];
+  onResume: (s: EditSession) => void;
+}) {
+  const { mode, selected, openSessions, allJobs, onResume } = props;
+  return (
+    <>
+      {mode === "edit" ? (
+        <InspectorSection title="Source">
+          {selected ? (
+            <div className="studio-source">
+              <div className="checker">
+                <img src={assetImageUrl(selected.id)} alt="" />
+              </div>
+              <div className="studio-source-text">
+                <strong>{selected.id}</strong>
+                <span className="faint">
+                  {selected.derived_from ? `edit of ${selected.derived_from}` : selected.file}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p className="faint small">Pick an image on the left.</p>
+          )}
+          <p className="faint small">
+            Start editing opens a session on this image. Results stay previews; Save &amp; close writes the
+            version you chose as a new image next to it.
+          </p>
+        </InspectorSection>
+      ) : (
+        <InspectorSection title="New image">
+          <div className="props studio-props">
+            <label>
+              Name
+              <input
+                type="text"
+                value={props.name}
+                maxLength={60}
+                placeholder="e.g. red triangle"
+                onChange={(e) => props.onName(e.target.value)}
+              />
+            </label>
+            <label>
+              Format
+              <select value={props.size} onChange={(e) => props.onSize(e.target.value as CreateSize)}>
+                {CREATE_SIZES.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Background
+              <select
+                value={props.background}
+                onChange={(e) => props.onBackground(e.target.value as CreateBackground)}
+              >
+                {CREATE_BACKGROUNDS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </InspectorSection>
+      )}
+      {openSessions.length > 0 && (
+        <InspectorSection title="Open sessions" note={<span className="mono">{openSessions.length}</span>}>
+          <ul className="studio-open-sessions">
+            {openSessions.map((s) => {
+              const n = s.versions.length;
+              const results = sessionJobs(allJobs, s.id).length;
+              return (
+                <li key={s.id}>
+                  <button type="button" className="ghost small-button" onClick={() => onResume(s)}>
+                    <span>{s.mode === "edit" ? s.assetId : `new: ${s.create?.name || "image"}`}</span>
+                    <span className="faint mono">
+                      {n} version{n === 1 ? "" : "s"} · {results} result{results === 1 ? "" : "s"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </InspectorSection>
+      )}
+    </>
   );
 }
 
