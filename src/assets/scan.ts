@@ -26,19 +26,32 @@ export function assetIdFromPath(file: string): string {
   return slug(withoutExt) || "asset";
 }
 
-export type ScanResult = { candidates: Asset[]; unsupported: string[] };
+/** Folders the planner fills itself (PDF ingest, kept edits, new images, exports): never scanned. */
+export const MANAGED_FOLDERS = ["ideas", "edits", "generated", "exports"];
+
+export type ScanResult = {
+  candidates: Asset[];
+  unsupported: string[];
+  /** Images outside the scanned and managed folders (e.g. loose in the data folder): not catalogued. */
+  outside: string[];
+};
 
 /** Manifest candidates for the given data-folder paths (forward slashes, relative to the folder). */
 export function scanCandidates(files: string[]): ScanResult {
   const candidates: Asset[] = [];
   const unsupported: string[] = [];
+  const outside: string[] = [];
   for (const file of [...files].sort()) {
     const top = file.split("/")[0]!;
-    const kind = SCAN_FOLDERS[top];
-    if (!kind || !file.includes("/")) continue;
+    const kind = file.includes("/") ? SCAN_FOLDERS[top] : undefined;
     const ext = extension(file);
+    if (!kind) {
+      const managed = file.includes("/") && MANAGED_FOLDERS.includes(top);
+      if (!managed && !top.startsWith(".") && IMAGE_EXTENSIONS.includes(ext)) outside.push(file);
+      continue;
+    }
     if (IMAGE_EXTENSIONS.includes(ext)) candidates.push({ id: assetIdFromPath(file), file, kind, tags: [] });
     else if (UNSUPPORTED_IMAGE_EXTENSIONS.includes(ext)) unsupported.push(file);
   }
-  return { candidates, unsupported };
+  return { candidates, unsupported, outside };
 }

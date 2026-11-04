@@ -17,8 +17,8 @@ import {
 } from "../src/assets/ideasLayout.ts";
 import { MANIFEST_FILE, type Asset } from "../src/assets/manifest.ts";
 import { ManifestError, mergeManifest, type MergeOptions } from "../src/assets/manifestDoc.ts";
-import { scanCandidates } from "../src/assets/scan.ts";
-import { listDataFiles, resolveDataDir } from "../src/data/server/dataDir.ts";
+import { resolveDataDir } from "../src/data/server/dataDir.ts";
+import { scanDataFolder } from "../src/data/server/scanFolder.ts";
 import { DATA_DIR_VAR } from "../src/data/types.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -90,23 +90,13 @@ async function ingest(dir: string): Promise<void> {
 }
 
 async function scan(dir: string): Promise<void> {
-  const listing = await listDataFiles(dir);
-  if (listing.status !== "ok") throw new UsageError(`cannot list ${dir}`);
-  if (listing.truncated)
-    console.warn("warning: the data folder has more files than listed; some may be missed");
-  const paths = listing.files.map((f) => f.path);
-  const present = new Set(paths);
-  const { candidates, unsupported } = scanCandidates(paths);
-  for (const asset of candidates) {
-    // A sidecar text file next to an image (refs/foo.jpg + refs/foo.txt) holds its source.
-    const sidecar = asset.file.replace(/\.[^./]+$/, ".txt");
-    if (!present.has(sidecar)) continue;
-    const text = (await readFile(path.join(dir, sidecar), "utf8")).replace(/\s+/g, " ").trim();
-    if (text) asset.source = text;
-  }
-  console.log(`scan: ${candidates.length} image(s) in cards/, refs/, existing/, arm-photos/`);
-  for (const f of unsupported) console.warn(`  skipped (format the browser cannot show): ${f}`);
-  await updateManifest(dir, candidates, {});
+  const r = await scanDataFolder(dir);
+  if (r.truncated) console.warn("warning: the data folder has more files than listed; some may be missed");
+  console.log(`scan: ${r.found} image(s) in cards/, refs/, existing/, arm-photos/`);
+  for (const f of r.unsupported) console.warn(`  skipped (format the browser cannot show): ${f}`);
+  for (const f of r.outside) console.warn(`  not catalogued (outside the scanned folders): ${f}`);
+  console.log(`${MANIFEST_FILE}: ${r.added.length} added${r.added.length ? "" : " (unchanged)"}`);
+  for (const id of r.added) console.log(`  + ${id}`);
 }
 
 const COMMANDS: Record<string, (dir: string) => Promise<void>> = { ingest, scan };

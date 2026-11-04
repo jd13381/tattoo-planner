@@ -10,7 +10,7 @@ describe("assets:scan", () => {
   });
 
   it("catalogues images in the known folders with the folder's kind", () => {
-    const { candidates, unsupported } = scanCandidates([
+    const { candidates, unsupported, outside } = scanCandidates([
       "refs/pin/medusa.webp",
       "cards/rhonas.jpg",
       "cards/rhonas.txt",
@@ -20,6 +20,9 @@ describe("assets:scan", () => {
       "ideas.pdf",
       "loose.png",
       "exports/handout.png",
+      "edits/medusa-edit-1.png",
+      "new/pegasus.jpg",
+      ".trash/x.png",
     ]);
     expect(candidates).toEqual([
       { id: "arm-photos-front", file: "arm-photos/front.JPG", kind: "arm-photo", tags: [] },
@@ -28,5 +31,6 @@ describe("assets:scan", () => {
     ]);
     for (const c of candidates) expect(assetSchema.parse(c)).toEqual(c);
     expect(unsupported).toEqual(["existing/anubis.HEIC"]);
+    expect(outside).toEqual(["loose.png", "new/pegasus.jpg"]);
   });
 });

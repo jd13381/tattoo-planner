@@ -163,7 +163,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   });
 
   // Assets: the manifest listing and the decoded images of every asset the layout uses.
-  const { listing, reload: reloadAssets } = useAssetListing();
+  const { listing, reload: reloadAssets, scanNote } = useAssetListing();
   const assetMap = useMemo(
     () => (listing?.status === "ok" ? new Map(listing.assets.map((a) => [a.id, a])) : null),
     [listing],
@@ -891,7 +891,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                       type="button"
                       className="ghost small-button"
                       onClick={reloadAssets}
-                      title="Re-read manifest.yaml and the images"
+                      title="Look for new images in the data folder, then re-read manifest.yaml and the images"
                     >
                       Reload
                     </button>
@@ -921,6 +921,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                       heading={false}
                       listing={listing}
                       onReload={reloadAssets}
+                      note={scanNote}
                       current={sel && isFigureLike(sel) ? sel.asset : undefined}
                       assignBlocked={assignBlocked}
                       onPick={pickAsset}
