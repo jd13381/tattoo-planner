@@ -113,9 +113,14 @@ function useBackdrop(): [Backdrop, (b: Backdrop) => void] {
   return [backdrop, set];
 }
 
-export function ImageEditPage() {
+/** `active`: the tab is shown; the page stays mounted while hidden, so its keys are off then. */
+export function ImageEditPage({ active = true }: { active?: boolean }) {
   const { listing, reload, scanNote } = useAssetListing();
   const { overview, error: serviceError, refresh } = useEditOverview();
+  // Coming back to the tab: fetch the jobs again (they may have finished while it was hidden).
+  useEffect(() => {
+    if (active) refresh();
+  }, [active, refresh]);
   const [filter, setFilter] = useState<AssetFilter>(NO_FILTER);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
@@ -341,7 +346,7 @@ export function ImageEditPage() {
   const focusIds = attempts.filter(hasResult).map((j) => j.id);
   const focusKey = focusIds.join(" ");
   useEffect(() => {
-    if (!focusId) return;
+    if (!focusId || !active) return;
     const ids = focusKey.split(" ");
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -355,7 +360,7 @@ export function ImageEditPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focusId, focusKey]);
+  }, [focusId, focusKey, active]);
 
   if (!listing)
     return (
