@@ -31,6 +31,7 @@ export function ArmPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
           version={0}
           bendDeg={pose.bendDeg}
           onBendDeg={pose.setBendDeg}
+          viewSides
         />
         <MeasurementsPanel
           fileValues={fileValues}

@@ -125,21 +125,37 @@ export function ImageEditPage() {
       reload();
     });
 
-  let picker: React.ReactNode;
-  if (!listing) picker = <p className="muted small">Loading…</p>;
-  else if (listing.status === "unset")
-    picker = (
-      <p className="small">
-        <code>TATTOO_DATA_DIR</code> is not set, so there are no images to edit.
-      </p>
+  if (!listing) return <p className="muted">Loading the image list…</p>;
+  // Without a readable data folder there is nothing to pick: one empty state instead of two panels.
+  if (listing.status !== "ok")
+    return (
+      <section className="empty">
+        <h2>{listing.status === "unset" ? "No images to edit" : "The image list cannot be read"}</h2>
+        <p>
+          {listing.status === "unset" ? (
+            <>
+              Reference images live in the data folder, and <code>TATTOO_DATA_DIR</code> is not set. Once it
+              is, pick an image here and describe the change; Claude Code edits it on this Mac.
+            </>
+          ) : (
+            listing.message
+          )}
+        </p>
+        <a className="button primary" href="#data">
+          Set up the data folder
+        </a>
+      </section>
     );
-  else if (listing.status === "error") picker = <p className="small error-text">{listing.message}</p>;
-  else if (assets.length === 0)
+
+  let picker: React.ReactNode;
+  if (assets.length === 0)
     picker = (
-      <p className="small muted">
-        No images in the manifest yet. Run <code>npm run assets:scan</code> after adding files to the data
-        folder.
-      </p>
+      <div className="empty small">
+        <p>
+          No images in the manifest yet. Run <code>npm run assets:scan</code> after adding files to the data
+          folder, then Reload.
+        </p>
+      </div>
     );
   else
     picker = (
@@ -151,21 +167,29 @@ export function ImageEditPage() {
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search images"
         />
-        <ul className="asset-grid">
-          {shown.map((a) => (
-            <li key={a.id}>
-              <button
-                type="button"
-                className={`asset-card${a.id === selectedId ? " current" : ""}`}
-                title={[a.id, a.file, a.notes].filter(Boolean).join("\n")}
-                onClick={() => select(a)}
-              >
-                <img src={assetImageUrl(a.id)} alt="" loading="lazy" decoding="async" />
-                <span className="asset-id">{a.id}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <p className="faint small edit-count">
+          {shown.length === assets.length ? `${assets.length} images` : `${shown.length} of ${assets.length}`}
+        </p>
+        {shown.length === 0 ? (
+          <p className="muted small">No image matches “{search}”.</p>
+        ) : (
+          <ul className="asset-grid">
+            {shown.map((a) => (
+              <li key={a.id}>
+                <button
+                  type="button"
+                  className={`asset-card${a.id === selectedId ? " current" : ""}`}
+                  aria-pressed={a.id === selectedId}
+                  title={[a.id, a.file, a.notes].filter(Boolean).join("\n")}
+                  onClick={() => select(a)}
+                >
+                  <img src={assetImageUrl(a.id)} alt="" loading="lazy" decoding="async" />
+                  <span className="asset-id">{a.id}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </>
     );
 
@@ -186,7 +210,7 @@ export function ImageEditPage() {
       <section className="panel edit-picker" aria-label="Images">
         <div className="panel-head">
           <h2>Images</h2>
-          <button type="button" onClick={reload} title="Re-read manifest.yaml">
+          <button type="button" className="ghost" onClick={reload} title="Re-read manifest.yaml">
             Reload
           </button>
         </div>
@@ -196,18 +220,36 @@ export function ImageEditPage() {
       <section className="panel edit-main" aria-label="Edit">
         <div className="panel-head">
           <h2>{selected ? selected.id : "Edit an image"}</h2>
-          {engineLabel && <span className="muted small">{engineLabel}</span>}
+          {engineLabel && (
+            <span
+              className="chip ok"
+              title={
+                engine === "openai"
+                  ? "Generative edits via the OpenAI API"
+                  : "Claude Code runs the edits on this Mac"
+              }
+            >
+              {engineLabel}
+            </span>
+          )}
         </div>
-        {serviceError && <p className="notice error small">{serviceError}</p>}
-        {availability && !availability.enabled && <p className="notice warn small">{availability.reason}</p>}
+        {(serviceError || (availability && !availability.enabled)) && (
+          <div className="notices">
+            {serviceError && <p className="notice error">{serviceError}</p>}
+            {availability && !availability.enabled && <p className="notice warn">{availability.reason}</p>}
+          </div>
+        )}
         {!selected ? (
-          <p className="muted">
-            Pick an image on the left, then describe the change. <strong>Local</strong> edits (remove the
-            background, crop, contrast) run on this Mac with Claude Code and local tools and keep the pixels
-            as they are. <strong>Generative</strong> edits (fewer snakes, move the skull, fill in behind a
-            hand) are redrawn by GPT Image through the OpenAI API. The original stays as it is and each result
-            is a preview until you keep it.
-          </p>
+          <div className="empty small edit-hint">
+            <h2>Pick an image on the left</h2>
+            <p>
+              Then describe the change. <strong>Local</strong> edits (remove the background, crop, contrast)
+              run on this Mac with Claude Code and local tools and keep the pixels as they are.{" "}
+              <strong>Generative</strong> edits (fewer snakes, move the skull, fill in behind a hand) are
+              redrawn by GPT Image through the OpenAI API. The original stays as it is and each result is a
+              preview until you keep it.
+            </p>
+          </div>
         ) : (
           <>
             <div className="edit-compose">
@@ -276,7 +318,7 @@ export function ImageEditPage() {
                     </button>
                   ))}
                 </div>
-                <label className="small" htmlFor="edit-instruction">
+                <label className="section-label" htmlFor="edit-instruction">
                   What should change?
                 </label>
                 <textarea
@@ -321,7 +363,7 @@ export function ImageEditPage() {
               </div>
             </div>
 
-            {jobs.length > 0 && <h3 className="edit-results-head">Results</h3>}
+            {jobs.length > 0 && <h3 className="section-label edit-results-head">Results ({jobs.length})</h3>}
             <ul className="edit-jobs">
               {jobs.map((job) => (
                 <JobCard
@@ -457,7 +499,7 @@ function JobCard({
           </button>
         )}
         {job.state !== "running" && job.state !== "kept" && (
-          <button type="button" onClick={onDiscard} disabled={busy}>
+          <button type="button" className="ghost" onClick={onDiscard} disabled={busy}>
             Discard
           </button>
         )}

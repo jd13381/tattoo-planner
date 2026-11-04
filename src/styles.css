@@ -1973,7 +1973,7 @@ button.asset-card {
 
 .arm-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--side-w);
+  grid-template-columns: minmax(0, 1fr) 380px;
   gap: var(--s-4);
 }
 
@@ -1993,7 +1993,7 @@ button.asset-card {
 
 .field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px 4.5em;
+  grid-template-columns: minmax(0, 1fr) 64px 5.2em;
   gap: 6px;
   align-items: center;
   min-height: 30px;
@@ -2030,13 +2030,111 @@ button.asset-card {
   color: var(--accent);
 }
 
+/* An edit that differs from the file: the whole row is marked, so changes stand out in the list. */
+.field.changed {
+  margin: 0 -8px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.field.changed > span:first-child {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.field.changed input {
+  border-color: var(--accent-line);
+  font-weight: 600;
+}
+
+.changed-values {
+  margin: var(--s-2) 0 var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--accent-soft) 50%, var(--surface));
+}
+
+.changed-values-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.changed-values pre {
+  margin: var(--s-2) 0 4px;
+  padding: 6px var(--s-2);
+  max-height: 10em;
+  overflow: auto;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  user-select: all;
+}
+
+.changed-values p {
+  margin: 0;
+}
+
+/* "Front (inner)": the skin side on the view buttons. */
+.view-side {
+  margin-left: -2px;
+  color: var(--faint);
+  font-weight: 400;
+}
+
+.canvas-toolbar .view-side {
+  color: rgba(236, 232, 226, 0.55);
+}
+
 /* ── Compare tab ──────────────────────────────────────────────────────────────────────────────── */
+
+/* One line under the toolbar: what differs (jumps to the element list) and the shared description. */
+.compare-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px var(--s-3);
+  margin: calc(-1 * var(--s-1)) 0 var(--s-2);
+  min-height: 22px;
+}
+
+button.link.compare-summary-link {
+  padding: 0;
+  color: var(--text);
+  font-weight: 600;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+button.link.compare-summary-link:hover:not(:disabled) {
+  text-decoration-color: currentColor;
+}
+
+.compare-summary .compare-desc {
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.compare-summary .compare-desc::before {
+  content: "·";
+  margin-right: var(--s-3);
+  color: var(--faint);
+}
 
 .compare-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--s-4);
-  margin-top: var(--s-2);
 }
 
 @media (max-width: 860px) {
@@ -2052,12 +2150,22 @@ button.asset-card {
   min-width: 0;
 }
 
+.compare-side > p.compare-desc {
+  margin: 0 2px;
+}
+
+/* The arms leave room for the coverage tables below them on a laptop screen. */
 .compare-side .canvas-wrap {
-  height: max(420px, min(760px, calc(100dvh - var(--header-h) - 200px)));
+  height: max(300px, calc(100dvh - var(--header-h) - 410px));
 }
 
 .compare-diff {
-  margin-top: var(--s-4);
+  margin-top: var(--s-3);
+  scroll-margin-top: calc(var(--header-h) + var(--s-3));
+}
+
+.compare-diff:focus {
+  outline: none;
 }
 
 .compare-diff ul {
@@ -2065,36 +2173,103 @@ button.asset-card {
   padding-left: 1.2em;
 }
 
-/* ── Projection tab (docs/adr/0006) ───────────────────────────────────────────────────────────── */
-
-.projection-grid {
-  display: grid;
-  grid-template-columns: minmax(320px, 1.3fr) minmax(220px, 0.8fr) minmax(280px, 1fr);
-  gap: var(--s-4);
-  align-items: start;
-}
-
-@media (max-width: 1100px) {
-  .projection-grid {
-    grid-template-columns: 1fr;
+/* Below this width the toolbar would wrap: views go back to the short names. */
+@media (max-width: 1360px) {
+  .compare-page .view-side {
+    display: none;
   }
 }
 
-.projection-preview h2 {
-  font-size: var(--fs-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  font-weight: 600;
-  margin: 0 0 var(--s-2);
+.empty.compare-empty button {
+  margin-top: var(--s-2);
 }
 
-/* Photo picker: wrapping chips, not a segmented control. */
+/* ── Projection tab (docs/adr/0006) ───────────────────────────────────────────────────────────── */
+
+/* Like the Layout tab: context bar, notices, then the work area fills the viewport. Columns: the
+ * photo (the main working surface) | 3D view over the combined patch | the two field groups. */
+.projection-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--header-h) - var(--s-3) - var(--s-6));
+  min-height: 600px;
+}
+
+.projection-page > .layout-toolbar,
+.projection-page > .notices {
+  flex: none;
+}
+
+.projection-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) clamp(290px, 22vw, 340px);
+  gap: var(--s-4);
+}
+
+.projection-photo,
+.projection-views {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+.projection-photo > .photo-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.projection-photo > p.muted.small {
+  flex: none;
+  margin: 0 2px;
+  color: var(--faint);
+  max-width: 80ch;
+}
+
+.projection-views > .viewer {
+  flex: 1;
+  min-height: 0;
+}
+
+.projection-views .canvas-wrap {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 300px;
+}
+
+.projection-side {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.projection-side fieldset {
+  margin: 0;
+}
+
+.projection-side .panel-head {
+  margin-bottom: 0;
+}
+
+.photo-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Photo picker: tabs styled as chips (not a segmented control: names are long and wrap). */
 .photo-tabs {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-bottom: var(--s-2);
 }
 
 .photo-tabs button {
@@ -2106,19 +2281,48 @@ button.asset-card {
   box-shadow: none;
 }
 
-.photo-tabs button.active,
-.photo-tabs button[aria-selected="true"] {
+.photo-tabs button[aria-selected="true"],
+.photo-tabs button[aria-selected="true"]:hover {
   background: var(--text);
   color: var(--on-ink);
   border-color: var(--text);
   box-shadow: none;
 }
 
-.photo-editor svg {
-  width: 100%;
-  max-height: 78vh;
+.photo-tabs .share {
+  color: var(--faint);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.photo-tabs .share::before {
+  content: "·";
+  margin-right: 6px;
+}
+
+.photo-tabs button[aria-selected="true"] .share {
+  color: color-mix(in srgb, var(--on-ink) 65%, transparent);
+}
+
+/* The photo, or a placeholder of the same frame that says why there is none. */
+.photo-frame {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--canvas);
+  border: 1px solid var(--canvas-edge);
   border-radius: var(--r-lg);
+  box-shadow: var(--shadow-canvas);
+  overflow: hidden;
+}
+
+.photo-editor svg {
+  display: block;
+  width: 100%;
+  height: 100%;
   touch-action: none;
 }
 
@@ -2126,14 +2330,75 @@ button.asset-card {
   cursor: grab;
 }
 
-.projection-unwrap {
-  width: 100%;
-  height: auto;
-  border-radius: var(--r-md);
+.photo-frame.placeholder {
+  min-height: 320px;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
-.projection-page .props label {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+.photo-placeholder {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  max-width: 44ch;
+  padding: var(--s-4) var(--s-5);
+  text-wrap: balance;
+  text-align: center;
+  color: rgba(236, 232, 226, 0.7);
+  font-size: var(--fs-sm);
+}
+
+.photo-placeholder strong {
+  color: #f2eee8;
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.photo-frame.loading .photo-placeholder strong {
+  color: rgba(236, 232, 226, 0.7);
+  font-weight: 500;
+}
+
+.projection-preview {
+  flex: none;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.projection-preview > div {
+  display: flex;
+  justify-content: center;
+  background: var(--canvas);
+  border: 1px solid var(--canvas-edge);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.projection-unwrap {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 20dvh;
+  object-fit: contain;
+}
+
+/* Short labels on one line; the explanation is the row's tooltip. */
+.projection-side .props label,
+.projection-side .props .props-row {
+  display: grid;
+  grid-template-columns: 7.5em minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--control-h);
+}
+
+.field-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .number-field {
@@ -2148,21 +2413,206 @@ button.asset-card {
   width: 100%;
 }
 
+.number-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.number-pair input {
+  width: 100%;
+}
+
+fieldset:disabled .props {
+  opacity: 0.6;
+}
+
+@media (max-width: 1200px) {
+  .projection-page {
+    height: auto;
+    min-height: 0;
+  }
+  .projection-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .projection-photo .photo-frame {
+    min-height: 480px;
+  }
+  .projection-views .canvas-wrap {
+    flex: none;
+    height: 480px;
+  }
+  .projection-side {
+    grid-column: 1 / -1;
+    overflow: visible;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+@media (max-width: 760px) {
+  .projection-grid,
+  .projection-side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ── Data folder tab ──────────────────────────────────────────────────────────────────────────── */
+
+.data-page {
+  max-width: 980px;
+  margin: 0 auto;
+  display: grid;
+  gap: var(--s-3);
+}
+
+.data-page > * {
+  margin: 0;
+}
+
+.data-head h2 {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin: 0;
+}
+
+.data-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+
+.data-path code {
+  font-size: var(--fs-sm);
+}
+
+/* The setup steps: an empty-state card, but left-aligned and wide enough for the commands. */
+.empty.data-setup {
+  max-width: none;
+  margin: 0;
+  padding: var(--s-6) var(--s-8);
+}
+
+.empty.data-setup > p {
+  max-width: 64ch;
+}
+
+.setup-steps {
+  width: 100%;
+  max-width: 720px;
+  counter-reset: step;
+  list-style: none;
+  padding: 0 !important;
+  gap: var(--s-3) !important;
+}
+
+.setup-steps li {
+  counter-increment: step;
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding-left: 34px;
+}
+
+.setup-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+/* A command line with a copy button. */
+.command {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: 3px 3px 3px var(--s-3);
+  background: var(--canvas);
+  border-radius: var(--r-md);
+  color: #ece8e2;
+  color-scheme: dark;
+}
+
+.empty .command code {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: var(--fs-xs);
+  white-space: pre-wrap;
+}
+
+.command button.ghost {
+  height: 24px;
+  color: rgba(236, 232, 226, 0.75);
+}
+
+.command button.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.data-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .data-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 
 .expected {
   list-style: none;
   padding: 0;
-  margin: var(--s-3) 0 0;
+  margin: var(--s-2) 0 0;
   display: grid;
-  gap: 4px;
 }
 
 .expected li {
   display: grid;
-  grid-template-columns: 1.5em 9em 1fr;
+  grid-template-columns: 1.4em 8.5em minmax(0, 1fr) auto;
   gap: var(--s-2);
   align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+
+.expected li:last-child {
+  border-bottom: 0;
+}
+
+.expected .purpose {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.expected .count {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.expected .mark {
+  text-align: center;
+  color: var(--faint);
 }
 
 .expected .present .mark {
@@ -2170,68 +2620,238 @@ button.asset-card {
   font-weight: 700;
 }
 
-.expected .absent {
+.expected .absent code,
+.expected .absent .purpose {
   color: var(--faint);
 }
 
-/* Edit images tab (src/edits/ImageEditPage.tsx) */
+.needs {
+  list-style: none;
+  padding: 0;
+  margin: var(--s-2) 0 0;
+  display: grid;
+}
+
+.needs li {
+  display: grid;
+  gap: 1px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+
+.needs li:last-child {
+  border-bottom: 0;
+}
+
+.needs .muted {
+  font-size: var(--fs-xs);
+}
+
+.data-files-head {
+  margin-top: var(--s-2) !important;
+}
+
+.data-folder > summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.data-folder > summary::-webkit-details-marker {
+  display: none;
+}
+
+.data-folder > summary::before {
+  content: "▸";
+  width: 1em;
+  color: var(--faint);
+}
+
+.data-folder[open] > summary::before {
+  content: "▾";
+}
+
+.data-folder[open] > summary {
+  margin-bottom: var(--s-2);
+}
+
+/* Same columns in every folder's table. */
+.data-folder table {
+  table-layout: fixed;
+}
+
+.data-folder th:nth-child(2) {
+  width: 6em;
+}
+
+.data-folder th:nth-child(3) {
+  width: 15em;
+}
+
+.data-folder td {
+  white-space: nowrap;
+}
+
+.data-folder td:first-child code {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Edit images tab (src/edits/ImageEditPage.tsx) ───────────────────────────────────────────── */
+
+/* Picker | editor. The picker fills the viewport height and scrolls its own grid. */
 .edit-page {
   display: grid;
-  grid-template-columns: minmax(220px, 320px) 1fr;
-  gap: 16px;
+  grid-template-columns: var(--side-w) minmax(0, 1fr);
+  gap: var(--s-4);
   align-items: start;
 }
+
 @media (max-width: 800px) {
   .edit-page {
     grid-template-columns: 1fr;
   }
 }
+
+/* A link that looks like a button (the empty state's way to the Data folder tab). */
+a.button {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-h);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: var(--shadow-1);
+}
+
+a.button.primary {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--on-ink);
+}
+
+a.button:hover {
+  opacity: 0.88;
+}
+
+.empty a.button {
+  margin-top: var(--s-2);
+}
+
+.edit-picker {
+  position: sticky;
+  top: calc(var(--header-h) + var(--s-3));
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - var(--header-h) - var(--s-3) - var(--s-6));
+}
+
 .edit-picker input[type="search"] {
+  flex: none;
   width: 100%;
-  margin-bottom: 8px;
 }
+
+.edit-count {
+  margin: 6px 2px 0;
+}
+
 .edit-picker .asset-grid {
-  max-height: 75vh;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
+  scrollbar-width: thin;
 }
+
+.edit-picker .asset-card img {
+  background: #fff;
+}
+
+.edit-main {
+  min-width: 0;
+}
+
+.edit-main .panel-head h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-hint.empty {
+  justify-items: start;
+  text-align: left;
+  margin: var(--s-2) 0 0;
+}
+
+.edit-hint.empty h2 {
+  font-size: var(--fs-md);
+}
+
+.edit-hint.empty p {
+  max-width: 70ch;
+}
+
 .edit-compose {
   display: grid;
-  grid-template-columns: minmax(160px, 260px) 1fr;
-  gap: 16px;
+  grid-template-columns: minmax(160px, 280px) minmax(0, 1fr);
+  gap: var(--s-4);
 }
+
 @media (max-width: 600px) {
   .edit-compose {
     grid-template-columns: 1fr;
   }
 }
+
 .edit-page figure {
   margin: 0;
+  display: grid;
+  gap: 4px;
 }
+
 .edit-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s-2);
 }
+
+.edit-form .section-label {
+  margin: var(--s-1) 0 0;
+}
+
 .edit-form textarea {
   width: 100%;
-  font: inherit;
-  resize: vertical;
 }
+
 .edit-engine {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 16px;
 }
+
 .edit-presets {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
+
 /* Preset buttons use the global .chip; no status dot here. */
 .edit-presets .chip::before {
   display: none;
 }
+
 .checker {
   /* Checkerboard behind images so transparency is visible. */
   background-color: #fff;
@@ -2250,44 +2870,79 @@ button.asset-card {
   display: flex;
   justify-content: center;
 }
+
 .checker img {
   display: block;
   max-width: 100%;
   max-height: 420px;
   object-fit: contain;
 }
+
 .edit-results-head {
-  margin: 20px 0 8px;
+  margin: var(--s-5) 0 var(--s-2);
 }
+
 .edit-jobs {
   list-style: none;
   padding: 0;
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s-3);
 }
+
+.edit-job.card {
+  margin: 0;
+  border-left: 3px solid var(--border-strong);
+}
+
+.edit-job.running {
+  border-left-color: var(--info);
+}
+
+.edit-job.done {
+  border-left-color: var(--text);
+}
+
+.edit-job.failed {
+  border-left-color: var(--accent);
+}
+
+.edit-job.kept {
+  border-left-color: var(--ok);
+}
+
+.edit-job.discarded,
+.edit-job.cancelled {
+  opacity: 0.75;
+}
+
 .edit-job-head {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--s-2);
 }
+
 .edit-job.failed .edit-job-head strong {
   color: var(--accent);
 }
+
 .edit-job.kept .edit-job-head strong {
   color: var(--ok);
 }
+
 .edit-instructions {
-  margin: 4px 0 8px;
+  margin: 4px 0 var(--s-2);
   padding-left: 1.4em;
 }
+
 .edit-compare {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 8px 0;
+  gap: var(--s-3);
+  margin: var(--s-2) 0;
 }
+
 .edit-log ol {
   max-height: 220px;
   overflow-y: auto;
@@ -2295,7 +2950,4 @@ button.asset-card {
   padding-left: 1.4em;
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-}
-.edit-picker .asset-card img {
-  background: #fff;
 }

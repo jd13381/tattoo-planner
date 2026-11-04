@@ -3,26 +3,27 @@
 // editing stays in the Layout tab.
 import { useMemo, useState } from "react";
 import { useAssetListing } from "../assets/useAssets.ts";
-import { useLayoutSources } from "../assets/useLayoutSources.ts";
+import { useLayoutSources, type LayoutSources } from "../assets/useLayoutSources.ts";
 import type { ArmProfile } from "../arm/profile.ts";
 import type { Layout } from "../layout/schema.ts";
 import { classify } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
 import { parseLayout } from "../layout/yamlDoc.ts";
-import { coverage } from "../metrics/coverage.ts";
+import { coverage, type Coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
-import type { AssetInfo } from "../assets/types.ts";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
 import { ArmViewer, PoseControl, ViewButtons } from "../viewer/ArmViewer.tsx";
 import { createCameraSync } from "../viewer/cameraSync.ts";
 import { useViewState } from "../viewer/useViewState.ts";
 import { anubisSize, type ArmState, type Pose } from "../viewer/useArm.ts";
 import { diffLayouts } from "./diff.ts";
+import { compareSummary } from "./summary.ts";
 
 type Mode = "blockout" | "reference";
 const WORKING = "@working";
 const PX_PER_CM = 12;
 const METRICS_PX_PER_CM = 6;
+const DIFF_ID = "compare-diff";
 
 type Picked = { key: string; label: string; layout: Layout | null; error: string | null };
 
@@ -37,9 +38,26 @@ function pick(key: string, files: StoredLayout[] | null, working: WorkingLayout 
     : { key, label: key, layout: null, error: r.error };
 }
 
-type Props = { arm: ArmState; pose: Pose; working: WorkingLayout | null };
+function useCoverage(layout: Layout | null, profile: ArmProfile, src: LayoutSources): Coverage | null {
+  const { aspects, patches } = src;
+  return useMemo(
+    () =>
+      layout
+        ? coverage(classify(layout, profile, METRICS_PX_PER_CM, anubisSize, 0, aspects, patches), profile)
+        : null,
+    [layout, profile, aspects, patches],
+  );
+}
 
-export function ComparePage({ arm, pose, working }: Props) {
+type Props = {
+  arm: ArmState;
+  pose: Pose;
+  working: WorkingLayout | null;
+  /** Switches to the Layout tab (the empty state's way to create a second variant). */
+  onOpenLayout?: () => void;
+};
+
+export function ComparePage({ arm, pose, working, onOpenLayout }: Props) {
   const { profile } = arm;
   const [keys, setKeys] = useState<{ a: string; b: string } | null>(null);
   const { files, error: loadError } = useLayouts((list) => {
@@ -62,11 +80,43 @@ export function ComparePage({ arm, pose, working }: Props) {
   // Parsed once per choice, so the textures below only re-render when a variant really changes.
   const a = useMemo(() => (keys ? pick(keys.a, files, working) : null), [keys, files, working]);
   const b = useMemo(() => (keys ? pick(keys.b, files, working) : null), [keys, files, working]);
+  const srcA = useLayoutSources(a?.layout ?? null, assetMap, listing !== null, profile);
+  const srcB = useLayoutSources(b?.layout ?? null, assetMap, listing !== null, profile);
+  const covA = useCoverage(a?.layout ?? null, profile, srcA);
+  const covB = useCoverage(b?.layout ?? null, profile, srcB);
   const options = [
     ...(working?.dirty ? [{ value: WORKING, label: `${working.name} (unsaved edits)` }] : []),
     ...(files ?? []).map((f) => ({ value: f.name, label: f.name })),
   ];
   const diff = useMemo(() => (a?.layout && b?.layout ? diffLayouts(a.layout, b.layout) : null), [a, b]);
+  const summary = diff ? compareSummary(diff, covA, covB) : null;
+  const descA = a?.layout?.description ?? "";
+  const descB = b?.layout?.description ?? "";
+  const sameDescription = descA === descB;
+
+  if (loadError)
+    return (
+      <p className="notice error" role="alert">
+        {loadError}
+      </p>
+    );
+  // One variant and no unsaved edits: A and B would be the same file.
+  if (files && files.length < 2 && !working?.dirty)
+    return (
+      <section className="empty compare-empty">
+        <h2>Only one variant so far</h2>
+        <p>
+          Compare shows two layout variants side by side, with their coverage and the elements that differ.
+          Create a second one with <strong>Save as…</strong> in the Layout tab, or make an edit there to
+          compare it with the saved file.
+        </p>
+        {onOpenLayout && (
+          <button type="button" className="primary" onClick={onOpenLayout}>
+            Open Layout
+          </button>
+        )}
+      </section>
+    );
 
   return (
     <div className="compare-page">
@@ -92,6 +142,7 @@ export function ComparePage({ arm, pose, working }: Props) {
           disabled={!keys}
           className="ghost"
           title="Swap A and B"
+          aria-label="Swap A and B"
         >
           ⇄
         </button>
@@ -124,30 +175,42 @@ export function ComparePage({ arm, pose, working }: Props) {
           ))}
         </span>
         <span className="spacer" />
-        <span className="toolbar" role="toolbar" aria-label="Views">
-          <ViewButtons state={viewState} />
-        </span>
+        <ViewButtons state={viewState} sides />
         <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} />
       </div>
-      {loadError && <p className="card notice error">{loadError}</p>}
-      {files && files.length < 2 && !working?.dirty && (
-        <p className="card notice warn small">
-          Only one variant so far. Create another with <strong>Save as…</strong> in the Layout tab.
-        </p>
-      )}
-      <p className="muted small">
-        Read-only: edit in the Layout tab. Both arms share the camera: drag either one to rotate both.
-      </p>
+      <div className="compare-summary">
+        {summary && (
+          <button
+            type="button"
+            className="link compare-summary-link"
+            onClick={() => {
+              const el = document.getElementById(DIFF_ID);
+              el?.scrollIntoView({ behavior: "smooth", block: "start" });
+              el?.focus({ preventScroll: true });
+            }}
+            title="Show the element differences"
+          >
+            {summary.text}
+          </button>
+        )}
+        {sameDescription && descA && <span className="compare-desc">{descA}</span>}
+        <span className="spacer" />
+        <span className="faint small">
+          Read-only: edit in the Layout tab. Drag either arm to rotate both.
+        </span>
+      </div>
       {a && b && (
         <div className="compare-grid">
           <CompareSide
             side="A"
             picked={a}
             other={b}
+            src={srcA}
+            cov={covA}
+            otherCov={covB}
+            showDescription={!sameDescription}
             mode={mode}
             profile={profile}
-            assetMap={assetMap}
-            listingLoaded={listing !== null}
             viewState={viewState}
             bendDeg={pose.bendDeg}
             sync={{ bus, id: "a" }}
@@ -156,10 +219,12 @@ export function ComparePage({ arm, pose, working }: Props) {
             side="B"
             picked={b}
             other={a}
+            src={srcB}
+            cov={covB}
+            otherCov={covA}
+            showDescription={!sameDescription}
             mode={mode}
             profile={profile}
-            assetMap={assetMap}
-            listingLoaded={listing !== null}
             viewState={viewState}
             bendDeg={pose.bendDeg}
             sync={{ bus, id: "b" }}
@@ -167,7 +232,7 @@ export function ComparePage({ arm, pose, working }: Props) {
         </div>
       )}
       {diff && a && b && (
-        <section className="panel compare-diff" aria-label="Element differences">
+        <section className="panel compare-diff" id={DIFF_ID} tabIndex={-1} aria-label="Element differences">
           <h2>Elements</h2>
           {diff.onlyA.length + diff.onlyB.length + diff.changed.length === 0 ? (
             <p className="muted small">Both variants have the same elements with the same values.</p>
@@ -204,18 +269,19 @@ function CompareSide(props: {
   side: "A" | "B";
   picked: Picked;
   other: Picked;
+  src: LayoutSources;
+  cov: Coverage | null;
+  otherCov: Coverage | null;
+  showDescription: boolean;
   mode: Mode;
   profile: ArmProfile;
-  assetMap: ReadonlyMap<string, AssetInfo> | null;
-  listingLoaded: boolean;
   viewState: ReturnType<typeof useViewState>;
   bendDeg: number;
   sync: { bus: ReturnType<typeof createCameraSync>; id: string };
 }) {
-  const { side, picked, other, mode, profile, assetMap, listingLoaded, viewState, bendDeg, sync } = props;
+  const { side, picked, other, src, cov, otherCov, mode, profile, viewState, bendDeg, sync } = props;
   const { layout } = picked;
-  const { aspects, patches, sources, loading } = useLayoutSources(layout, assetMap, listingLoaded, profile);
-  const otherSources = useLayoutSources(other.layout, assetMap, listingLoaded, profile);
+  const { aspects, sources, loading } = src;
 
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
@@ -229,36 +295,10 @@ function CompareSide(props: {
     return canvas;
   }, [profile, mode, layout, aspects, sources]);
 
-  const cov = useMemo(
-    () =>
-      layout
-        ? coverage(classify(layout, profile, METRICS_PX_PER_CM, anubisSize, 0, aspects, patches), profile)
-        : null,
-    [layout, profile, aspects, patches],
-  );
-  const otherCov = useMemo(
-    () =>
-      other.layout
-        ? coverage(
-            classify(
-              other.layout,
-              profile,
-              METRICS_PX_PER_CM,
-              anubisSize,
-              0,
-              otherSources.aspects,
-              otherSources.patches,
-            ),
-            profile,
-          )
-        : null,
-    [other.layout, profile, otherSources.aspects, otherSources.patches],
-  );
-
   return (
     <div className="compare-side">
       {picked.error && (
-        <p className="card notice error small">
+        <p className="notice error small">
           {picked.label}.yaml is invalid: {picked.error}
         </p>
       )}
@@ -272,7 +312,9 @@ function CompareSide(props: {
         sync={sync}
         label={`${side}: ${picked.label}${mode === "reference" && loading ? " (loading images…)" : ""}`}
       />
-      {layout?.description && <p className="muted small">{layout.description}</p>}
+      {props.showDescription && (
+        <p className="muted small compare-desc">{layout?.description || "No description."}</p>
+      )}
       {cov && (
         <MetricsPanel
           coverage={cov}
