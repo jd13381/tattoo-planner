@@ -11,7 +11,7 @@ type State =
 const NEEDS: { feature: string; uses: string }[] = [
   { feature: "Reference mode", uses: "Layout and Compare show the images assigned to figures" },
   { feature: "Assets panel", uses: "manifest.yaml and the images in ideas/, refs/, cards/" },
-  { feature: "Projection photos", uses: "the photos of the existing tattoo in existing/" },
+  { feature: "Projection photos", uses: "the Anubis photos in arm-photos/" },
   { feature: "Export", uses: "writes the artist handout and PNGs into exports/" },
   { feature: "Edit images", uses: "edits reference images and keeps results in edits/" },
 ];
