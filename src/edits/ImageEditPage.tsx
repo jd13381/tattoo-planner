@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { filterAssets, NO_FILTER } from "../assets/filter.ts";
 import { announceManifestChanged, useAssetListing } from "../assets/useAssets.ts";
 import { assetImageUrl, type AssetInfo } from "../assets/types.ts";
-import { rootAssetId } from "./edit.ts";
+import { rootAssetId, staleJobs } from "./edit.ts";
 import {
   EDIT_PRESETS,
   EDITS_ENDPOINT,
@@ -113,7 +113,15 @@ export function ImageEditPage() {
         ...(refineFrom ? { fromJob: refineFrom.id } : {}),
       };
       // Each generative variant is its own request and its own result.
-      await Promise.all(Array.from({ length: count }, () => call<EditJob>(EDITS_ENDPOINT, "POST", body)));
+      const started = await Promise.all(
+        Array.from({ length: count }, () => call<EditJob>(EDITS_ENDPOINT, "POST", body)),
+      );
+      // "Edit further" starts a new round from one result: the other unkept results of the last
+      // round no longer apply (the new jobs already hold their own copy of the chosen image).
+      if (refineFrom && root) {
+        const stale = staleJobs(overview?.jobs ?? [], root, new Set(started.map((j) => j.id)));
+        await Promise.all(stale.map((id) => call(jobUrl(id, "discard"), "POST")));
+      }
       setInstruction("");
       setRefineFrom(null);
     });

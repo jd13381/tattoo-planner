@@ -13,6 +13,7 @@ import {
   parseStreamLine,
   readPngInfo,
   rootAssetId,
+  staleJobs,
 } from "../src/edits/edit.ts";
 import { EditManager, editOptionsFromEnv, type Runner } from "../src/edits/server/editsApi.ts";
 import type { EditJob } from "../src/edits/types.ts";
@@ -313,5 +314,19 @@ assets:
     await expect(m.start({ assetId: "pegasus-ref-01", instruction: " " })).rejects.toMatchObject({
       status: 400,
     });
+  });
+});
+
+describe("staleJobs", () => {
+  it("clears the earlier unkept results of the same original when a new round starts", () => {
+    const jobs = [
+      { id: "a", assetId: "m", state: "done" as const },
+      { id: "b", assetId: "m", state: "kept" as const },
+      { id: "c", assetId: "m", state: "failed" as const },
+      { id: "d", assetId: "m", state: "running" as const },
+      { id: "e", assetId: "other", state: "done" as const },
+      { id: "f", assetId: "m", state: "done" as const },
+    ];
+    expect(staleJobs(jobs, "m", new Set(["f"]))).toEqual(["a", "c"]);
   });
 });

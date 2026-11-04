@@ -3,7 +3,7 @@
 // the name and manifest entry of a kept edit. The dev-server endpoint (server/editsApi.ts) wires
 // these to processes and files.
 import type { Asset } from "../assets/manifest.ts";
-import { EDITED_TAG, EDITS_FOLDER } from "./types.ts";
+import { EDITED_TAG, EDITS_FOLDER, type EditJob } from "./types.ts";
 
 export const INPUT_BASENAME = "input";
 /** How a local edit is named in a kept edit's notes. */
@@ -232,4 +232,24 @@ export function checkInstruction(text: unknown): { ok: true; text: string } | { 
   if (text.length > MAX_INSTRUCTION_CHARS)
     return { ok: false, message: `the instruction is longer than ${MAX_INSTRUCTION_CHARS} characters` };
   return { ok: true, text: text.trim() };
+}
+
+/**
+ * Results to clear when "Edit further" starts a new round on one result: every earlier finished,
+ * failed or stopped job of the same original. Kept edits (they are in the manifest), running jobs
+ * and the jobs of the new round stay.
+ */
+export function staleJobs(
+  jobs: readonly Pick<EditJob, "id" | "assetId" | "state">[],
+  rootId: string,
+  newIds: ReadonlySet<string>,
+): string[] {
+  return jobs
+    .filter(
+      (j) =>
+        j.assetId === rootId &&
+        !newIds.has(j.id) &&
+        (j.state === "done" || j.state === "failed" || j.state === "cancelled"),
+    )
+    .map((j) => j.id);
 }
