@@ -21,7 +21,16 @@ const PREVIEW_PX_PER_CM = 10;
 const TEXTURE_PX_PER_CM = 12;
 const PREVIEW_ID = "projection-preview";
 
-export function ProjectionPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
+export function ProjectionPage({
+  arm,
+  pose,
+  onDirty,
+}: {
+  arm: ArmState;
+  pose: Pose;
+  /** Reports unsaved edits, so the app can warn before a reload. */
+  onDirty?: (dirty: boolean) => void;
+}) {
   const { files, calibrations, errors, loadError } = useProjections();
   const [name, setName] = useState<string | null>(null);
   if (loadError) return <p className="card notice error">{loadError}</p>;
@@ -57,7 +66,16 @@ export function ProjectionPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
         </p>
       </div>
     );
-  return <ProjectionEditor key={current} saved={saved} picker={picker} profile={arm.profile} pose={pose} />;
+  return (
+    <ProjectionEditor
+      key={current}
+      saved={saved}
+      picker={picker}
+      profile={arm.profile}
+      pose={pose}
+      onDirty={onDirty}
+    />
+  );
 }
 
 function ProjectionEditor(props: {
@@ -65,8 +83,9 @@ function ProjectionEditor(props: {
   picker: React.ReactNode;
   profile: ArmProfile;
   pose: Pose;
+  onDirty?: (dirty: boolean) => void;
 }) {
-  const { saved, picker, profile, pose } = props;
+  const { saved, picker, profile, pose, onDirty } = props;
   const current = saved.name;
   const { listing } = useAssetListing();
   const assetMap = useMemo(
@@ -79,6 +98,8 @@ function ProjectionEditor(props: {
   const [photoIndex, setPhotoIndex] = useState(0);
   const [saveState, setSaveState] = useState<string | null>(null);
   const dirty = JSON.stringify(draft) !== savedJson;
+  useEffect(() => onDirty?.(dirty), [onDirty, dirty]);
+  useEffect(() => () => onDirty?.(false), [onDirty]);
   const valid = draft ? projectionSchema.safeParse(draft) : null;
   const validationError =
     valid && !valid.success
@@ -169,10 +190,20 @@ function ProjectionEditor(props: {
     <div className="projection-page">
       <div className="layout-toolbar toolbar">
         {picker}
-        <button type="button" disabled={!dirty || !!validationError} onClick={save}>
+        <button
+          type="button"
+          className={dirty ? "primary" : ""}
+          disabled={!dirty || !!validationError}
+          onClick={save}
+        >
           Save
         </button>
-        <button type="button" disabled={!dirty} onClick={() => setDraft(structuredClone(saved))}>
+        <button
+          type="button"
+          className="ghost"
+          disabled={!dirty}
+          onClick={() => setDraft(structuredClone(saved))}
+        >
           Revert
         </button>
         {saveState && <span className="muted small">{saveState}</span>}
@@ -192,12 +223,13 @@ function ProjectionEditor(props: {
       {draft && photo && (
         <div className="projection-grid">
           <section className="projection-photo">
-            <div className="segmented" role="tablist" aria-label="Photos">
+            <div className="photo-tabs" role="group" aria-label="Photos">
               {draft.photos.map((p, i) => (
                 <button
                   key={p.file}
                   type="button"
                   className={i === photoIndex ? "active" : ""}
+                  aria-pressed={i === photoIndex}
                   onClick={() => setPhotoIndex(i)}
                   title={p.file}
                 >
