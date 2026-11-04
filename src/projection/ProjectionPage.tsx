@@ -15,6 +15,7 @@ import { requestImage, useAssetImages, useAssetListing } from "../assets/useAsse
 import type { Layout } from "../layout/schema.ts";
 import type { AssetImage } from "../render/reference.ts";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
+import { ToastRegion, useToast } from "../ui/Toast.tsx";
 import { ArmViewer } from "../viewer/ArmViewer.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
 import { modelGrid, photoFrame, turnedSize, type GridLine } from "./model.ts";
@@ -96,11 +97,7 @@ export function ProjectionPage({
   );
 }
 
-type SaveState =
-  | { kind: "idle" }
-  | { kind: "saving" }
-  | { kind: "saved"; file: string }
-  | { kind: "failed"; message: string };
+type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "failed"; message: string };
 
 function ProjectionEditor(props: {
   saved: ProjectionCalibration;
@@ -120,7 +117,9 @@ function ProjectionEditor(props: {
   const [draft, setDraft] = useState<ProjectionCalibration>(() => structuredClone(saved));
   const savedJson = JSON.stringify(saved);
   const [photoIndex, setPhotoIndex] = useState(0);
+  // A failure stays as a notice until the next save; success is a short toast.
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
+  const toast = useToast();
   const dirty = JSON.stringify(draft) !== savedJson;
   useEffect(() => onDirty?.(dirty), [onDirty, dirty]);
   useEffect(() => () => onDirty?.(false), [onDirty]);
@@ -228,17 +227,12 @@ function ProjectionEditor(props: {
     setSaveState({ kind: "saving" });
     try {
       await saveProjection(draft);
-      setSaveState({ kind: "saved", file: `config/projections/${draft.name}.yaml` });
+      setSaveState({ kind: "idle" });
+      toast.show(`Saved config/projections/${draft.name}.yaml`);
     } catch (e) {
       setSaveState({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
     }
   };
-  // The "Saved" confirmation fades after a moment; a failure stays until the next save.
-  useEffect(() => {
-    if (saveState.kind !== "saved") return;
-    const t = setTimeout(() => setSaveState({ kind: "idle" }), 3000);
-    return () => clearTimeout(t);
-  }, [saveState]);
   // Cmd+S / Ctrl+S saves while this tab is open (it is only mounted while visible).
   const onSaveKey = useEffectEvent((e: KeyboardEvent) => {
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "s") return;
@@ -255,6 +249,7 @@ function ProjectionEditor(props: {
 
   return (
     <div className="projection-page">
+      <ToastRegion toast={toast} />
       <div className="layout-toolbar toolbar">
         {picker}
         <span className="toolbar-sep" />
@@ -276,13 +271,7 @@ function ProjectionEditor(props: {
         >
           Revert
         </button>
-        <span className="save-status" role="status">
-          {saveState.kind === "saved" ? (
-            <span className="chip ok">Saved {saveState.file}</span>
-          ) : dirty ? (
-            <span className="muted small">Unsaved changes</span>
-          ) : null}
-        </span>
+        {dirty && <span className="muted small">Unsaved changes</span>}
         <span className="spacer" />
         <span className="faint small">⌘S saves</span>
       </div>

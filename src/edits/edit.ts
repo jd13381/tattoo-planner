@@ -6,6 +6,8 @@ import type { Asset } from "../assets/manifest.ts";
 import { EDITED_TAG, EDITS_FOLDER } from "./types.ts";
 
 export const INPUT_BASENAME = "input";
+/** How a local edit is named in a kept edit's notes. */
+export const CLAUDE_TOOL = "claude -p";
 export const OUTPUT_FILE = "output.png";
 export const MAX_INSTRUCTION_CHARS = 2000;
 export const MAX_OUTPUT_BYTES = 50 * 1024 * 1024;
@@ -200,8 +202,17 @@ export function keptAsset(
   variant: { id: string; file: string },
   instructions: string[],
   sameSize: boolean,
+  /** Tool of each step, same order as `instructions`; defaults to `claude -p` for every step. */
+  tools: readonly string[] = [],
 ): Asset {
-  const notes = `Edited with claude -p: ${instructions.map((s) => JSON.stringify(oneLine(s, 300))).join(", then ")}`;
+  const toolOf = (i: number) => tools[i] ?? CLAUDE_TOOL;
+  const sameTool = instructions.every((_, i) => toolOf(i) === toolOf(0));
+  const steps = instructions.map(
+    (s, i) => `${JSON.stringify(oneLine(s, 300))}${sameTool ? "" : ` (${toolOf(i)})`}`,
+  );
+  const notes = sameTool
+    ? `Edited with ${toolOf(0)}: ${steps.join(", then ")}`
+    : `Edited: ${steps.join(", then ")}`;
   return {
     id: variant.id,
     file: variant.file,

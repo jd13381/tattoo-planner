@@ -135,3 +135,13 @@ Details in `docs/adr/0007-image-edits.md`.
 - **Tools:** Bash, Read, Write, Edit, Glob, Grep allowed without asking; WebFetch and WebSearch blocked; missing Python packages (e.g. `rembg`) go into a virtualenv in `~/.cache/tattoo-planner/venv`.
 - **Presets:** remove background, keep main figure only, remove text/watermark, stronger contrast, black and grey, trim to motif, mirror. They only fill the text field. _Change:_ `EDIT_PRESETS` in `src/edits/types.ts`.
 - **Limits:** two edits at a time, 15 minutes each; unkept results are forgotten when `npm run dev` restarts.
+
+### Generative edits with GPT Image
+
+Details in `docs/adr/0008-generative-edits.md`. Engine choice (OpenAI API key, `gpt-image-2.5-sunburst`) was Jan's.
+
+- **Direct API call from the dev server** instead of letting `claude -p` call the API: one HTTP request, about a minute, no Claude quota. _Alternative:_ Codex CLI with a ChatGPT plan (model not controllable).
+- **Defaults:** `input_fidelity=high`, `quality=high`, size kept, PNG out; 2 variants per click (1–3 selectable), at most 4 generative jobs at once. _Change:_ `.env` (`TATTOO_OPENAI_*`) or `MAX_VARIANTS_PER_RUN` / `MAX_RUNNING_OPENAI`.
+- **Prompt** wraps Jan's instruction verbatim with "apply exactly this change, keep everything else, no frame/text/watermark". _Change:_ `buildGenerativePrompt` in `src/edits/openai.ts`.
+- **Two generative presets** (Simplify, Remove an object): generic wording only, no motif decisions.
+- **Rule change:** "no uploading assets to third-party services" in CLAUDE.md and the brief now reads: the planner stays local, image-edit services are fine, nothing from the data folder in git (Jan, 2026-11-04).

@@ -9,7 +9,7 @@ import type { Layout } from "../layout/schema.ts";
 import { classify } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
 import { parseLayout } from "../layout/yamlDoc.ts";
-import { coverage, DIFF_THRESHOLD_PCT, type Coverage } from "../metrics/coverage.ts";
+import { coverage, type Coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
 import { ArmViewer, PoseControl, ViewButtons } from "../viewer/ArmViewer.tsx";
@@ -230,15 +230,6 @@ export function ComparePage({ arm, pose, working, onOpenLayout }: Props) {
             sync={{ bus, id: "b" }}
           />
         </div>
-      )}
-      {covA && covB && (
-        <p
-          className="faint small compare-footnote"
-          title="Elbow: 4 cm below to 6 cm above the elbow tip; shoulder: top 8 cm; inner = the half around the palm-side line."
-        >
-          Coverage: share of each zone's skin, topmost element counted (hover for the zones). Tinted: at least{" "}
-          {DIFF_THRESHOLD_PCT} points more (red) or less (blue) than the other variant.
-        </p>
       )}
       {diff && a && b && (
         <section className="panel compare-diff" id={DIFF_ID} tabIndex={-1} aria-label="Element differences">

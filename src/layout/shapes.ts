@@ -202,6 +202,30 @@ export function pickElement(
   return null;
 }
 
+/**
+ * Indices of every element covering a skin point, topmost first (empty on open skin).
+ * Alt-click in the editor cycles through them with nextInCycle.
+ */
+export function pickAllElements(
+  resolved: ResolvedElement[],
+  profile: ArmProfile,
+  u: number,
+  v: number,
+): number[] {
+  const y = v * profile.length;
+  const c = profile.circumferenceAt(y);
+  const out: number[] = [];
+  for (let k = resolved.length - 1; k >= 0; k--) if (hits(resolved[k]!.shape, u, y, c)) out.push(k);
+  return out;
+}
+
+/** The item after `current` in `items`, wrapping round; the first item when current is not among them. */
+export function nextInCycle<T>(items: readonly T[], current: T | null | undefined): T | null {
+  if (items.length === 0) return null;
+  const i = current === null || current === undefined ? -1 : items.indexOf(current);
+  return items[(i + 1) % items.length]!;
+}
+
 export const OUTSIDE = 255;
 
 export type Classification = {

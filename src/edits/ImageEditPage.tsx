@@ -1,12 +1,24 @@
-// "Edit images" tab (ADR 0007): pick a reference image, say what to change, and let `claude -p` on
-// this Mac do it. Results are previews until kept; keeping writes a new image into edits/ and a new
-// manifest entry, the original stays untouched. UI only: the rules live in edit.ts and the server.
+// "Edit images" tab: pick a reference image, say what to change, and let either `claude -p` on this
+// Mac do it with local tools (ADR 0007) or GPT Image redraw it generatively (ADR 0008). Results are
+// previews until kept; keeping writes a new image into edits/ and a new manifest entry, the original
+// stays untouched. UI only: the rules live in edit.ts, openai.ts and the server.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { filterAssets, NO_FILTER } from "../assets/filter.ts";
 import { announceManifestChanged, useAssetListing } from "../assets/useAssets.ts";
 import { assetImageUrl, type AssetInfo } from "../assets/types.ts";
 import { rootAssetId } from "./edit.ts";
-import { EDIT_PRESETS, EDITS_ENDPOINT, jobUrl, type EditJob, type EditOverview } from "./types.ts";
+import {
+  EDIT_PRESETS,
+  EDITS_ENDPOINT,
+  jobUrl,
+  MAX_VARIANTS_PER_RUN,
+  type EditEngine,
+  type EditJob,
+  type EditOverview,
+} from "./types.ts";
+
+/** Running limits per engine; the server enforces the same numbers. */
+const MAX_RUNNING: Record<EditEngine, number> = { claude: 2, openai: 4 };
 
 async function call<T>(url: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<T> {
   const r = await fetch(url, {
@@ -55,6 +67,8 @@ export function ImageEditPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
   const [refineFrom, setRefineFrom] = useState<EditJob | null>(null);
+  const [engine, setEngine] = useState<EditEngine>("claude");
+  const [variants, setVariants] = useState(2);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -66,8 +80,9 @@ export function ImageEditPage() {
   const selected = assets.find((a) => a.id === selectedId) ?? null;
   const root = selected ? rootAssetId(selected) : null;
   const jobs = (overview?.jobs ?? []).filter((j) => j.assetId === root).toReversed();
-  const availability = overview?.availability;
-  const runningCount = overview?.jobs.filter((j) => j.state === "running").length ?? 0;
+  const availability = engine === "openai" ? overview?.generative : overview?.availability;
+  const runningCount = overview?.jobs.filter((j) => j.state === "running" && j.engine === engine).length ?? 0;
+  const count = engine === "openai" ? Math.max(1, Math.min(variants, MAX_RUNNING.openai - runningCount)) : 1;
 
   const select = (a: AssetInfo) => {
     setSelectedId(a.id);
@@ -91,11 +106,14 @@ export function ImageEditPage() {
   const start = () =>
     act(async () => {
       if (!selected) return;
-      await call<EditJob>(EDITS_ENDPOINT, "POST", {
+      const body = {
         assetId: selected.id,
         instruction,
+        engine,
         ...(refineFrom ? { fromJob: refineFrom.id } : {}),
-      });
+      };
+      // Each generative variant is its own request and its own result.
+      await Promise.all(Array.from({ length: count }, () => call<EditJob>(EDITS_ENDPOINT, "POST", body)));
       setInstruction("");
       setRefineFrom(null);
     });
@@ -176,7 +194,16 @@ export function ImageEditPage() {
     );
 
   const canRun =
-    !!selected && !!instruction.trim() && !busy && availability?.enabled === true && runningCount < 2;
+    !!selected &&
+    !!instruction.trim() &&
+    !busy &&
+    availability?.enabled === true &&
+    runningCount < MAX_RUNNING[engine];
+  const engineLabel = availability?.enabled
+    ? "claude" in availability
+      ? availability.claude
+      : availability.model
+    : null;
 
   return (
     <div className="edit-page">
@@ -193,9 +220,16 @@ export function ImageEditPage() {
       <section className="panel edit-main" aria-label="Edit">
         <div className="panel-head">
           <h2>{selected ? selected.id : "Edit an image"}</h2>
-          {availability?.enabled && (
-            <span className="chip ok" title="Claude Code runs the edits on this Mac">
-              {availability.claude}
+          {engineLabel && (
+            <span
+              className="chip ok"
+              title={
+                engine === "openai"
+                  ? "Generative edits via the OpenAI API"
+                  : "Claude Code runs the edits on this Mac"
+              }
+            >
+              {engineLabel}
             </span>
           )}
         </div>
@@ -209,8 +243,10 @@ export function ImageEditPage() {
           <div className="empty small edit-hint">
             <h2>Pick an image on the left</h2>
             <p>
-              Then describe the change, e.g. “remove the background”. Claude Code runs the edit on this Mac (
-              <code>claude -p</code>) with local tools; the original stays as it is and each result is a
+              Then describe the change. <strong>Local</strong> edits (remove the background, crop, contrast)
+              run on this Mac with Claude Code and local tools and keep the pixels as they are.{" "}
+              <strong>Generative</strong> edits (fewer snakes, move the skull, fill in behind a hand) are
+              redrawn by GPT Image through the OpenAI API. The original stays as it is and each result is a
               preview until you keep it.
             </p>
           </div>
@@ -234,13 +270,49 @@ export function ImageEditPage() {
                 </figcaption>
               </figure>
               <div className="edit-form">
+                <div className="edit-engine" role="radiogroup" aria-label="Engine">
+                  <label>
+                    <input
+                      type="radio"
+                      name="edit-engine"
+                      checked={engine === "claude"}
+                      onChange={() => setEngine("claude")}
+                    />{" "}
+                    Local (Claude, keeps the pixels)
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="edit-engine"
+                      checked={engine === "openai"}
+                      onChange={() => setEngine("openai")}
+                    />{" "}
+                    Generative (GPT Image, redraws)
+                  </label>
+                  {engine === "openai" && (
+                    <label className="small">
+                      Variants{" "}
+                      <select value={variants} onChange={(e) => setVariants(Number(e.target.value))}>
+                        {Array.from({ length: MAX_VARIANTS_PER_RUN }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
                 <div className="edit-presets" role="group" aria-label="Presets">
                   {EDIT_PRESETS.map((p) => (
                     <button
                       key={p.label}
                       type="button"
                       className="chip"
-                      onClick={() => setInstruction(p.instruction)}
+                      title={p.engine === "openai" ? "Generative: switches to GPT Image" : undefined}
+                      onClick={() => {
+                        setInstruction(p.instruction);
+                        if (p.engine) setEngine(p.engine);
+                      }}
                     >
                       {p.label}
                     </button>
@@ -254,7 +326,11 @@ export function ImageEditPage() {
                   rows={5}
                   value={instruction}
                   maxLength={2000}
-                  placeholder="e.g. Remove the background and the text at the bottom; keep the snake's tail."
+                  placeholder={
+                    engine === "openai"
+                      ? "e.g. Fewer snakes in the hair, and the skull separate from the face (German is fine)."
+                      : "e.g. Remove the background and the text at the bottom; keep the snake's tail."
+                  }
                   onChange={(e) => setInstruction(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canRun) void start();
@@ -262,7 +338,13 @@ export function ImageEditPage() {
                 />
                 <div className="toolbar">
                   <button type="button" className="primary" disabled={!canRun} onClick={() => void start()}>
-                    {refineFrom ? "Edit the result" : "Edit with Claude"}
+                    {refineFrom
+                      ? "Edit the result"
+                      : engine === "openai"
+                        ? count > 1
+                          ? `Make ${count} variants`
+                          : "Edit with GPT Image"
+                        : "Edit with Claude"}
                   </button>
                   {refineFrom && (
                     <button type="button" onClick={() => setRefineFrom(null)}>
@@ -270,9 +352,11 @@ export function ImageEditPage() {
                     </button>
                   )}
                   <span className="muted small">
-                    {runningCount >= 2
-                      ? "Two edits are running; wait for one."
-                      : "⌘/Ctrl + Enter · takes 1–5 min"}
+                    {runningCount >= MAX_RUNNING[engine]
+                      ? `${MAX_RUNNING[engine]} edits are running; wait for one.`
+                      : engine === "openai"
+                        ? "⌘/Ctrl + Enter · about 1 min · a few cents each"
+                        : "⌘/Ctrl + Enter · takes 1–5 min"}
                   </span>
                 </div>
                 {actionError && <p className="error-text small">{actionError}</p>}
@@ -305,7 +389,7 @@ export function ImageEditPage() {
 }
 
 const STATE_LABEL: Record<EditJob["state"], string> = {
-  running: "Claude is working…",
+  running: "Working…",
   done: "Ready to review",
   failed: "Failed",
   cancelled: "Stopped",
@@ -341,8 +425,17 @@ function JobCard({
   return (
     <li className={`card edit-job ${job.state}`}>
       <div className="edit-job-head">
-        <strong>{STATE_LABEL[job.state]}</strong>
-        <span className="muted small">{elapsed(job)}</span>
+        <strong>
+          {job.state === "running"
+            ? job.engine === "openai"
+              ? "GPT Image is working…"
+              : "Claude is working…"
+            : STATE_LABEL[job.state]}
+        </strong>
+        <span className="muted small">
+          {job.tools.at(-1)} · {elapsed(job)}
+          {job.costUsd !== undefined && ` · ≈ $${job.costUsd.toFixed(2)}`}
+        </span>
       </div>
       <ol className="edit-instructions small">
         {job.instructions.map((s, i) => (
