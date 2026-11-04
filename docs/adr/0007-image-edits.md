@@ -20,7 +20,7 @@ Settings in `.env` (all optional): `TATTOO_CLAUDE_BIN` (default `claude` on the 
 
 ## Alternatives
 
-- **An image-generation API** (inpainting, background removal services): uploads Jan's images to a third party, which the brief rules out (§10.2), and needs keys and money.
+- **An image-generation API** (inpainting, background removal services): needs keys and money. Added later for generative edits only, see ADR 0008.
 - **Fixed built-in operations in the browser** (canvas filters, a JS background-removal model): covers "mirror" and "contrast" but not "remove the background except the snake's tail" or "take out the text"; a WASM segmentation model is a large dependency for a sketch tool. Claude can choose the right tool per request and check its own result.
 - **Writing the result next to the original or replacing it**: makes it hard to go back and to see which file is what; a separate `edits/` folder with `derived_from` keeps originals pristine and edits easy to find or delete.
 - **`--dangerously-skip-permissions`**: not needed; `acceptEdits` plus an explicit tool list is enough for a headless run.

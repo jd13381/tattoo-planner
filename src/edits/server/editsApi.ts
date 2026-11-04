@@ -1,6 +1,7 @@
-// Dev-server endpoint that edits reference images with `claude -p` on Jan's Mac (ADR 0007).
+// Dev-server endpoint that edits reference images, either with `claude -p` and local tools on Jan's
+// Mac (ADR 0007) or generatively with the OpenAI Images API (ADR 0008).
 //   GET  /api/edits                     → EditOverview: can edits run, and every job of this server run
-//   POST /api/edits                     body EditRequest → EditJob (starts it)
+//   POST /api/edits                     body EditRequest → EditJob (starts it; engine claude | openai)
 //   GET  /api/edits/jobs/<id>           → EditJob
 //   GET  /api/edits/jobs/<id>/input     the image the job edits
 //   GET  /api/edits/jobs/<id>/output    the result (when done)
@@ -35,6 +36,7 @@ import { HttpError, isCrossSite, readRawBody } from "../../export/server/exports
 import {
   buildEditPrompt,
   checkInstruction,
+  CLAUDE_TOOL,
   claudeArgs,
   EDIT_TIMEOUT_MS,
   INPUT_BASENAME,
@@ -47,12 +49,27 @@ import {
   readPngInfo,
 } from "../edit.ts";
 import {
+  buildEditForm,
+  buildGenerativePrompt,
+  estimateCostUsd,
+  MAX_OPENAI_INPUT_BYTES,
+  MAX_RUNNING_OPENAI,
+  OPENAI_EDITS_URL,
+  openaiInputType,
+  openaiSettingsFromEnv,
+  parseEditResponse,
+  rejectsInputFidelity,
+  type OpenAISettings,
+} from "../openai.ts";
+import {
   EDITS_ENDPOINT,
   EDITS_FOLDER,
   type EditAvailability,
+  type EditEngine,
   type EditJob,
   type EditOverview,
   type EditRequest,
+  type GenerativeAvailability,
 } from "../types.ts";
 
 const MAX_LOG_LINES = 400;
@@ -103,6 +120,10 @@ export type EditOptions = {
   timeoutMs?: number;
   /** Override for the availability check (tests). */
   checkClaude?: () => Promise<EditAvailability>;
+  /** Generative edits; null or missing when no OpenAI key is set. */
+  openai?: OpenAISettings | null;
+  /** Replaceable in tests. */
+  fetchImpl?: typeof fetch;
 };
 
 function checkClaudeBinary(bin: string): Promise<EditAvailability> {
@@ -137,14 +158,31 @@ export class EditManager {
     this.runner = opts.runner ?? spawnRunner(opts.bin);
   }
 
-  async availability(): Promise<EditAvailability> {
-    if (!this.dataDir)
-      return { enabled: false, reason: "TATTOO_DATA_DIR is not set, so there are no images to edit." };
+  /** Null when the data folder is usable, else why not. */
+  private async dataFolderProblem(): Promise<string | null> {
+    if (!this.dataDir) return "TATTOO_DATA_DIR is not set, so there are no images to edit.";
     try {
       if (!(await stat(this.dataDir)).isDirectory()) throw new Error();
     } catch {
-      return { enabled: false, reason: `data folder not found: ${this.dataDir}` };
+      return `data folder not found: ${this.dataDir}`;
     }
+    return null;
+  }
+
+  async generativeAvailability(): Promise<GenerativeAvailability> {
+    const problem = await this.dataFolderProblem();
+    if (problem) return { enabled: false, reason: problem };
+    if (!this.opts.openai)
+      return {
+        enabled: false,
+        reason: "No OpenAI API key: set TATTOO_OPENAI_API_KEY in .env and restart npm run dev.",
+      };
+    return { enabled: true, model: this.opts.openai.model };
+  }
+
+  async availability(): Promise<EditAvailability> {
+    const problem = await this.dataFolderProblem();
+    if (problem) return { enabled: false, reason: problem };
     // `claude --version` takes a moment; check at most once a minute.
     const now = Date.now();
     if (!this.claudeCheck || now - this.claudeCheck.at > 60_000)
@@ -156,7 +194,11 @@ export class EditManager {
   }
 
   async overview(): Promise<EditOverview> {
-    return { availability: await this.availability(), jobs: this.list() };
+    const [availability, generative] = await Promise.all([
+      this.availability(),
+      this.generativeAvailability(),
+    ]);
+    return { availability, generative, jobs: this.list() };
   }
 
   list(): EditJob[] {
@@ -183,16 +225,25 @@ export class EditManager {
 
   async start(body: unknown): Promise<EditJob> {
     const req = (body ?? {}) as Partial<EditRequest>;
-    const availability = await this.availability();
+    if (req.engine !== undefined && req.engine !== "claude" && req.engine !== "openai")
+      throw new HttpError(400, `unknown engine ${String(req.engine)}`);
+    const engine: EditEngine = req.engine ?? "claude";
+    const availability =
+      engine === "openai" ? await this.generativeAvailability() : await this.availability();
     if (!availability.enabled) throw new HttpError(409, availability.reason);
     const instruction = checkInstruction(req.instruction);
     if (!instruction.ok) throw new HttpError(400, instruction.message);
-    if ([...this.jobs.values()].filter((j) => j.info.state === "running").length >= MAX_RUNNING)
-      throw new HttpError(429, `${MAX_RUNNING} edits are running already; wait for one to finish`);
+    const limit = engine === "openai" ? MAX_RUNNING_OPENAI : MAX_RUNNING;
+    const running = [...this.jobs.values()].filter(
+      (j) => j.info.state === "running" && j.info.engine === engine,
+    );
+    if (running.length >= limit)
+      throw new HttpError(429, `${limit} edits of this kind are running already; wait for one to finish`);
 
     let asset: Asset;
     let source: string;
     let earlier: string[] = [];
+    let earlierTools: string[] = [];
     if (req.fromJob !== undefined) {
       const prev = this.job(String(req.fromJob));
       if (!prev.outputPath || (prev.info.state !== "done" && prev.info.state !== "kept"))
@@ -200,6 +251,7 @@ export class EditManager {
       asset = prev.asset;
       source = prev.outputPath;
       earlier = prev.info.instructions;
+      earlierTools = prev.info.tools;
     } else {
       if (typeof req.assetId !== "string") throw new HttpError(400, "assetId missing");
       const listing = await listAssets(this.dataDir);
@@ -217,6 +269,15 @@ export class EditManager {
     }
 
     const ext = path.extname(source).toLowerCase() || ".png";
+    if (engine === "openai") {
+      if (!openaiInputType(`x${ext}`))
+        throw new HttpError(
+          415,
+          `GPT Image takes PNG, JPEG or WebP, not ${ext}; convert it with a local edit first`,
+        );
+      if ((await stat(source)).size > MAX_OPENAI_INPUT_BYTES)
+        throw new HttpError(413, "the image is larger than 50 MB, which GPT Image does not take");
+    }
     const dir = await mkdtemp(path.join(os.tmpdir(), "tattoo-edit-"));
     const inputFile = `${INPUT_BASENAME}${ext}`;
     const inputPath = path.join(dir, inputFile);
@@ -228,13 +289,22 @@ export class EditManager {
       id,
       assetId: asset.derived_from ?? asset.id,
       ...(req.fromJob !== undefined ? { fromJob: String(req.fromJob) } : {}),
+      engine,
       instructions: [...earlier, instruction.text],
+      tools: [
+        ...earlier.map((_, i) => earlierTools[i] ?? CLAUDE_TOOL),
+        engine === "openai" ? this.opts.openai!.model : CLAUDE_TOOL,
+      ],
       state: "running",
       startedAt: new Date().toISOString(),
       log: [],
     };
     const job: Job = { info, asset, dir, inputPath, abort: new AbortController() };
     this.jobs.set(id, job);
+    if (engine === "openai") {
+      void this.runOpenAI(job, inputFile);
+      return info;
+    }
     const prompt = buildEditPrompt({
       inputFile,
       instructions: info.instructions,
@@ -318,6 +388,82 @@ export class EditManager {
     info.state = "done";
   }
 
+  /** One generative edit: send the image and the instruction, write the answer as output.png. */
+  private async runOpenAI(job: Job, inputFile: string) {
+    const settings = this.opts.openai!;
+    const doFetch = this.opts.fetchImpl ?? fetch;
+    const timer = setTimeout(() => {
+      this.log(job, ["Stopped: the edit took too long."]);
+      job.abort.abort();
+    }, this.opts.timeoutMs ?? EDIT_TIMEOUT_MS);
+    const info = job.info;
+    try {
+      const image = await readFile(job.inputPath);
+      const prompt = buildGenerativePrompt({ instructions: info.instructions, asset: job.asset });
+      const send = async (inputFidelity: OpenAISettings["inputFidelity"]) => {
+        this.log(job, [
+          `→ Sending the image to ${settings.model}${inputFidelity ? ` (input fidelity ${inputFidelity})` : ""}…`,
+        ]);
+        const r = await doFetch(OPENAI_EDITS_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${settings.apiKey}` },
+          body: buildEditForm({
+            image,
+            fileName: inputFile,
+            mimeType: openaiInputType(inputFile) ?? "image/png",
+            prompt,
+            settings: { ...settings, inputFidelity },
+          }),
+          signal: job.abort.signal,
+        });
+        return parseEditResponse(r.status, await r.json().catch(() => ({})));
+      };
+      let answer = await send(settings.inputFidelity);
+      if (!answer.ok && settings.inputFidelity && rejectsInputFidelity(answer.message)) {
+        this.log(job, ["The model does not take input_fidelity; trying again without it."]);
+        answer = await send(null);
+      }
+      if (info.state === "discarded") return;
+      if (!answer.ok) {
+        info.state = "failed";
+        info.error = answer.message;
+        return;
+      }
+      const png = readPngInfo(answer.png);
+      if (!png || answer.png.length > MAX_OUTPUT_BYTES) {
+        info.state = "failed";
+        info.error = "OpenAI returned something that is not a PNG.";
+        return;
+      }
+      const outputPath = path.join(job.dir, OUTPUT_FILE);
+      await writeFile(outputPath, answer.png);
+      const cost = estimateCostUsd(answer.usage);
+      if (cost !== null) info.costUsd = cost;
+      this.log(job, [
+        `Received ${png.width} × ${png.height} px${cost !== null ? `, about $${cost.toFixed(2)}` : ""}.`,
+      ]);
+      job.outputPath = outputPath;
+      info.output = { width: png.width, height: png.height, bytes: answer.png.length, alpha: png.alpha };
+      info.state = "done";
+    } catch (e) {
+      if (info.state === "discarded") return;
+      if (job.abort.signal.aborted) info.state = "cancelled";
+      else {
+        info.state = "failed";
+        const cause = e instanceof Error && e.cause instanceof Error ? e.cause.message : "";
+        info.error =
+          e instanceof TypeError && /fetch failed/i.test(e.message)
+            ? `Cannot reach the OpenAI API${cause ? ` (${cause})` : ""}. Check the internet connection.`
+            : e instanceof Error
+              ? e.message
+              : String(e);
+      }
+    } finally {
+      clearTimeout(timer);
+      info.finishedAt = new Date().toISOString();
+    }
+  }
+
   cancel(id: string): EditJob {
     const job = this.job(id);
     if (job.info.state === "running") job.abort.abort();
@@ -378,7 +524,7 @@ export class EditManager {
       sameSize = !!png && png.width === job.info.output.width && png.height === job.info.output.height;
     }
     const base = original ? { ...original } : job.asset;
-    const entry = keptAsset(base, variant, job.info.instructions, sameSize);
+    const entry = keptAsset(base, variant, job.info.instructions, sameSize, job.info.tools);
     const merged = mergeManifest(manifestText?.trim() ? manifestText : null, [entry]);
     if (!merged.added.includes(variant.id)) throw new HttpError(409, "the manifest refused the new entry");
 
@@ -467,7 +613,11 @@ export async function handleEditRequest(
 
 export type EditEnv = Record<string, string | undefined>;
 
-/** Options from the environment: TATTOO_CLAUDE_BIN, TATTOO_EDIT_MODEL, TATTOO_EDIT_CACHE. */
+/**
+ * Options from the environment: TATTOO_CLAUDE_BIN, TATTOO_EDIT_MODEL, TATTOO_EDIT_CACHE, and for
+ * generative edits TATTOO_OPENAI_API_KEY (or OPENAI_API_KEY), TATTOO_OPENAI_MODEL,
+ * TATTOO_OPENAI_FIDELITY, TATTOO_OPENAI_QUALITY.
+ */
 export function editOptionsFromEnv(env: EditEnv): EditOptions {
   const cache = env.TATTOO_EDIT_CACHE?.trim();
   return {
@@ -476,6 +626,7 @@ export function editOptionsFromEnv(env: EditEnv): EditOptions {
       ? path.resolve(cache.replace(/^~(?=\/|$)/, os.homedir()))
       : path.join(os.homedir(), ".cache", "tattoo-planner"),
     ...(env.TATTOO_EDIT_MODEL?.trim() ? { model: env.TATTOO_EDIT_MODEL.trim() } : {}),
+    openai: openaiSettingsFromEnv(env),
   };
 }
 

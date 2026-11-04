@@ -14,7 +14,7 @@ Local web tool that previews Jan's left-arm tattoo sleeve on a parametric 3D arm
   When Jan fills in its "Eintragen" tables, transfer the final values into `config/measurements.yaml`.
 - **Never commit images, PDFs or exports.** All binary/visual data lives in `TATTOO_DATA_DIR` (Seafile). Respect the pre-commit guard; never bypass it (no `--no-verify`, no editing the allow-list to sneak a file in).
 - Read paths only via `TATTOO_DATA_DIR`; never hard-code Jan's absolute paths in committed files. Jan's real path lives only in the git-ignored `.env`.
-- No public deployment, no uploading assets to third-party services. The dev server binds to `127.0.0.1` only.
+- No public deployment; the planner stays local. Sending an image to an image-edit service (OpenAI, for generative edits; Jan, 2026-11-04) is fine; never put data-folder files into a git repo or anywhere public. The dev server binds to `127.0.0.1` only.
 - Prefer small, reviewable commits per phase step; keep `README.md` current.
 - Record significant technical choices as ADRs in `docs/adr/` (`NNNN-short-name.md`).
 - When in doubt about design intent (motifs, placement, style), consult `PROJECT_BRIEF.md` §3–§9 and **ask Jan rather than inventing design decisions**. Placeholder values in configs stay `null` until Jan provides them.

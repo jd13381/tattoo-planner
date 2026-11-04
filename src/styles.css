@@ -887,6 +887,12 @@ button.link {
   font: inherit;
   resize: vertical;
 }
+.edit-engine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+}
 .edit-presets {
   display: flex;
   flex-wrap: wrap;
