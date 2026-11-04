@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { filterAssets, NO_FILTER } from "../assets/filter.ts";
 import { announceManifestChanged, useAssetListing } from "../assets/useAssets.ts";
 import { assetImageUrl, type AssetInfo } from "../assets/types.ts";
-import { rootAssetId, staleJobs } from "./edit.ts";
+import { rootAssetId, showInStudio, staleJobs } from "./edit.ts";
 import {
   CREATE_BACKGROUNDS,
   CREATE_SIZES,
@@ -88,7 +88,7 @@ export function ImageEditPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const assets = useMemo(
-    () => (listing?.status === "ok" ? listing.assets.filter((a) => a.exists) : []),
+    () => (listing?.status === "ok" ? listing.assets.filter((a) => a.exists && showInStudio(a)) : []),
     [listing],
   );
   const shown = useMemo(() => filterAssets(assets, { ...NO_FILTER, text: search }), [assets, search]);
