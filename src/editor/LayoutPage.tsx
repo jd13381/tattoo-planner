@@ -11,7 +11,7 @@ import {
   type Layout,
   type LayoutElement,
 } from "../layout/schema.ts";
-import { classify } from "../layout/shapes.ts";
+import { classify, pickElement, resolveElement } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
 import { parseLayout } from "../layout/yamlDoc.ts";
 import { coverage } from "../metrics/coverage.ts";
@@ -60,6 +60,7 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
   const [parseError, setParseError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const [viewerToolbar, setViewerToolbar] = useState<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<RenderMode>("blockout");
   const [grid, setGrid] = useState(true);
   const [centerU, setCenterU] = useState(0);
@@ -171,6 +172,16 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
     );
     return cls.resolved.map((r) => r.flags);
   }, [layout, profile, aspects, patches]);
+  // Clicking a figure on the 3D arm selects it in the editor (topmost element at that point).
+  const resolvedEls = useMemo(
+    () =>
+      layout?.elements.map((el) =>
+        resolveElement(el, profile, anubisSize, aspects?.get(el.id), patches?.get(el.id)),
+      ) ?? [],
+    [layout, profile, aspects, patches],
+  );
+  const pickOnArm = (p: UV) => setSelected(pickElement(resolvedEls, profile, p.u, p.v));
+
   const flagged =
     layout?.elements.filter((_, i) => flagsFor[i]?.includes("height not set")).map((e) => e.id) ?? [];
 
@@ -362,7 +373,7 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
 
       {layout && (
         <div className="layout-grid">
-          <div className="editor-col">
+          <div className="editor-head">
             <div className="toolbar">
               <span className="muted small">Add:</span>
               {ELEMENT_TYPES.map((t) => (
@@ -371,22 +382,8 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
                 </button>
               ))}
             </div>
-            <UnwrapEditor
-              key={`${profile.length}:${profile.maxCircumference}`}
-              profile={profile}
-              layout={layout}
-              existing={anubisSize}
-              aspects={aspects}
-              patches={patches}
-              image={editorImage}
-              version={0}
-              centerU={centerU}
-              selected={selected}
-              onSelect={setSelected}
-              onChange={setElement}
-            />
           </div>
-          <div className="viewer-col">
+          <div className="viewer-head">
             <div className="toolbar draw-toolbar">
               <button
                 type="button"
@@ -416,6 +413,25 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
                 </span>
               )}
             </div>
+            <div ref={setViewerToolbar} />
+          </div>
+          <div className="editor-col">
+            <UnwrapEditor
+              key={`${profile.length}:${profile.maxCircumference}`}
+              profile={profile}
+              layout={layout}
+              existing={anubisSize}
+              aspects={aspects}
+              patches={patches}
+              image={editorImage}
+              version={0}
+              centerU={centerU}
+              selected={selected}
+              onSelect={setSelected}
+              onChange={setElement}
+            />
+          </div>
+          <div className="viewer-col">
             <ArmViewer
               profile={profile}
               canvas={texture}
@@ -424,6 +440,8 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
               bendDeg={pose.bendDeg}
               onBendDeg={pose.setBendDeg}
               draw={{ active: drawing, onStroke }}
+              onPick={pickOnArm}
+              toolbarTarget={viewerToolbar}
             />
           </div>
           <div className="side-col">

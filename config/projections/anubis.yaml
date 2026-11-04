@@ -7,7 +7,7 @@
 # Photo points are 0..1 from the left/top edge of the photo as shown upright, after `turn`.
 # u = around the arm (0 outer, 0.25 lateral, 0.5 inner, 0.75 medial), v = along it (0 wrist, 1 shoulder).
 name: anubis
-description: "Anubis, inner left forearm, combined from four photos"
+description: "Anubis, inner left forearm, combined from five photos"
 # The area of skin the combined picture covers
 patch:
   u: [0.1, 0.78] # lateral … medial
@@ -67,3 +67,18 @@ photos:
       - { x: 0.38, y: 0.656, cm: 4.5 } # lowest visible ink; distance fitted to the other photos
       - { x: 0.4, y: 0.23, cm: 28 } # tip of the ears (top of the tattoo)
     u_view: { wrist: 0.145, elbow: 0.39 } # u facing the camera; differs along the arm when the forearm is turned
+
+  - file: arm-photos/anubis_extra4.png # standing, arm hanging, palm towards the body: the thumb side (lateral) faces the camera, not medial
+    turn: 0 # clockwise quarter turn so the wrist points down
+    # Low weight: low resolution (about 18 px/cm on the arm) and every part it sees well is seen as well by
+    # another photo, so at full weight it only blurs the patch. Raise it if a sharper copy replaces it.
+    weight: 0.25
+    # The forearm silhouette, each edge as a line through two points
+    edges:
+      left: [{ x: 0.6415, y: 0.345 }, { x: 0.7195, y: 0.69 }]
+      right: [{ x: 0.7862, y: 0.345 }, { x: 0.7932, y: 0.69 }]
+    # Points at a known distance from the wrist crease along the arm, cm
+    along:
+      - { x: 0.726, y: 0.672, cm: 3.49 } # lowest visible ink; distance fitted to the other photos
+      - { x: 0.656, y: 0.337, cm: 28.63 } # tip of the ears (top of the tattoo)
+    u_view: { wrist: 0.35, elbow: 0.47 } # u facing the camera; differs along the arm when the forearm is turned

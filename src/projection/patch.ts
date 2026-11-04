@@ -43,7 +43,10 @@ export type ProjectedPatch = {
 
 const lum = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
-/** Bilinear brightness at a stored-photo point in pixels; NaN outside. */
+/** Below this alpha a photo pixel counts as not photographed (a cut-out PNG's transparent background). */
+const OPAQUE_MIN = 128;
+
+/** Bilinear brightness at a stored-photo point in pixels; NaN outside the photo or on transparent pixels. */
 export function sampleLum(img: PhotoPixels, x: number, y: number): number {
   const fx = x - 0.5;
   const fy = y - 0.5;
@@ -55,7 +58,8 @@ export function sampleLum(img: PhotoPixels, x: number, y: number): number {
   const d = img.data;
   const at = (xx: number, yy: number) => {
     const i = (yy * img.width + xx) * 4;
-    return lum(d[i]!, d[i + 1]!, d[i + 2]!);
+    // Transparent pixels decode as black and would read as ink; NaN marks them unseen instead.
+    return d[i + 3]! < OPAQUE_MIN ? NaN : lum(d[i]!, d[i + 1]!, d[i + 2]!);
   };
   const top = at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx;
   const bottom = at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx;

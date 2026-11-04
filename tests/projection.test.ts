@@ -214,6 +214,25 @@ describe("buildPatch", () => {
     expect(Math.abs(bright.gray[k]! - dark.gray[k]!)).toBeLessThan(3);
   });
 
+  it("treats transparent pixels of an RGBA photo (cut-out PNG) as unseen, not as ink", () => {
+    const cal = calibration();
+    const photo = syntheticPhoto();
+    // Make the upper half (towards the elbow) transparent; decoded transparent pixels are black.
+    for (let k = 0; k < (photo.width * photo.height) / 2; k++) photo.data.set([0, 0, 0, 0], k * 4);
+    const patch = buildPatch(cal, profile, [photo])!;
+    const L = profile.length;
+    const at = (v: number) => {
+      const i = Math.floor(((patch.u1 - 0.5) / (patch.u1 - patch.u0)) * patch.width);
+      const j = Math.floor(((patch.v1 - v) / (patch.v1 - patch.v0)) * patch.height);
+      return j * patch.width + i;
+    };
+    // s = 24 cm lies at photo row 168, inside the transparent half: unseen, so no patch and no ink.
+    expect(patch.alpha[at(24 / L)]).toBe(0);
+    expect(patch.footprint[at(24 / L)]).toBe(0);
+    // The opaque half still shows its ink.
+    expect(patch.gray[at(8 / L)]).toBeLessThan(80);
+  });
+
   it("blends photos by their view weight: the frontal photo wins", () => {
     const front = calibration(0.5);
     const side = calibration(0.3).photos[0]!;

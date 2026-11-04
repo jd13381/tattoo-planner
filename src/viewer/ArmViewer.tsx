@@ -1,6 +1,7 @@
 import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ArmProfile } from "../arm/profile.ts";
 import { ArmModel } from "./ArmModel.tsx";
@@ -33,6 +34,10 @@ type Props = {
    * still work); every finished stroke arrives as layout points, thinned to the minimum step.
    */
   draw?: { active: boolean; onStroke: (samples: UV[]) => void };
+  /** Click on the skin (not a drag): the layout point that was clicked. */
+  onPick?: (p: UV) => void;
+  /** Renders the toolbar into this element instead of above the canvas (lets a page align columns). */
+  toolbarTarget?: HTMLElement | null;
 };
 
 export function ArmViewer(props: Props) {
@@ -64,18 +69,33 @@ export function ArmViewer(props: Props) {
     }, "image/png");
   };
 
+  const onPick = props.onPick;
+  const pick = (e: ThreeEvent<MouseEvent>) => {
+    // A click, not the end of a rotation: three.js reports how far the pointer moved.
+    if (!onPick || drawing || e.delta > 4) return;
+    if (!e.uv || e.face?.materialIndex !== 0) return;
+    const p = textureToLayout(profile, e.uv.x, e.uv.y);
+    if (!p) return;
+    e.stopPropagation();
+    onPick(p);
+  };
+
+  const toolbarEl = toolbar && (
+    <div className="toolbar" role="toolbar" aria-label="Views">
+      <ViewButtons state={vs} />
+      {props.onBendDeg && <PoseControl bendDeg={bendDeg} onChange={props.onBendDeg} />}
+      <span className="spacer" />
+      <button type="button" onClick={screenshot}>
+        Screenshot
+      </button>
+    </div>
+  );
+
   return (
     <div className="viewer">
-      {toolbar && (
-        <div className="toolbar" role="toolbar" aria-label="Views">
-          <ViewButtons state={vs} />
-          {props.onBendDeg && <PoseControl bendDeg={bendDeg} onChange={props.onBendDeg} />}
-          <span className="spacer" />
-          <button type="button" onClick={screenshot}>
-            Screenshot
-          </button>
-        </div>
-      )}
+      {props.toolbarTarget
+        ? createPortal(toolbarEl, props.toolbarTarget)
+        : props.toolbarTarget === undefined && toolbarEl}
       <div className={`canvas-wrap${drawing ? " drawing" : ""}`}>
         {label && <span className="viewer-label">{label}</span>}
         <Canvas
@@ -96,6 +116,7 @@ export function ArmViewer(props: Props) {
             version={version}
             onPointerDown={drawing ? brush.down : undefined}
             onPointerMove={drawing ? brush.move : undefined}
+            onClick={onPick ? pick : undefined}
           />
           {brush.preview.length >= 2 && (
             <Line points={brush.preview} color="#d01810" lineWidth={4} depthTest={false} />

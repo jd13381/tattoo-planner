@@ -333,25 +333,56 @@ textarea,
   border-radius: 0 8px 8px 0;
 }
 
+/* Two rows, so the editor and the 3D view start at the same height whatever their toolbars hold. */
 .layout-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) 360px;
-  gap: 16px;
+  grid-template-areas:
+    "editor-head viewer-head side"
+    "editor viewer side";
+  grid-template-rows: auto 1fr;
+  gap: 8px 16px;
   margin-top: 12px;
+  align-items: start;
+}
+
+.editor-head {
+  grid-area: editor-head;
+  align-self: end;
+}
+.viewer-head {
+  grid-area: viewer-head;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: end;
+}
+.editor-col {
+  grid-area: editor;
+}
+.viewer-col {
+  grid-area: viewer;
+}
+.layout-grid > .side-col {
+  grid-area: side;
 }
 
 @media (max-width: 1200px) {
   .layout-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .side-col {
-    grid-column: 1 / -1;
+    grid-template-areas:
+      "editor-head viewer-head"
+      "editor viewer"
+      "side side";
+    grid-template-rows: auto auto auto;
   }
 }
 
 @media (max-width: 760px) {
   .layout-grid {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "editor-head" "editor" "viewer-head" "viewer" "side";
+    grid-template-rows: none;
   }
 }
 

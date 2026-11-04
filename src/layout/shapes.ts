@@ -186,6 +186,22 @@ export function hits(shape: Shape, u: number, y: number, c: number): boolean {
   }
 }
 
+/**
+ * Index of the topmost element covering a skin point (u around, v along), or null for open skin.
+ * Used to select an element by clicking it on the 3D arm.
+ */
+export function pickElement(
+  resolved: ResolvedElement[],
+  profile: ArmProfile,
+  u: number,
+  v: number,
+): number | null {
+  const y = v * profile.length;
+  const c = profile.circumferenceAt(y);
+  for (let k = resolved.length - 1; k >= 0; k--) if (hits(resolved[k]!.shape, u, y, c)) return k;
+  return null;
+}
+
 export const OUTSIDE = 255;
 
 export type Classification = {

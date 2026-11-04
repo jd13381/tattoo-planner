@@ -5,7 +5,7 @@
 
 ## Problem
 
-The existing Anubis (inner left forearm, 26 × 12 cm, lowest point 2 cm above the wrist crease) wraps partly around the arm. Until now the planner cut it out of one photo (`anubis1_nr.JPG`, palm up) as a flat box, so the parts that wrap round were missing or squashed. Jan took three more photos (`anubis_extra1–3.JPG`) with the forearm turned step by step towards the thumb side.
+The existing Anubis (inner left forearm, 26 × 12 cm, lowest point 2 cm above the wrist crease) wraps partly around the arm. Until now the planner cut it out of one photo (`anubis1_nr.JPG`, palm up) as a flat box, so the parts that wrap round were missing or squashed. Jan took three more photos (`anubis_extra1–3.JPG`) with the forearm turned step by step towards the thumb side, and later a fifth (`anubis_extra4.png`, arm hanging, palm towards the body).
 
 ## Decision
 
@@ -40,6 +40,7 @@ The image's right is Y × N (shoulder up, N the view normal), so seen from the i
 ## Known limits
 
 - The cross-section is the planner's ellipse; the real forearm lying on a table is flatter and wider. The edges absorb most of it, but points between the centre and the silhouette can be off by a few millimetres, which shows as soft doubling in the cloak where photos overlap.
-- No photo shows the medial side well (the forearm was only turned towards the thumb); ink there comes from grazing views and fades out. A photo with the forearm turned the other way (palm towards the body) would fill it in.
+- No photo shows the medial side well: all of them look at the inner or the thumb side, including `anubis_extra4.png` (palm towards the body turns the thumb side to the camera). Ink there comes from grazing views and fades out. A photo taken from the little-finger side (palm up or forwards, camera beside the body) would fill it in.
+- Photos with an alpha channel: pixels below 50 % alpha count as not photographed.
 - Lighting differs between photos; the local white normalisation removes most of it, but hair on the lateral forearm survives as faint lines, and the footprint is a rough area, not an outline.
 - The patch is grayscale; `filter: hatching` applies the line screen, `filter: none` is treated as grayscale.
