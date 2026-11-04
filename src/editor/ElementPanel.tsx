@@ -136,14 +136,14 @@ export function ElementPanel({
             <label>
               height cm{" "}
               {num(el.size_cm.h, (h) => onChange({ ...el, size_cm: { ...el.size_cm, h } }), {
-                step: 0.5,
+                step: 0.1,
                 nullable: true,
               })}
             </label>
             <label>
               width cm{" "}
               {num(el.size_cm.w, (w) => onChange({ ...el, size_cm: { ...el.size_cm, w: w ?? undefined } }), {
-                step: 0.5,
+                step: 0.1,
                 nullable: true,
               })}
             </label>
@@ -212,7 +212,7 @@ export function ElementPanel({
             </label>
             <label>v (along) {num(el.v, (v) => onChange({ ...el, v: v ?? 0 }))}</label>
             <label>
-              width cm {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), { step: 0.5 })}
+              width cm {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), { step: 0.1 })}
             </label>
           </>
         )}
@@ -220,7 +220,7 @@ export function ElementPanel({
           <>
             <label>color {text(el.color, (color) => onChange({ ...el, color }))}</label>
             <label>
-              width cm {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), { step: 0.5 })}
+              width cm {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), { step: 0.1 })}
             </label>
             <p className="muted small">{el.points.length} points: drag the dots in the editor.</p>
             <div className="toolbar">
@@ -343,7 +343,7 @@ function ImageFields(props: {
         <input
           type="number"
           min={0}
-          step={0.25}
+          step={0.1}
           value={el.feather_cm ?? ""}
           placeholder="1 (default)"
           onChange={(e) => {
