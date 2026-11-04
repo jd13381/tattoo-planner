@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { PLACEHOLDERS } from "../src/arm/inputs.ts";
 import { buildProfile } from "../src/arm/profile.ts";
 import { listLayouts, saveLayout } from "../src/data/server/layoutsApi.ts";
-import { moveElement, newElement, reorder, scaleFigure, uniqueId } from "../src/editor/edit.ts";
+import { moveElement, newElement, reorder, uniqueId } from "../src/editor/edit.ts";
 import type { Layout, LayoutElement } from "../src/layout/schema.ts";
 import { classify, hits, OUTSIDE, resolveElement, wrapDelta } from "../src/layout/shapes.ts";
 import { parseLayout, updateLayoutText } from "../src/layout/yamlDoc.ts";
@@ -216,16 +216,6 @@ describe("editing", () => {
       region: { u: [0.2, 0.3], v: [0.8, 0.9] },
     };
     expect(moveElement(r, 0, 0.5)).toMatchObject({ region: { v: [0.9, 1] } });
-  });
-
-  it("scales height and an explicit width together", () => {
-    const f: LayoutElement = {
-      id: "f",
-      type: "figure",
-      position: { u: 0, v: 0.5 },
-      size_cm: { h: 10, w: 4 },
-    };
-    expect(scaleFigure(f, 1.5)).toMatchObject({ size_cm: { h: 15, w: 6 } });
   });
 
   it("creates valid new elements with unique ids", () => {

@@ -155,3 +155,8 @@ Details in `docs/adr/0009-create-images.md`.
 - **Up to four references per request**, sent after the image to edit. _Change:_ `MAX_REFERENCES` in `src/edits/openai.ts` (the API takes up to 16).
 - **Kept new images:** `generated/<name>-N.png`, kind `idea`, tag `generated`.
 - **Create prompt** asks for one centred motif as a clean sketch on a plain background without frame, text, watermark or skin, unless the description says otherwise. _Change:_ `buildCreatePrompt`.
+
+### Layout editor: 3D selection removed, resize handles redone
+
+- **No click-to-select on the 3D arm** (Jan, 2026-11-04: it collided with the orbit gestures). The 3D view only shows the result; selection happens in the 2D editor and the elements list.
+- **Eight resize handles** instead of one corner square: corners keep the aspect ratio around the opposite corner, edges stretch one side; Shift swaps, Alt resizes around the centre, Ctrl/⌘ turns snapping off. Sizes snap to 0.5 cm (a size holds its start value until it has moved a quarter centimetre, so a derived 9.9 cm width does not jump), at least 1 cm per side. A figure whose width is not set keeps it unset when resized in proportion; a free resize writes the width. _Alternative:_ aspect kept on every handle by default. _Change:_ `SNAP_CM`, `MIN_SIZE_CM` and `resizeOptions` in `src/editor/resize.ts`.

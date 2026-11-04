@@ -1545,23 +1545,78 @@ button.draw-button[aria-pressed="true"] {
   fill: #cfc8c0;
 }
 
-.unwrap-editor .handles line {
+/* Selection handles: sized in screen pixels (UnwrapEditor.tsx), so strokes do not scale either. */
+.unwrap-editor .handles line,
+.unwrap-editor .handles .selection-box {
+  fill: none;
   stroke: #ffc400;
-  stroke-width: 0.08;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.unwrap-editor .handles .selection-box {
+  stroke-opacity: 0.7;
 }
 
 .unwrap-editor .handle {
-  fill: #ffc400;
+  fill: #fffdfa;
   stroke: #1d1b19;
-  stroke-width: 0.08;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  transition: fill 80ms ease;
 }
 
-.unwrap-editor .handle.scale {
-  cursor: nwse-resize;
+.unwrap-editor .grip .hit {
+  fill: transparent;
+  stroke: none;
 }
 
-.unwrap-editor .handle.rotate {
+.unwrap-editor .grip:hover .handle,
+.unwrap-editor .grip.active .handle {
+  fill: #ffc400;
+  stroke-width: 2px;
+}
+
+.unwrap-editor .grip.rotate,
+.unwrap-editor .grip.point {
   cursor: crosshair;
+}
+
+/* While resizing, the handle's cursor stays on whatever the pointer passes over. */
+.unwrap-editor svg.resizing,
+.unwrap-editor svg.resizing * {
+  cursor: var(--resize-cursor, nwse-resize) !important;
+}
+
+.unwrap-editor .resize-feedback .ghost {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 1px;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.unwrap-editor .resize-feedback .size-pill {
+  fill: var(--canvas-label-bg);
+  stroke: #ffc400;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.unwrap-editor .resize-feedback text {
+  text-anchor: middle;
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.unwrap-editor .resize-feedback .size-label {
+  fill: #fff;
+  font-weight: 600;
+}
+
+.unwrap-editor .resize-feedback .size-mode {
+  fill: #cfc8c0;
 }
 
 /* Property grids (element panel, projection fields) */

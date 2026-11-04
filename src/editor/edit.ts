@@ -43,22 +43,6 @@ export function movePoint(el: LayoutElement, index: number, u: number, v: number
   };
 }
 
-/** Scales a figure's height (and width, when set) by a factor. */
-export function scaleFigure(el: LayoutElement, factor: number): LayoutElement {
-  if (el.type !== "figure" && el.type !== "existing") return el;
-  const h = el.size_cm.h;
-  if (h === null) return el;
-  const w = el.size_cm.w;
-  return {
-    ...el,
-    size_cm: {
-      ...el.size_cm,
-      h: round(Math.max(0.5, h * factor), 1),
-      ...(w ? { w: round(Math.max(0.5, w * factor), 1) } : {}),
-    },
-  };
-}
-
 export function uniqueId(base: string, taken: Iterable<string>): string {
   const ids = new Set(taken);
   if (!ids.has(base)) return base;

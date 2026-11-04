@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -7,7 +8,6 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { ArmProfile } from "../arm/profile.ts";
-import { wrapU } from "../arm/uv.ts";
 import type { ElementAspects } from "../layout/imageFit.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import {
@@ -19,7 +19,20 @@ import {
   type ExistingSize,
   type Shape,
 } from "../layout/shapes.ts";
-import { moveElement, movePoint, scaleFigure } from "./edit.ts";
+import { moveElement, movePoint } from "./edit.ts";
+import {
+  applyResize,
+  formatSize,
+  HANDLES,
+  isCorner,
+  resizeBox,
+  resizeCursor,
+  resizeOptions,
+  svgToSkin,
+  type Box,
+  type Handle,
+  type ResizeOptions,
+} from "./resize.ts";
 import { imagePlacement } from "./viewBox.ts";
 
 type Props = {
@@ -45,7 +58,22 @@ type Props = {
 type Drag =
   | { kind: "pan"; startX: number; startY: number; box: ViewBox }
   | { kind: "move"; index: number; start: LayoutElement; u: number; v: number }
-  | { kind: "scale"; index: number; start: LayoutElement; cx: number; cy: number; d0: number }
+  | {
+      kind: "resize";
+      index: number;
+      start: LayoutElement;
+      /** The box when the drag started, in the SVG frame. */
+      box: Box;
+      handle: Handle;
+      /** Pointer position when the drag started (SVG frame). */
+      sx: number;
+      sy: number;
+      /** The width is not stored but follows the height (see applyResize). */
+      widthDerived: boolean;
+      /** The box and modifiers of the latest update, for the live label. */
+      current: Box;
+      opts: ResizeOptions;
+    }
   | { kind: "rotate"; index: number; start: LayoutElement; cx: number; cy: number }
   | { kind: "point"; index: number; point: number; start: LayoutElement };
 
@@ -143,10 +171,52 @@ export function UnwrapEditor(props: Props) {
     const ctm = svg?.getScreenCTM();
     if (!svg || !ctm) return null;
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
-    const y = Math.min(L, Math.max(0, L - p.y));
-    const c = profile.circumferenceAt(y);
-    return { sx: p.x, sy: p.y, u: wrapU(centerU - p.x / c), v: y / L };
+    return { sx: p.x, sy: p.y, ...svgToSkin(profile, centerU, p.x, p.y) };
   };
+
+  // Screen pixels per SVG unit (cm), so handles and labels keep their size on screen at any zoom.
+  const pxPerCm = svgSize.w > 0 && svgSize.h > 0 ? Math.min(svgSize.w / view.w, svgSize.h / view.h) : 10;
+  const px = 1 / pxPerCm;
+
+  /** Applies a resize drag for the pointer at (sx, sy) with the given modifier keys. */
+  const updateResize = (
+    d: Extract<Drag, { kind: "resize" }>,
+    sx: number,
+    sy: number,
+    keys: { shiftKey: boolean; altKey: boolean; ctrlKey: boolean; metaKey: boolean },
+  ) => {
+    const opts = resizeOptions(d.handle, keys);
+    const box = resizeBox(d.box, d.handle, sx - d.sx, sy - d.sy, opts);
+    const moved = Math.abs(box.cx - d.box.cx) > 1e-9 || Math.abs(box.cy - d.box.cy) > 1e-9;
+    const next = applyResize(d.start, box, {
+      keepAspect: opts.keepAspect,
+      widthDerived: d.widthDerived,
+      position: moved ? svgToSkin(profile, centerU, box.cx, box.cy) : undefined,
+    });
+    onChange(d.index, next, `drag-${gestureSeq.current}`);
+    setDrag({ ...d, current: box, opts });
+  };
+
+  // Modifier keys pressed or released mid-drag take effect at once, without moving the pointer.
+  const lastPointer = useRef<{ sx: number; sy: number } | null>(null);
+  const onModifierKey = useEffectEvent((e: KeyboardEvent) => {
+    const p = lastPointer.current;
+    if (drag?.kind === "resize" && p && ["Shift", "Alt", "Control", "Meta"].includes(e.key)) {
+      e.preventDefault();
+      updateResize(drag, p.sx, p.sy, e);
+    }
+  });
+  const resizing = drag?.kind === "resize";
+  useEffect(() => {
+    if (!resizing) return;
+    const on = (e: KeyboardEvent) => onModifierKey(e);
+    window.addEventListener("keydown", on);
+    window.addEventListener("keyup", on);
+    return () => {
+      window.removeEventListener("keydown", on);
+      window.removeEventListener("keyup", on);
+    };
+  }, [resizing]);
 
   const startDrag = (e: ReactPointerEvent, next: Drag) => {
     e.stopPropagation();
@@ -157,6 +227,7 @@ export function UnwrapEditor(props: Props) {
 
   const endDrag = () => {
     if (drag && drag.kind !== "pan") onGestureEnd?.();
+    lastPointer.current = null;
     setDrag(null);
   };
 
@@ -183,6 +254,7 @@ export function UnwrapEditor(props: Props) {
     if (!drag) return;
     const p = pointer(e);
     if (!p) return;
+    lastPointer.current = { sx: p.sx, sy: p.sy };
     const gesture = `drag-${gestureSeq.current}`;
     switch (drag.kind) {
       case "pan": {
@@ -198,11 +270,9 @@ export function UnwrapEditor(props: Props) {
       case "move":
         onChange(drag.index, moveElement(drag.start, wrapDelta(p.u - drag.u), p.v - drag.v), gesture);
         return;
-      case "scale": {
-        const d = Math.hypot(p.sx - drag.cx, p.sy - drag.cy);
-        if (drag.d0 > 0) onChange(drag.index, scaleFigure(drag.start, d / drag.d0), gesture);
+      case "resize":
+        updateResize(drag, p.sx, p.sy, e);
         return;
-      }
       case "rotate": {
         const deg = (Math.atan2(drag.cy - p.sy, p.sx - drag.cx) * 180) / Math.PI - 90;
         const norm = Math.round(((deg + 540) % 360) - 180);
@@ -248,7 +318,20 @@ export function UnwrapEditor(props: Props) {
         onDoubleClick={() => setView(fullView)}
         role="application"
         aria-label="Unwrap editor"
-        className={drag?.kind === "pan" ? "panning" : drag ? "dragging" : undefined}
+        className={
+          drag?.kind === "pan"
+            ? "panning"
+            : drag?.kind === "resize"
+              ? "resizing"
+              : drag
+                ? "dragging"
+                : undefined
+        }
+        style={
+          drag?.kind === "resize"
+            ? ({ "--resize-cursor": resizeCursor(drag.handle, drag.box.rot) } as React.CSSProperties)
+            : undefined
+        }
       >
         <text className="edge-label" x={-half + 0.3} y={-0.3}>
           {centerU === 0 ? "lateral ←" : "medial ←"}
@@ -280,16 +363,26 @@ export function UnwrapEditor(props: Props) {
             <Handles
               shape={resolved[selected].shape}
               toSvg={toSvg}
-              onScale={(e, cx, cy, hx, hy) =>
+              px={px}
+              active={drag?.kind === "resize" ? drag.handle : null}
+              onResize={(e, box, handle) => {
+                const p = pointer(e);
+                const el = layout.elements[selected]!;
+                if (!p || (el.type !== "figure" && el.type !== "existing")) return;
+                lastPointer.current = { sx: p.sx, sy: p.sy };
                 startDrag(e, {
-                  kind: "scale",
+                  kind: "resize",
                   index: selected,
-                  start: layout.elements[selected]!,
-                  cx,
-                  cy,
-                  d0: Math.hypot(hx - cx, hy - cy),
-                })
-              }
+                  start: el,
+                  box,
+                  handle,
+                  sx: p.sx,
+                  sy: p.sy,
+                  widthDerived: el.size_cm.w == null && !(el.type === "existing" && existing.width !== null),
+                  current: box,
+                  opts: resizeOptions(handle, e),
+                });
+              }}
               onRotate={(e, cx, cy) =>
                 startDrag(e, { kind: "rotate", index: selected, start: layout.elements[selected]!, cx, cy })
               }
@@ -298,11 +391,13 @@ export function UnwrapEditor(props: Props) {
               }
             />
           )}
+        {drag?.kind === "resize" && <ResizeFeedback drag={drag} px={px} view={view} />}
       </svg>
       <p className="muted small">
-        Click to select, drag to move, Alt-click for the element underneath; corner handle scales, round
-        handle rotates. Drag the background to pan, scroll to zoom, double-click to reset. Seen from outside
-        the arm, shoulder at the top.
+        Click to select, drag to move, Alt-click for the element underneath. Corner handles resize in
+        proportion, edge handles stretch one side (Shift swaps this, Alt resizes from the centre, sizes snap
+        to 0.5 cm unless Ctrl/⌘ is held); the round handle rotates. Drag the background to pan, scroll to
+        zoom, double-click to reset. Seen from outside the arm, shoulder at the top.
       </p>
     </div>
   );
@@ -389,41 +484,59 @@ function ShapeOverlay(props: {
   );
 }
 
+/** Handle sizes in screen pixels: what is drawn, and the larger area that takes the pointer. */
+const HANDLE_PX = { corner: 9, edge: 7, hit: 20, rotateR: 5.5, rotateHit: 11, stem: 26, point: 6 };
+
 function Handles(props: {
   shape: Shape;
   toSvg: ToSvg;
-  onScale: (e: ReactPointerEvent, cx: number, cy: number, hx: number, hy: number) => void;
+  /** SVG units (cm) per screen pixel. */
+  px: number;
+  /** The handle being dragged. */
+  active: Handle | null;
+  onResize: (e: ReactPointerEvent, box: Box, handle: Handle) => void;
   onRotate: (e: ReactPointerEvent, cx: number, cy: number) => void;
   onPoint: (e: ReactPointerEvent, index: number) => void;
 }) {
-  const { shape, toSvg } = props;
+  const { shape, toSvg, px, active } = props;
   if (shape.kind === "box") {
     const c = toSvg(shape.uc, shape.cy);
-    const cos = Math.cos(shape.rot);
-    const sin = Math.sin(shape.rot);
-    // Local (right, up) → SVG (right, down).
-    const at = (lx: number, ly: number) => ({ x: c.x + lx * cos - ly * sin, y: c.y - (lx * sin + ly * cos) });
-    const corner = at(shape.w / 2, shape.h / 2);
-    const top = at(0, shape.h / 2 + 1.5);
-    const topEdge = at(0, shape.h / 2);
+    const box: Box = { cx: c.x, cy: c.y, w: shape.w, h: shape.h, rot: shape.rot };
+    const deg = (shape.rot * 180) / Math.PI;
+    const stemTop = -shape.h / 2 - HANDLE_PX.stem * px;
+    // Drawn in the box's own frame (SVG y down inside the group, so local "up" is -y).
     return (
-      <g className="handles">
-        <line x1={topEdge.x} y1={topEdge.y} x2={top.x} y2={top.y} />
-        <rect
-          x={corner.x - 0.45}
-          y={corner.y - 0.45}
-          width={0.9}
-          height={0.9}
-          onPointerDown={(e) => props.onScale(e, c.x, c.y, corner.x, corner.y)}
-          className="handle scale"
-        />
-        <circle
-          cx={top.x}
-          cy={top.y}
-          r={0.5}
-          onPointerDown={(e) => props.onRotate(e, c.x, c.y)}
-          className="handle rotate"
-        />
+      <g className="handles" transform={`translate(${c.x} ${c.y}) rotate(${-deg})`}>
+        <rect className="selection-box" x={-shape.w / 2} y={-shape.h / 2} width={shape.w} height={shape.h} />
+        <line x1={0} y1={-shape.h / 2} x2={0} y2={stemTop} />
+        <g className="grip rotate" onPointerDown={(e) => props.onRotate(e, c.x, c.y)}>
+          <title>Drag to rotate</title>
+          <circle className="hit" cx={0} cy={stemTop} r={HANDLE_PX.rotateHit * px} />
+          <circle className="handle" cx={0} cy={stemTop} r={HANDLE_PX.rotateR * px} />
+        </g>
+        {HANDLES.map((h) => {
+          const x = (h.x * shape.w) / 2;
+          const y = (-h.y * shape.h) / 2;
+          const size = (isCorner(h) ? HANDLE_PX.corner : HANDLE_PX.edge) * px;
+          const hit = HANDLE_PX.hit * px;
+          const on = active?.x === h.x && active?.y === h.y;
+          return (
+            <g
+              key={`${h.x},${h.y}`}
+              className={`grip resize${on ? " active" : ""}`}
+              style={{ cursor: resizeCursor(h, shape.rot) }}
+              onPointerDown={(e) => props.onResize(e, box, h)}
+            >
+              <title>
+                {isCorner(h)
+                  ? "Drag to resize in proportion (Shift: free, Alt: from the centre)"
+                  : "Drag to stretch this side (Shift: in proportion, Alt: from the centre)"}
+              </title>
+              <rect className="hit" x={x - hit / 2} y={y - hit / 2} width={hit} height={hit} />
+              <rect className="handle" x={x - size / 2} y={y - size / 2} width={size} height={size} />
+            </g>
+          );
+        })}
       </g>
     );
   }
@@ -433,18 +546,76 @@ function Handles(props: {
         {shape.points.map((p, i) => {
           const s = toSvg(p.u, p.y);
           return (
-            <circle
-              key={i}
-              cx={s.x}
-              cy={s.y}
-              r={0.5}
-              className="handle"
-              onPointerDown={(e) => props.onPoint(e, i)}
-            />
+            <g key={i} className="grip point" onPointerDown={(e) => props.onPoint(e, i)}>
+              <circle className="hit" cx={s.x} cy={s.y} r={(HANDLE_PX.hit / 2) * px} />
+              <circle className="handle" cx={s.x} cy={s.y} r={HANDLE_PX.point * px} />
+            </g>
           );
         })}
       </g>
     );
   }
   return null;
+}
+
+/** While resizing: the original box as a dashed ghost and a label with the new size in cm. */
+function ResizeFeedback({
+  drag,
+  px,
+  view,
+}: {
+  drag: Extract<Drag, { kind: "resize" }>;
+  px: number;
+  view: ViewBox;
+}) {
+  const { box, current, opts } = drag;
+  const deg = (box.rot * 180) / Math.PI;
+  // Above the box's highest point on screen (below it when there is no room), upright whatever the
+  // rotation, and always inside the visible part of the editor.
+  const cos = Math.abs(Math.cos(current.rot));
+  const sin = Math.abs(Math.sin(current.rot));
+  const extent = (sin * current.w + cos * current.h) / 2;
+  const text = formatSize(current.w, current.h);
+  const mode = [
+    opts.keepAspect ? "in proportion" : "free",
+    opts.fromCentre ? "from centre" : null,
+    opts.snap ? "0.5 cm steps" : "no snap",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const fs = 13 * px;
+  const small = 10.5 * px;
+  const width = Math.max(text.length * 0.6 * fs, mode.length * 0.56 * small) + 16 * px;
+  const height = fs + small + 14 * px;
+  const margin = 6 * px;
+  const above = current.cy - extent - 34 * px - height / 2;
+  const below = current.cy + extent + 18 * px + height / 2;
+  const minY = view.y + margin + height / 2;
+  const maxY = view.y + view.h - margin - height / 2;
+  const y = Math.min(maxY, Math.max(minY, above >= minY ? above : below));
+  const halfW = width / 2;
+  const x = Math.min(view.x + view.w - margin - halfW, Math.max(view.x + margin + halfW, current.cx));
+  return (
+    <g className="resize-feedback" pointerEvents="none">
+      <g transform={`translate(${box.cx} ${box.cy}) rotate(${-deg})`}>
+        <rect className="ghost" x={-box.w / 2} y={-box.h / 2} width={box.w} height={box.h} />
+      </g>
+      <g transform={`translate(${x} ${y})`}>
+        <rect
+          className="size-pill"
+          x={-width / 2}
+          y={-height / 2}
+          width={width}
+          height={height}
+          rx={5 * px}
+        />
+        <text className="size-label" y={-height / 2 + 5 * px + fs * 0.85} style={{ fontSize: fs }}>
+          {text}
+        </text>
+        <text className="size-mode" y={height / 2 - 6 * px} style={{ fontSize: small }}>
+          {mode}
+        </text>
+      </g>
+    </g>
+  );
 }
