@@ -1,4 +1,5 @@
 import { AssetThumb } from "../assets/AssetBrowser.tsx";
+import { LockIcon } from "../ui/icons.tsx";
 import type { AssetInfo } from "../assets/types.ts";
 import { FULL_IMAGE } from "../layout/imageFit.ts";
 import {
@@ -16,12 +17,16 @@ type Props = {
   /** The filter used when the element sets none (depends on its position). */
   autoFilter: ImageFilter;
   flags: string[];
+  /** Read-only position on the skin in cm (formatPositionCm). */
+  positionCm: string;
   index: number;
   count: number;
   onChange: (el: LayoutElement) => void;
   onLayer: (dir: 1 | -1) => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  /** Keyboard hints for the button tooltips, e.g. { duplicate: "⌘D" }. */
+  keys?: Partial<Record<"duplicate" | "delete" | "forward" | "back", string>>;
 };
 
 /** Properties of the selected element. Every field maps 1:1 to the layout YAML. */
@@ -30,14 +35,17 @@ export function ElementPanel({
   asset,
   autoFilter,
   flags,
+  positionCm,
   index,
   count,
   onChange,
   onLayer,
   onDelete,
   onDuplicate,
+  keys = {},
 }: Props) {
   const locked = !!el.locked;
+  const hint = (k: keyof NonNullable<Props["keys"]>) => (keys[k] ? ` (${keys[k]})` : "");
   const num = (
     value: number | null | undefined,
     set: (n: number | null) => void,
@@ -64,6 +72,7 @@ export function ElementPanel({
       onChange={(e) => set(e.target.value || undefined)}
     />
   );
+  const cm = <p className="cm-readout">{positionCm}</p>;
 
   return (
     <section className="panel element-panel" aria-label="Element">
@@ -71,6 +80,18 @@ export function ElementPanel({
         <h2>
           {el.id} <span className="muted small">{el.type}</span>
         </h2>
+        <button
+          type="button"
+          className={`ghost lock-toggle${locked ? " on" : ""}`}
+          aria-pressed={locked}
+          title={
+            locked ? "Locked: cannot be moved, edited or deleted. Click to unlock." : "Lock against edits"
+          }
+          onClick={() => onChange({ ...el, locked: locked ? undefined : true })}
+        >
+          <LockIcon open={!locked} />
+          {locked ? "Locked" : "Lock"}
+        </button>
       </div>
       {flags.length > 0 && (
         <p className="warn small">
@@ -78,31 +99,28 @@ export function ElementPanel({
           {flags.includes("width assumed") ? "Width not set: drawn at 0.55 × height." : ""}
         </p>
       )}
-      <div className="toolbar">
+      <div className="toolbar element-actions">
+        <span className="layer-label" title="Layer 1 is drawn at the bottom">
+          Layer {index + 1} of {count}
+        </span>
+        <span className="spacer" />
         <button
           type="button"
+          className="ghost"
           onClick={() => onLayer(1)}
           disabled={index === count - 1}
-          title="Draw above the next element"
+          title={`Bring forward: draw above the next element${hint("forward")}`}
         >
-          Up
+          Bring forward
         </button>
         <button
           type="button"
+          className="ghost"
           onClick={() => onLayer(-1)}
           disabled={index === 0}
-          title="Draw below the previous element"
+          title={`Send back: draw below the previous element${hint("back")}`}
         >
-          Down
-        </button>
-        <button type="button" onClick={() => onChange({ ...el, locked: locked ? undefined : true })}>
-          {locked ? "Unlock" : "Lock"}
-        </button>
-        <button type="button" onClick={onDuplicate} disabled={locked}>
-          Duplicate
-        </button>
-        <button type="button" onClick={onDelete} disabled={locked}>
-          Delete
+          Send back
         </button>
       </div>
       <div className="props">
@@ -125,6 +143,7 @@ export function ElementPanel({
                 projection {text(el.projection, (projection) => onChange({ ...el, projection }))}
               </label>
             )}
+            <h3 className="props-head">Position</h3>
             <label>
               u (around){" "}
               {num(el.position.u, (u) => onChange({ ...el, position: { ...el.position, u: u ?? 0 } }))}
@@ -133,6 +152,8 @@ export function ElementPanel({
               v (along){" "}
               {num(el.position.v, (v) => onChange({ ...el, position: { ...el.position, v: v ?? 0 } }))}
             </label>
+            {cm}
+            <h3 className="props-head">Size</h3>
             <label>
               height cm{" "}
               {num(el.size_cm.h, (h) => onChange({ ...el, size_cm: { ...el.size_cm, h } }), {
@@ -154,6 +175,7 @@ export function ElementPanel({
                 nullable: true,
               })}
             </label>
+            <h3 className="props-head">Style</h3>
             <label>style {text(el.style, (style) => onChange({ ...el, style }))}</label>
             <label className="check">
               <input
@@ -169,9 +191,7 @@ export function ElementPanel({
         )}
         {el.type === "filler" && (
           <>
-            <label>
-              pattern {text(el.pattern, (pattern) => onChange({ ...el, pattern: pattern ?? "" }))}
-            </label>
+            <h3 className="props-head">Position</h3>
             <label>
               u from{" "}
               {num(el.region.u[0], (n) =>
@@ -196,6 +216,11 @@ export function ElementPanel({
                 onChange({ ...el, region: { ...el.region, v: [el.region.v[0], n ?? 0] } }),
               )}
             </label>
+            {cm}
+            <h3 className="props-head">Style</h3>
+            <label>
+              pattern {text(el.pattern, (pattern) => onChange({ ...el, pattern: pattern ?? "" }))}
+            </label>
             <label>
               density{" "}
               {num(el.density, (density) => onChange({ ...el, density: density ?? undefined }), {
@@ -207,21 +232,23 @@ export function ElementPanel({
         )}
         {el.type === "band" && (
           <>
-            <label>
-              pattern {text(el.pattern, (pattern) => onChange({ ...el, pattern: pattern ?? "" }))}
-            </label>
+            <h3 className="props-head">Position</h3>
             <label>v (along) {num(el.v, (v) => onChange({ ...el, v: v ?? 0 }))}</label>
+            {cm}
+            <h3 className="props-head">Size</h3>
             <label>
               width cm {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), { step: 0.1 })}
+            </label>
+            <h3 className="props-head">Style</h3>
+            <label>
+              pattern {text(el.pattern, (pattern) => onChange({ ...el, pattern: pattern ?? "" }))}
             </label>
           </>
         )}
         {el.type === "line" && (
           <>
-            <label>color {text(el.color, (color) => onChange({ ...el, color }))}</label>
-            <label>
-              width cm {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), { step: 0.1 })}
-            </label>
+            <h3 className="props-head">Position</h3>
+            <p className="cm-readout flush">{positionCm}</p>
             <p className="muted small">{el.points.length} points: drag the dots in the editor.</p>
             <div className="toolbar">
               <button
@@ -242,17 +269,41 @@ export function ElementPanel({
                 Remove last
               </button>
             </div>
+            <h3 className="props-head">Style</h3>
+            <label>color {text(el.color, (color) => onChange({ ...el, color }))}</label>
+            <label>
+              width cm {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), { step: 0.1 })}
+            </label>
           </>
         )}
-        <label>
-          notes
-          <textarea
-            value={el.notes ?? ""}
-            disabled={locked}
-            rows={2}
-            onChange={(e) => onChange({ ...el, notes: e.target.value || undefined })}
-          />
-        </label>
+        <h3 className="props-head">Notes</h3>
+        <textarea
+          aria-label="notes"
+          value={el.notes ?? ""}
+          disabled={locked}
+          rows={2}
+          onChange={(e) => onChange({ ...el, notes: e.target.value || undefined })}
+        />
+      </div>
+      <div className="toolbar element-footer">
+        <button
+          type="button"
+          onClick={onDuplicate}
+          disabled={locked}
+          title={`Duplicate: a copy on top, with a new id${hint("duplicate")}`}
+        >
+          Duplicate
+        </button>
+        <span className="spacer" />
+        <button
+          type="button"
+          className="danger"
+          onClick={onDelete}
+          disabled={locked}
+          title={locked ? "Unlock it to delete" : `Delete ${el.id}; Undo brings it back${hint("delete")}`}
+        >
+          Delete
+        </button>
       </div>
     </section>
   );

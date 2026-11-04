@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AssetBrowser } from "../assets/AssetBrowser.tsx";
 import type { AssetInfo } from "../assets/types.ts";
 import { useAssetListing } from "../assets/useAssets.ts";
@@ -21,10 +21,31 @@ import { ExportButton } from "../export/ExportButton.tsx";
 import type { ExportInput } from "../export/runExport.ts";
 import { ArmViewer } from "../viewer/ArmViewer.tsx";
 import { anubisSize, INPUT_COUNT, type ArmState, type Pose } from "../viewer/useArm.ts";
-import { newElement, reorder, suggestVariantName, uniqueId } from "./edit.ts";
-import { applyStroke, type UV } from "./stroke.ts";
+import { Popover } from "../ui/Popover.tsx";
+import { RedoIcon, UndoIcon } from "../ui/icons.tsx";
+import { ToastRegion, useToast } from "../ui/Toast.tsx";
+import { newElement, suggestVariantName } from "./edit.ts";
+import { ElementList } from "./ElementList.tsx";
 import { ElementPanel } from "./ElementPanel.tsx";
+import { canRedo, canUndo, createHistory, push, redo, reset, seal, undo, type History } from "./history.ts";
+import {
+  burstKey,
+  deleteAt,
+  duplicateAt,
+  elementIssues,
+  followSelection,
+  moveLayer,
+  moveLayerTo,
+  nextBurst,
+  type Burst,
+  type LayoutEdit,
+} from "./layoutOps.ts";
+import { formatPositionCm, nudgeElement, nudgeStepCm } from "./nudge.ts";
+import { SaveAsForm } from "./SaveAsForm.tsx";
+import { formatKeys, isEditableTarget, SHORTCUTS, type ShortcutAction } from "./shortcuts.ts";
+import { applyStroke, type UV } from "./stroke.ts";
 import { UnwrapEditor } from "./UnwrapEditor.tsx";
+import { currentPlatform, useLayoutShortcuts } from "./useLayoutShortcuts.ts";
 
 const MODES: { id: RenderMode; label: string }[] = [
   { id: "blockout", label: "Blockout" },
@@ -54,7 +75,9 @@ type Props = {
 export function LayoutPage({ arm, pose, onWorking }: Props) {
   const { profile } = arm;
   const [name, setName] = useState<string | null>(null);
-  const [layout, setLayout] = useState<Layout | null>(null);
+  // The open layout with its undo/redo stacks; `layout` is the present state.
+  const [history, setHistory] = useState<History<Layout> | null>(null);
+  const layout = history?.present ?? null;
   const [savedJson, setSavedJson] = useState<string>("");
   const [parseError, setParseError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -66,6 +89,12 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
   // Brush tool (Phase 6): draw red lines on the 3D arm.
   const [drawing, setDrawing] = useState(false);
   const [appendStrokes, setAppendStrokes] = useState(false);
+  const [saveAsOpen, setSaveAsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const toast = useToast();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [platform] = useState(currentPlatform);
+  const keyHint = (keys: string) => formatKeys(keys, platform);
 
   const open = (fileName: string, list: StoredLayout[] | null) => {
     const file = list?.find((f) => f.name === fileName);
@@ -75,11 +104,11 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
     setSelected(null);
     setSaveError(null);
     if (r.ok) {
-      setLayout(r.layout);
+      setHistory(createHistory(r.layout));
       setSavedJson(JSON.stringify(r.layout));
       setParseError(null);
     } else {
-      setLayout(null);
+      setHistory(null);
       setParseError(r.error);
     }
   };
@@ -208,9 +237,28 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
         ? "Waiting for the reference images to load."
         : null;
 
-  const update = (fn: (l: Layout) => Layout) => setLayout((l) => (l ? fn(l) : l));
-  const setElement = (index: number, el: LayoutElement) =>
-    update((l) => ({ ...l, elements: l.elements.map((e, i) => (i === index ? el : e)) }));
+  // Every edit goes through the history. `key` coalesces a run of changes (one drag, one typing
+  // burst in a field) into one undo step.
+  const commit = (fn: (l: Layout) => Layout, key?: string) =>
+    setHistory((h) => (h ? push(h, fn(h.present), key ? { coalesceKey: key } : {}) : h));
+  const apply = (edit: (l: Layout) => LayoutEdit) => {
+    if (!layout) return;
+    const r = edit(layout);
+    if (r.layout !== layout) commit(() => r.layout);
+    setSelected(r.selected);
+  };
+  const burst = useRef<Burst | null>(null);
+  /** The coalesce key for a typing burst in the focused field; clicks on buttons and boxes stay single steps. */
+  const typingKey = (target: string): string | undefined => {
+    const field = document.activeElement;
+    if (!field || !isEditableTarget(field)) return undefined;
+    const fieldName =
+      field.id || field.getAttribute("aria-label") || field.closest("label")?.textContent || "";
+    burst.current = nextBurst(burst.current, `${target}:${fieldName}`, performance.now());
+    return burstKey(burst.current);
+  };
+  const setElement = (index: number, el: LayoutElement, key?: string) =>
+    commit((l) => ({ ...l, elements: l.elements.map((e, i) => (i === index ? el : e)) }), key);
 
   const addElement = (type: ElementType) => {
     if (!layout) return;
@@ -220,8 +268,21 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
       0.5,
       layout.elements.map((e) => e.id),
     );
-    update((l) => ({ ...l, elements: [...l.elements, el] }));
+    commit((l) => ({ ...l, elements: [...l.elements, el] }));
     setSelected(layout.elements.length);
+  };
+
+  const doUndo = () => {
+    if (!history || !canUndo(history)) return;
+    const h = undo(history);
+    setHistory(h);
+    setSelected(followSelection(history.present, h.present, selected));
+  };
+  const doRedo = () => {
+    if (!history || !canRedo(history)) return;
+    const h = redo(history);
+    setHistory(h);
+    setSelected(followSelection(history.present, h.present, selected));
   };
 
   const doSave = async (target: Layout, from?: string) => {
@@ -229,25 +290,18 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
     try {
       await save(target, from);
       setName(target.name);
-      setLayout(target);
+      setHistory((h) => (h ? reset(h, target) : createHistory(target)));
       setSavedJson(JSON.stringify(target));
+      toast.show(target.name === name ? `Saved ${target.name}` : `Saved as ${target.name}`);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : String(e));
+      toast.show("Save failed", "error");
     }
   };
 
-  const saveAs = () => {
+  const saveAs = (newName: string) => {
     if (!layout) return;
-    const input = window.prompt(
-      "Name of the new variant (lowercase letters, digits, dashes). It starts as a copy of what you see now, comments included; the open variant stays as saved.",
-      suggestVariantName(
-        layout.name,
-        (files ?? []).map((f) => f.name),
-      ),
-    );
-    if (!input) return;
-    const newName = input.trim().toLowerCase();
-    if (files?.some((f) => f.name === newName) && !window.confirm(`${newName} exists. Overwrite?`)) return;
+    setSaveAsOpen(false);
     // Comments come from the file the variant was opened from.
     void doSave({ ...layout, name: newName }, name ?? undefined);
   };
@@ -263,7 +317,7 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
     if (!layout) return;
     const r = applyStroke(profile, layout, samples, appendTarget);
     if (!r) return;
-    setLayout(r.layout);
+    commit(() => r.layout);
     setSelected(r.index);
   };
   const selAsset: AssetInfo | null | undefined =
@@ -280,6 +334,64 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
     // A new image gets its own cut-out: drop a crop that belonged to the old one.
     setElement(selected, { ...sel, asset: a.id, crop: sel.asset === a.id ? sel.crop : undefined });
   };
+
+  const deleteSelected = () => {
+    if (selected === null || !sel || sel.locked) return;
+    apply((l) => deleteAt(l, selected));
+    toast.show(`Deleted ${sel.id} (${keyHint("Mod+Z")} to undo)`, "info");
+  };
+
+  const canSave = dirty && !validationError;
+  const selFixed = !!sel?.locked || (selected !== null && resolvedEls[selected]?.shape.kind === "patch");
+  const runShortcut = (a: ShortcutAction) => {
+    switch (a.type) {
+      case "save":
+        if (canSave && layout) void doSave(layout);
+        else if (!dirty) toast.show("No unsaved changes", "info");
+        return;
+      case "undo":
+        return doUndo();
+      case "redo":
+        return doRedo();
+      case "help":
+        return setHelpOpen((o) => !o);
+      case "deselect":
+        if (drawing) setDrawing(false);
+        else if (helpOpen) setHelpOpen(false);
+        else setSelected(null);
+        return;
+    }
+    if (selected === null || !sel) return;
+    switch (a.type) {
+      case "duplicate":
+        if (sel.locked) return toast.show(`${sel.id} is locked`, "info");
+        return apply((l) => duplicateAt(l, selected));
+      case "delete":
+        if (sel.locked) return toast.show(`${sel.id} is locked: unlock it to delete`, "info");
+        return deleteSelected();
+      case "layerUp":
+        return apply((l) => moveLayer(l, selected, 1));
+      case "layerDown":
+        return apply((l) => moveLayer(l, selected, -1));
+      case "nudge": {
+        if (selFixed)
+          return toast.show(`${sel.id} is ${sel.locked ? "locked" : "placed by its projection"}`, "info");
+        const { dxCm, dyCm } = nudgeStepCm(a.dx, a.dy, a.big);
+        burst.current = nextBurst(burst.current, `nudge:${selected}`, performance.now());
+        return setElement(selected, nudgeElement(sel, profile, dxCm, dyCm), burstKey(burst.current));
+      }
+    }
+  };
+  useLayoutShortcuts(rootRef, runShortcut);
+
+  // Element list: a warning dot per element.
+  const assetIds = useMemo(
+    () => (listing?.status === "ok" ? new Set(listing.assets.map((a) => a.id)) : null),
+    [listing],
+  );
+  const issues =
+    layout?.elements.map((el, i) => elementIssues(el, flagsFor[i] ?? [], assetIds, patchIssues.get(el.id))) ??
+    [];
 
   // Errors stay as banners; warnings fold into one compact group when there are several.
   const warnings: { key: string; text: ReactNode }[] = [
@@ -312,7 +424,7 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
   const errors = [loadError, parseError, validationError, saveError].some(Boolean);
 
   return (
-    <div className="layout-page">
+    <div className="layout-page" ref={rootRef}>
       <div className="toolbar layout-toolbar">
         <label className="inline">
           <span className="toolbar-label">Variant</span>
@@ -329,19 +441,61 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
           type="button"
           className={dirty ? "primary" : ""}
           onClick={() => layout && void doSave(layout)}
-          disabled={!dirty || !!validationError}
-          title={dirty ? "Save the changes to the variant's YAML file" : "No unsaved changes"}
+          disabled={!canSave}
+          title={
+            dirty ? `Save the changes to the variant's YAML file (${keyHint("Mod+S")})` : "No unsaved changes"
+          }
         >
           Save
         </button>
-        <button
-          type="button"
-          onClick={saveAs}
-          disabled={!layout || !!validationError}
-          title="Duplicate: save what you see as a new variant to try an alternative"
-        >
-          Save as…
-        </button>
+        <span className="popover-anchor">
+          <button
+            type="button"
+            onClick={() => setSaveAsOpen((o) => !o)}
+            disabled={!layout || !!validationError}
+            aria-expanded={saveAsOpen}
+            aria-haspopup="dialog"
+            title="Save what you see as a new variant to try an alternative"
+          >
+            Save as…
+          </button>
+          <Popover open={saveAsOpen && !!layout} onClose={() => setSaveAsOpen(false)} label="Save as">
+            {layout && (
+              <SaveAsForm
+                suggested={suggestVariantName(
+                  layout.name,
+                  (files ?? []).map((f) => f.name),
+                )}
+                taken={(files ?? []).map((f) => f.name)}
+                current={name}
+                onSave={saveAs}
+                onCancel={() => setSaveAsOpen(false)}
+              />
+            )}
+          </Popover>
+        </span>
+        <span className="button-pair">
+          <button
+            type="button"
+            className="ghost icon-button"
+            onClick={doUndo}
+            disabled={!history || !canUndo(history)}
+            aria-label="Undo"
+            title={`Undo (${keyHint("Mod+Z")})`}
+          >
+            <UndoIcon />
+          </button>
+          <button
+            type="button"
+            className="ghost icon-button"
+            onClick={doRedo}
+            disabled={!history || !canRedo(history)}
+            aria-label="Redo"
+            title={`Redo (${keyHint("Shift+Mod+Z")})`}
+          >
+            <RedoIcon />
+          </button>
+        </span>
         <span className="toolbar-sep" aria-hidden="true" />
         <ExportButton input={exportInput} blocked={exportBlocked} />
         <span className="spacer" />
@@ -440,6 +594,49 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
                   {t}
                 </button>
               ))}
+              <span className="spacer" />
+              <span className="popover-anchor">
+                <button
+                  type="button"
+                  className="ghost icon-button"
+                  aria-label="Keyboard shortcuts"
+                  aria-expanded={helpOpen}
+                  aria-haspopup="dialog"
+                  title="Keyboard shortcuts (?)"
+                  onClick={() => setHelpOpen((o) => !o)}
+                >
+                  ?
+                </button>
+                <Popover
+                  open={helpOpen}
+                  onClose={() => setHelpOpen(false)}
+                  label="Keyboard shortcuts"
+                  align="end"
+                  className="shortcuts-popover"
+                >
+                  <p className="popover-title">Keyboard shortcuts</p>
+                  <dl className="shortcut-list">
+                    {SHORTCUTS.map((s) => (
+                      <div key={s.description}>
+                        <dt>
+                          {s.keys.map((k) => (
+                            <kbd key={k}>{keyHint(k)}</kbd>
+                          ))}
+                        </dt>
+                        <dd>{s.description}</dd>
+                      </div>
+                    ))}
+                    <div>
+                      <dt>
+                        <kbd>{platform === "mac" ? "⌥" : "Alt"}</kbd>
+                        <span className="kbd-plus">+ click</span>
+                      </dt>
+                      <dd>Select the element underneath (2D editor)</dd>
+                    </div>
+                  </dl>
+                  <p className="faint small">Inactive while typing in a field, except save.</p>
+                </Popover>
+              </span>
             </div>
           </div>
           <div className="viewer-head">
@@ -468,6 +665,7 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
               selected={selected}
               onSelect={setSelected}
               onChange={setElement}
+              onGestureEnd={() => setHistory((h) => (h ? seal(h) : h))}
             />
           </div>
           <div className="viewer-col">
@@ -506,48 +704,58 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
             />
           </div>
           <div className="side-col">
+            <ElementList
+              elements={layout.elements}
+              issues={issues}
+              selected={selected}
+              onSelect={setSelected}
+              onToggleLock={(i) => {
+                const el = layout.elements[i]!;
+                setElement(i, { ...el, locked: el.locked ? undefined : true });
+              }}
+              onMove={(from, to) => apply((l) => moveLayerTo(l, from, to))}
+            />
             {sel && selected !== null ? (
               <ElementPanel
                 element={sel}
                 asset={selAsset}
                 autoFilter={isFigureLike(sel) ? defaultFilter(sel, profile) : "none"}
                 flags={flagsFor[selected] ?? []}
+                positionCm={formatPositionCm(profile, sel)}
                 index={selected}
                 count={layout.elements.length}
-                onChange={(el) => setElement(selected, el)}
-                onLayer={(dir) => {
-                  update((l) => ({ ...l, elements: reorder(l.elements, selected, dir) }));
-                  setSelected(Math.min(layout.elements.length - 1, Math.max(0, selected + dir)));
-                }}
-                onDelete={() => {
-                  update((l) => ({ ...l, elements: l.elements.filter((_, i) => i !== selected) }));
-                  setSelected(null);
-                }}
-                onDuplicate={() => {
-                  const copy = {
-                    ...sel,
-                    id: uniqueId(
-                      sel.id,
-                      layout.elements.map((e) => e.id),
-                    ),
-                  };
-                  update((l) => ({ ...l, elements: [...l.elements, copy] }));
-                  setSelected(layout.elements.length);
+                onChange={(el) => setElement(selected, el, typingKey(`el${selected}`))}
+                onLayer={(dir) => apply((l) => moveLayer(l, selected, dir))}
+                onDelete={deleteSelected}
+                onDuplicate={() => apply((l) => duplicateAt(l, selected))}
+                keys={{
+                  duplicate: keyHint("Mod+D"),
+                  delete: "Delete",
+                  forward: "]",
+                  back: "[",
                 }}
               />
             ) : (
               <section className="panel">
-                <h2>{layout.name}</h2>
+                <div className="panel-head">
+                  <h2>{layout.name}</h2>
+                  {dirty && <span className="chip warn">unsaved</span>}
+                </div>
                 <label className="props">
                   description
                   <textarea
                     rows={3}
                     value={layout.description ?? ""}
-                    onChange={(e) => update((l) => ({ ...l, description: e.target.value || undefined }))}
+                    onChange={(e) =>
+                      commit(
+                        (l) => ({ ...l, description: e.target.value || undefined }),
+                        typingKey("description"),
+                      )
+                    }
                   />
                 </label>
                 <p className="muted small">
-                  {layout.elements.length} elements. Select one in the editor to edit it.
+                  {layout.elements.length} elements. Select one in the list or the editor to edit it.
                 </p>
               </section>
             )}
@@ -562,6 +770,7 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
           </div>
         </div>
       )}
+      <ToastRegion toast={toast} />
     </div>
   );
 }
