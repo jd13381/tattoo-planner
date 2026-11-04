@@ -73,7 +73,31 @@ export type EditJob = {
   output?: { width: number; height: number; bytes: number; alpha: boolean };
   /** Set when state is "kept": the new manifest entry. */
   kept?: { id: string; file: string };
+  /** Editing session the job belongs to (docs/adr/0010-editing-sessions.md). */
+  session?: string;
 };
+
+/**
+ * One editing session: a source (a manifest image, or a blank artboard for a new image) and a linear
+ * stack of versions. v0 is the source; `versions[i]` is the job whose result is v(i+1). The next run
+ * always starts from the last version. Sessions live in the dev server's memory until closed.
+ */
+export type EditSession = {
+  id: string;
+  mode: EditMode;
+  /** Mode "edit": the image the session edits (may itself be a kept edit). */
+  assetId?: string;
+  /** Mode "create": name, size and background of the new image. */
+  create?: { name: string; size: CreateSize; background: CreateBackground };
+  /** Job ids of v1 … vN, oldest first. */
+  versions: string[];
+  startedAt: string;
+};
+
+/** POST /api/edits/sessions: open a session on an image, or for a new image. */
+export type SessionRequest =
+  | { mode: "edit"; assetId: string }
+  | { mode: "create"; name?: string; size?: CreateSize; background?: CreateBackground };
 
 export type EditOverview = {
   /** Local edits with `claude -p`. */
@@ -81,9 +105,13 @@ export type EditOverview = {
   /** Generative edits with the OpenAI Images API. */
   generative: GenerativeAvailability;
   jobs: EditJob[];
+  /** Open editing sessions, oldest first. */
+  sessions: EditSession[];
 };
 
 export type EditRequest = {
+  /** Session to run in: the source is then its last version, and assetId / fromJob / mode are ignored. */
+  session?: string;
   /** The image to edit (mode "edit" without fromJob). */
   assetId?: string;
   instruction: string;
@@ -102,6 +130,10 @@ export type EditRequest = {
 
 /** Generative variants one click may ask for (each one is its own job). */
 export const MAX_VARIANTS_PER_RUN = 3;
+
+export function sessionUrl(id: string, action?: "pick" | "truncate" | "save" | "close"): string {
+  return `${EDITS_ENDPOINT}/sessions/${encodeURIComponent(id)}${action ? `/${action}` : ""}`;
+}
 
 export function jobUrl(id: string, action?: "keep" | "discard" | "cancel" | "input" | "output"): string {
   return `${EDITS_ENDPOINT}/jobs/${encodeURIComponent(id)}${action ? `/${action}` : ""}`;

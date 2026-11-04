@@ -9,6 +9,12 @@
 //   POST /api/edits/jobs/<id>/keep      writes edits/<root>-edit-N.png and a manifest entry → EditJob
 //   POST /api/edits/jobs/<id>/discard   stops the job if needed and deletes its working folder
 //   POST /api/edits/jobs/<id>/cancel    stops a running job
+//   POST /api/edits/sessions            body SessionRequest → EditSession (one open session per image)
+//   POST /api/edits/sessions/<id>/pick  body { job } → EditSession (the job's result becomes a version)
+//   POST /api/edits/sessions/<id>/truncate  body { length } → EditSession ("continue from vK")
+//   POST /api/edits/sessions/<id>/save  body { job? } → EditJob (keeps a version, default the last)
+//   POST /api/edits/sessions/<id>/close discards every unsaved job of the session and ends it
+// Sessions (ADR 0010) hold the version stack; a POST /api/edits with `session` runs on its last version.
 // Each job works on a copy of the image in its own temp folder; originals are never touched. The data
 // folder only changes on "keep", and then only by a new file in edits/ (or generated/ for new images)
 // plus one appended manifest entry.
@@ -52,6 +58,7 @@ import {
   readPngInfo,
   slugName,
 } from "../edit.ts";
+import { pickVersion, runSource, sessionForAsset, truncateVersions } from "../session.ts";
 import {
   buildCreatePrompt,
   buildEditForm,
@@ -86,7 +93,9 @@ import {
   type EditJob,
   type EditOverview,
   type EditRequest,
+  type EditSession,
   type GenerativeAvailability,
+  type SessionRequest,
 } from "../types.ts";
 
 const MAX_LOG_LINES = 400;
@@ -168,6 +177,8 @@ function checkClaudeBinary(bin: string): Promise<EditAvailability> {
 
 export class EditManager {
   private readonly jobs = new Map<string, Job>();
+  private readonly sessions = new Map<string, EditSession>();
+  private sessionCounter = 0;
   private readonly runner: Runner;
   private counter = 0;
   private claudeCheck: { at: number; result: Promise<EditAvailability> } | null = null;
@@ -222,7 +233,92 @@ export class EditManager {
       this.availability(),
       this.generativeAvailability(),
     ]);
-    return { availability, generative, jobs: this.list() };
+    return { availability, generative, jobs: this.list(), sessions: [...this.sessions.values()] };
+  }
+
+  private session(id: string): EditSession {
+    const s = this.sessions.get(id);
+    if (!s) throw new HttpError(404, `no open session ${id} (sessions end when npm run dev stops)`);
+    return s;
+  }
+
+  /** Opens a session on an image (or returns the one already open on it), or for a new image. */
+  async startSession(body: unknown): Promise<EditSession> {
+    const req = (body ?? {}) as Partial<SessionRequest> & Record<string, unknown>;
+    const make = (fields: Omit<EditSession, "id" | "versions" | "startedAt">): EditSession => {
+      const session: EditSession = {
+        id: `s${++this.sessionCounter}-${Date.now().toString(36)}`,
+        ...fields,
+        versions: [],
+        startedAt: new Date().toISOString(),
+      };
+      this.sessions.set(session.id, session);
+      return session;
+    };
+    if (req.mode === "create") {
+      const size = req.size ?? "1024x1024";
+      const background = req.background ?? "transparent";
+      if (!CREATE_SIZES.some((o) => o.value === size))
+        throw new HttpError(400, `unknown size ${String(size)}`);
+      if (!CREATE_BACKGROUNDS.some((o) => o.value === background))
+        throw new HttpError(400, `unknown background ${String(background)}`);
+      return make({ mode: "create", create: { name: slugName(req.name), size, background } });
+    }
+    if (req.mode !== "edit") throw new HttpError(400, `unknown mode ${String(req.mode)}`);
+    if (typeof req.assetId !== "string") throw new HttpError(400, "assetId missing");
+    const open = sessionForAsset([...this.sessions.values()], req.assetId);
+    if (open) return open;
+    const problem = await this.dataFolderProblem();
+    if (problem) throw new HttpError(409, problem);
+    const listing = await listAssets(this.dataDir);
+    if (listing.status !== "ok") throw new HttpError(409, "cannot read the manifest");
+    if (!listing.assets.some((a) => a.id === req.assetId))
+      throw new HttpError(404, `unknown asset ${req.assetId}`);
+    return make({ mode: "edit", assetId: req.assetId });
+  }
+
+  /** Makes a result of this session the version after the one it started from. */
+  pick(sessionId: string, body: unknown): EditSession {
+    const session = this.session(sessionId);
+    const jobId = (body as { job?: unknown } | null)?.job;
+    if (typeof jobId !== "string") throw new HttpError(400, "job missing");
+    const job = this.job(jobId);
+    if (job.info.session !== session.id) throw new HttpError(409, "that result belongs to another session");
+    const picked = pickVersion(session.versions, job.info);
+    if (!picked.ok) throw new HttpError(409, picked.message);
+    session.versions = picked.versions;
+    return session;
+  }
+
+  /** Keeps v0 … v`length` ("continue from vK"). */
+  truncate(sessionId: string, body: unknown): EditSession {
+    const session = this.session(sessionId);
+    const length = (body as { length?: unknown } | null)?.length;
+    if (typeof length !== "number" || !Number.isInteger(length) || length < 0)
+      throw new HttpError(400, "length must be a whole number");
+    session.versions = truncateVersions(session.versions, length);
+    return session;
+  }
+
+  /** Writes a version (default the last) into the data folder; the session stays open. */
+  async save(sessionId: string, body: unknown): Promise<EditJob> {
+    const session = this.session(sessionId);
+    const jobId = (body as { job?: unknown } | null)?.job ?? session.versions.at(-1);
+    if (typeof jobId !== "string") throw new HttpError(409, "nothing to save yet: pick a result first");
+    if (!session.versions.includes(jobId))
+      throw new HttpError(409, "only a version of this session can be saved");
+    return this.keep(jobId);
+  }
+
+  /** Ends a session: every job of it that was not saved is stopped and its working folder removed. */
+  async closeSession(sessionId: string): Promise<{ closed: string }> {
+    const session = this.session(sessionId);
+    this.sessions.delete(session.id);
+    const own = [...this.jobs.values()].filter(
+      (j) => j.info.session === session.id && j.info.state !== "kept" && j.info.state !== "discarded",
+    );
+    await Promise.all(own.map((j) => this.discard(j.info.id)));
+    return { closed: session.id };
   }
 
   list(): EditJob[] {
@@ -248,7 +344,21 @@ export class EditManager {
   }
 
   async start(body: unknown): Promise<EditJob> {
-    const req = (body ?? {}) as Partial<EditRequest>;
+    const req = { ...((body ?? {}) as Partial<EditRequest>) };
+    // In a session the source is always its last version, whatever else the request says.
+    const session = req.session !== undefined ? this.session(String(req.session)) : null;
+    if (session) {
+      const from = runSource(session);
+      delete req.assetId;
+      delete req.fromJob;
+      delete req.name;
+      delete req.size;
+      delete req.background;
+      req.mode = session.mode;
+      if (from.kind === "job") req.fromJob = from.jobId;
+      else if (from.kind === "asset") req.assetId = from.assetId;
+      else Object.assign(req, from.create);
+    }
     if (req.engine !== undefined && req.engine !== "claude" && req.engine !== "openai")
       throw new HttpError(400, `unknown engine ${String(req.engine)}`);
     if (req.mode !== undefined && req.mode !== "edit" && req.mode !== "create")
@@ -348,6 +458,7 @@ export class EditManager {
       id,
       assetId: asset.derived_from ?? asset.id,
       ...(req.fromJob !== undefined ? { fromJob: String(req.fromJob) } : {}),
+      ...(session ? { session: session.id } : {}),
       ...(created ? { created } : {}),
       ...(earlierRefs.length + refIds.length > 0
         ? { references: [...new Set([...earlierRefs, ...refIds])] }
@@ -652,7 +763,12 @@ export class EditManager {
     const variant = created
       ? nextVariant(created.name, takenIds, takenFiles, "created")
       : nextVariant(job.info.assetId, takenIds, takenFiles);
-    const original = created ? undefined : listing.assets.find((a) => a.id === job.info.assetId);
+    // The entry is built from the image actually edited (which may itself be a kept edit), so its
+    // tags and crop carry over; derived_from still names the original (rootAssetId).
+    const original = created
+      ? undefined
+      : (listing.assets.find((a) => a.id === job.asset.id) ??
+        listing.assets.find((a) => a.id === job.info.assetId));
     let sameSize = false;
     if (original?.crop && job.info.output) {
       const orig = await resolveInside(dataDir, original.file);
@@ -684,6 +800,7 @@ export class EditManager {
 
   /** Stops every job and removes the working folders (dev server shutdown). */
   async close(): Promise<void> {
+    this.sessions.clear();
     await Promise.all(
       [...this.jobs.values()].map(async (j) => {
         j.abort.abort();
@@ -721,6 +838,7 @@ export async function handleEditRequest(
   const sub = ((req.url ?? "/").split("?")[0] ?? "/").replace(/^\/+/, "");
   if (req.method === "GET" && sub === "") return send(res, 200, await manager.overview());
   const m = /^jobs\/([a-z0-9-]+)(?:\/(input|output|keep|discard|cancel))?$/.exec(sub);
+  const sm = /^sessions(?:\/([a-z0-9-]+)\/(pick|truncate|save|close))?$/.exec(sub);
   if (req.method === "GET" && m) {
     const [, id, action] = m;
     if (!action) return send(res, 200, manager.get(id!));
@@ -730,16 +848,24 @@ export async function handleEditRequest(
   if (req.method !== "POST") throw new HttpError(405, "method not allowed");
   // Only the planner page itself may start edits or write into the data folder.
   if (isCrossSite(req.headers)) throw new HttpError(403, "cross-site request refused");
-  if (sub === "") {
+  const readJson = async (): Promise<unknown> => {
     if ((req.headers["content-type"] ?? "").split(";")[0] !== "application/json")
       throw new HttpError(415, "JSON only");
-    let body: unknown;
     try {
-      body = JSON.parse((await readRawBody(req, 20_000)).toString("utf8"));
+      return JSON.parse((await readRawBody(req, 20_000)).toString("utf8"));
     } catch (e) {
       throw e instanceof HttpError ? e : new HttpError(400, "invalid JSON");
     }
-    return send(res, 200, await manager.start(body));
+  };
+  if (sub === "") return send(res, 200, await manager.start(await readJson()));
+  if (sm) {
+    const [, id, action] = sm;
+    if (!id) return send(res, 200, await manager.startSession(await readJson()));
+    if (action === "close") return send(res, 200, await manager.closeSession(id));
+    const body = await readJson();
+    if (action === "pick") return send(res, 200, manager.pick(id, body));
+    if (action === "truncate") return send(res, 200, manager.truncate(id, body));
+    return send(res, 200, await manager.save(id, body));
   }
   if (!m || !m[2]) throw new HttpError(404, "not found");
   const [, id, action] = m;
