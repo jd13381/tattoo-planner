@@ -22,7 +22,6 @@ function useDataListing(): { state: State; checking: boolean; check: () => void 
   const [checking, setChecking] = useState(true);
   useEffect(() => {
     let cancelled = false;
-    setChecking(true);
     fetch(DATA_FILES_ENDPOINT)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -37,7 +36,11 @@ function useDataListing(): { state: State; checking: boolean; check: () => void 
       cancelled = true;
     };
   }, [tick]);
-  return { state, checking, check: () => setTick((n) => n + 1) };
+  const check = () => {
+    setChecking(true);
+    setTick((n) => n + 1);
+  };
+  return { state, checking, check };
 }
 
 export function DataFolderPage() {
