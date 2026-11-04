@@ -36,7 +36,7 @@ export function App() {
   const [bendDeg, setBendDeg] = useState(0);
   const pose = { bendDeg, setBendDeg };
   const dataFolder = useDataFolderStatus();
-  // The Layout tab puts its notices and its variant / save / export controls into the top bar.
+  // The Layout and Projection tabs put their notices and their picker / save controls into the top bar.
   const [noticesSlot, setNoticesSlot] = useState<HTMLDivElement | null>(null);
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
   const header: HeaderSlots = { notices: noticesSlot, actions: actionsSlot };
@@ -131,7 +131,7 @@ export function App() {
           <ComparePage arm={arm} pose={pose} working={working} onOpenLayout={() => setTab("layout")} />
         </TabPanel>
         <TabPanel id="projection" open={tab === "projection"}>
-          <ProjectionPage arm={arm} pose={pose} onDirty={setProjectionDirty} />
+          <ProjectionPage arm={arm} pose={pose} onDirty={setProjectionDirty} header={header} />
         </TabPanel>
         <TabPanel id="images" open={tab === "images"}>
           <ImageEditPage />
@@ -148,7 +148,7 @@ export function App() {
 }
 
 /** Tabs whose page is a full-bleed workspace (no page padding, fills the viewport under the top bar). */
-const FULL_BLEED: ReadonlySet<TabId> = new Set(["layout"]);
+const FULL_BLEED: ReadonlySet<TabId> = new Set(["layout", "projection"]);
 
 function TabPanel(props: { id: TabId; open: boolean; keepMounted?: boolean; children: ReactNode }) {
   const { id, open, keepMounted, children } = props;
