@@ -80,9 +80,7 @@ describe("OpenAI edit rules", () => {
 
   it("builds the multipart request", async () => {
     const form = buildEditForm({
-      image: png(10, 10),
-      fileName: "input.png",
-      mimeType: "image/png",
+      images: [{ bytes: png(10, 10), fileName: "input.png", mimeType: "image/png" }],
       prompt: "fewer snakes",
       settings: SETTINGS,
     });
@@ -96,9 +94,7 @@ describe("OpenAI edit rules", () => {
     expect(image.type).toBe("image/png");
     expect(Buffer.from(await image.arrayBuffer())).toEqual(png(10, 10));
     const noFidelity = buildEditForm({
-      image: png(1, 1),
-      fileName: "i.png",
-      mimeType: "image/png",
+      images: [{ bytes: png(1, 1), fileName: "i.png", mimeType: "image/png" }],
       prompt: "x",
       settings: { ...SETTINGS, inputFidelity: null },
     });

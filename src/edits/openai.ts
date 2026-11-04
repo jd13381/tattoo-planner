@@ -1,9 +1,12 @@
-// Framework-free rules for generative edits with the OpenAI Images API (ADR 0008): the prompt, the
-// multipart request for POST /v1/images/edits, how the answer becomes PNG bytes, and a cost estimate
-// from the reported token usage. The dev-server endpoint (server/editsApi.ts) does the network call.
+// Framework-free rules for the OpenAI Images API (ADR 0008, ADR 0009): prompts, the multipart request
+// for POST /v1/images/edits (edit one image, or create from reference images), the JSON request for
+// POST /v1/images/generations (create from text alone), how the answer becomes PNG bytes, and a cost
+// estimate from the reported token usage. The dev-server endpoint (server/editsApi.ts) does the call.
 import type { Asset } from "../assets/manifest.ts";
+import type { CreateBackground, CreateSize } from "./types.ts";
 
 export const OPENAI_EDITS_URL = "https://api.openai.com/v1/images/edits";
+export const OPENAI_GENERATIONS_URL = "https://api.openai.com/v1/images/generations";
 /** Best editing model on the public leaderboards in Oct/Nov 2026; Sunburst is the precise-edit variant. */
 export const DEFAULT_OPENAI_MODEL = "gpt-image-2.5-sunburst";
 /** Generative edits allowed at the same time (each is one API request). */
@@ -24,23 +27,62 @@ export function openaiInputType(file: string): string | null {
   return INPUT_TYPES[ext] ?? null;
 }
 
+/** A reference image sent along with a request: its asset id and notes, so the prompt can name it. */
+export type PromptReference = Pick<Asset, "id" | "notes">;
+
 export type GenerativePromptInput = {
   /** Every instruction of the chain, oldest first; earlier ones are already applied to the input. */
   instructions: string[];
   asset: Pick<Asset, "id" | "kind" | "notes">;
+  /** Reference images sent after the image to edit (image 2, 3, …). */
+  references?: readonly PromptReference[];
 };
+
+function referenceLines(refs: readonly PromptReference[], firstNumber: number): string[] {
+  return refs.map(
+    (r, i) => `- Image ${firstNumber + i}: reference "${r.id}"${r.notes ? ` (${r.notes.trim()})` : ""}`,
+  );
+}
 
 /** The prompt sent with the image. Jan writes the instruction; it may be German. */
 export function buildGenerativePrompt(p: GenerativePromptInput): string {
   const current = (p.instructions.at(-1) ?? "").trim();
+  const refs = p.references ?? [];
   return [
-    "Edit this image. It is a reference sketch for planning a tattoo with a tattoo artist.",
+    refs.length > 0
+      ? "Edit the first image. It is a reference sketch for planning a tattoo with a tattoo artist."
+      : "Edit this image. It is a reference sketch for planning a tattoo with a tattoo artist.",
     "Apply exactly the change described below. Keep everything the instruction does not mention as it is:",
     "the style, the line work, the shading, the composition, the proportions and the background.",
     "Do not add a frame, text, a signature or a watermark.",
+    ...(refs.length > 0
+      ? [
+          "",
+          "The other images are references. Use them only for what the instruction asks (a shape, a motif, a style); never copy anything else from them into the result:",
+          ...referenceLines(refs, 2),
+        ]
+      : []),
     "",
     "Change:",
     current,
+  ].join("\n");
+}
+
+/** The prompt for a new image; reference images, if any, are sent as image 1, 2, … */
+export function buildCreatePrompt(instruction: string, references: readonly PromptReference[]): string {
+  return [
+    "Create a new image for planning a tattoo with a tattoo artist: a motif, an ornament or a pattern as a clean sketch.",
+    "Follow the description below. Unless it says otherwise: one motif, centred, on a plain white background, no frame, no text, no signature, no watermark, no skin or body.",
+    ...(references.length > 0
+      ? [
+          "",
+          "The attached images are references. Use them only for what the description asks (a shape, a motif, a style):",
+          ...referenceLines(references, 1),
+        ]
+      : []),
+    "",
+    "Description:",
+    instruction.trim(),
   ].join("\n");
 }
 
@@ -52,26 +94,54 @@ export type OpenAISettings = {
   quality: "high" | "medium" | "low" | "auto";
 };
 
+export type FormImage = { bytes: Uint8Array; fileName: string; mimeType: string };
+
+/** Images one request may carry: the image to edit plus references (the API takes up to 16). */
+export const MAX_REFERENCES = 4;
+
 export type EditFormInput = {
-  image: Uint8Array;
-  fileName: string;
-  mimeType: string;
+  /** The image to edit first, then reference images; or reference images alone when creating. */
+  images: readonly FormImage[];
   prompt: string;
   settings: Pick<OpenAISettings, "model" | "inputFidelity" | "quality">;
+  size?: CreateSize;
+  background?: CreateBackground;
 };
 
-/** Multipart body for POST /v1/images/edits: one image, one result, PNG out, size kept. */
+/** Multipart body for POST /v1/images/edits: one result, PNG out, size kept unless given. */
 export function buildEditForm(p: EditFormInput): FormData {
   const form = new FormData();
   form.set("model", p.settings.model);
   form.set("prompt", p.prompt);
   form.set("n", "1");
-  form.set("size", "auto");
+  form.set("size", p.size ?? "auto");
   form.set("quality", p.settings.quality);
   form.set("output_format", "png");
+  if (p.background && p.background !== "auto") form.set("background", p.background);
   if (p.settings.inputFidelity) form.set("input_fidelity", p.settings.inputFidelity);
-  form.set("image", new Blob([p.image as BlobPart], { type: p.mimeType }), p.fileName);
+  // One image goes as `image`, several as the array field `image[]`.
+  const field = p.images.length > 1 ? "image[]" : "image";
+  for (const img of p.images)
+    form.append(field, new Blob([img.bytes as BlobPart], { type: img.mimeType }), img.fileName);
   return form;
+}
+
+/** JSON body for POST /v1/images/generations (a new image from text alone). */
+export function buildGenerationBody(p: {
+  prompt: string;
+  settings: Pick<OpenAISettings, "model" | "quality">;
+  size: CreateSize;
+  background: CreateBackground;
+}): Record<string, string | number> {
+  return {
+    model: p.settings.model,
+    prompt: p.prompt,
+    n: 1,
+    size: p.size,
+    quality: p.settings.quality,
+    output_format: "png",
+    ...(p.background !== "auto" ? { background: p.background } : {}),
+  };
 }
 
 export type ImageUsage = {

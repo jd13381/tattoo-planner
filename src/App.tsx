@@ -14,7 +14,7 @@ const TABS = [
   { id: "layout", label: "Layout" },
   { id: "compare", label: "Compare" },
   { id: "projection", label: "Projection" },
-  { id: "images", label: "Edit images" },
+  { id: "images", label: "Image studio" },
   { id: "arm", label: "Arm & measurements" },
   { id: "data", label: "Data folder" },
 ] as const;

@@ -3,7 +3,14 @@
 // the name and manifest entry of a kept edit. The dev-server endpoint (server/editsApi.ts) wires
 // these to processes and files.
 import type { Asset } from "../assets/manifest.ts";
-import { EDITED_TAG, EDITS_FOLDER, type EditJob } from "./types.ts";
+import {
+  EDITED_TAG,
+  EDITS_FOLDER,
+  GENERATED_FOLDER,
+  GENERATED_KIND,
+  GENERATED_TAG,
+  type EditJob,
+} from "./types.ts";
 
 export const INPUT_BASENAME = "input";
 /** How a local edit is named in a kept edit's notes. */
@@ -187,10 +194,12 @@ export function nextVariant(
   rootId: string,
   takenIds: ReadonlySet<string>,
   takenFiles: ReadonlySet<string>,
+  /** Kept new images: `<name>-N` in `generated/` instead of `<root>-edit-N` in `edits/`. */
+  kind: "edit" | "created" = "edit",
 ): { id: string; file: string } {
   for (let n = 1; n <= MAX_VARIANTS; n++) {
-    const id = `${rootId}-edit-${n}`;
-    const file = `${EDITS_FOLDER}/${id}.png`;
+    const id = kind === "created" ? `${rootId}-${n}` : `${rootId}-edit-${n}`;
+    const file = `${kind === "created" ? GENERATED_FOLDER : EDITS_FOLDER}/${id}.png`;
     if (!takenIds.has(id) && !takenFiles.has(file.toLowerCase())) return { id, file };
   }
   throw new Error(`more than ${MAX_VARIANTS} edits of ${rootId}`);
@@ -252,4 +261,36 @@ export function staleJobs(
         (j.state === "done" || j.state === "failed" || j.state === "cancelled"),
     )
     .map((j) => j.id);
+}
+
+/** Manifest-safe name of a new image: lowercase letters, digits and dashes, at most 40 characters. */
+export function slugName(name: unknown): string {
+  const slug = (typeof name === "string" ? name : "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ß/g, "ss")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/, "");
+  return slug || "generated";
+}
+
+/** Manifest entry for a kept new image: kind idea, tag generated, the prompts and references in notes. */
+export function createdAsset(
+  variant: { id: string; file: string },
+  instructions: string[],
+  tools: readonly string[],
+  references: readonly string[],
+): Asset {
+  const steps = instructions.map((s, i) => `${JSON.stringify(oneLine(s, 300))} (${tools[i] ?? CLAUDE_TOOL})`);
+  const refs = references.length > 0 ? `; references: ${references.join(", ")}` : "";
+  return {
+    id: variant.id,
+    file: variant.file,
+    kind: GENERATED_KIND,
+    notes: `Generated: ${steps.join(", then ")}${refs}`,
+    tags: [GENERATED_TAG],
+  };
 }

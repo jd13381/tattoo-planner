@@ -1,7 +1,8 @@
 // Dev-server endpoint that edits reference images, either with `claude -p` and local tools on Jan's
 // Mac (ADR 0007) or generatively with the OpenAI Images API (ADR 0008).
 //   GET  /api/edits                     → EditOverview: can edits run, and every job of this server run
-//   POST /api/edits                     body EditRequest → EditJob (starts it; engine claude | openai)
+//   POST /api/edits                     body EditRequest → EditJob (starts it; engine claude | openai;
+//                                       mode edit | create, optional reference assets for GPT Image)
 //   GET  /api/edits/jobs/<id>           → EditJob
 //   GET  /api/edits/jobs/<id>/input     the image the job edits
 //   GET  /api/edits/jobs/<id>/output    the result (when done)
@@ -9,7 +10,8 @@
 //   POST /api/edits/jobs/<id>/discard   stops the job if needed and deletes its working folder
 //   POST /api/edits/jobs/<id>/cancel    stops a running job
 // Each job works on a copy of the image in its own temp folder; originals are never touched. The data
-// folder only changes on "keep", and then only by a new file in edits/ plus one appended manifest entry.
+// folder only changes on "keep", and then only by a new file in edits/ (or generated/ for new images)
+// plus one appended manifest entry.
 import { execFile, spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
 import {
@@ -38,6 +40,7 @@ import {
   checkInstruction,
   CLAUDE_TOOL,
   claudeArgs,
+  createdAsset,
   EDIT_TIMEOUT_MS,
   INPUT_BASENAME,
   keptAsset,
@@ -47,23 +50,37 @@ import {
   OUTPUT_FILE,
   parseStreamLine,
   readPngInfo,
+  slugName,
 } from "../edit.ts";
 import {
+  buildCreatePrompt,
   buildEditForm,
+  buildGenerationBody,
   buildGenerativePrompt,
   estimateCostUsd,
   MAX_OPENAI_INPUT_BYTES,
+  MAX_REFERENCES,
   MAX_RUNNING_OPENAI,
   OPENAI_EDITS_URL,
+  OPENAI_GENERATIONS_URL,
   openaiInputType,
   openaiSettingsFromEnv,
   parseEditResponse,
   rejectsInputFidelity,
+  type FormImage,
   type OpenAISettings,
+  type PromptReference,
 } from "../openai.ts";
 import {
+  CREATE_BACKGROUNDS,
+  CREATE_SIZES,
   EDITS_ENDPOINT,
   EDITS_FOLDER,
+  GENERATED_FOLDER,
+  GENERATED_KIND,
+  GENERATED_TAG,
+  type CreateBackground,
+  type CreateSize,
   type EditAvailability,
   type EditEngine,
   type EditJob,
@@ -102,11 +119,18 @@ export function spawnRunner(bin: string): Runner {
     });
 }
 
+type Reference = { path: string; fileName: string; mimeType: string; prompt: PromptReference };
+
 type Job = {
   info: EditJob;
   asset: Asset;
   dir: string;
+  /** Empty for a new image (mode "create" without fromJob): there is no input. */
   inputPath: string;
+  /** Reference images sent with a GPT Image request (copies in the working folder). */
+  refs: Reference[];
+  /** Mode "create" without fromJob: output size and background. */
+  create?: { size: CreateSize; background: CreateBackground };
   /** Result file in the working folder. */
   outputPath?: string;
   abort: AbortController;
@@ -227,7 +251,25 @@ export class EditManager {
     const req = (body ?? {}) as Partial<EditRequest>;
     if (req.engine !== undefined && req.engine !== "claude" && req.engine !== "openai")
       throw new HttpError(400, `unknown engine ${String(req.engine)}`);
-    const engine: EditEngine = req.engine ?? "claude";
+    if (req.mode !== undefined && req.mode !== "edit" && req.mode !== "create")
+      throw new HttpError(400, `unknown mode ${String(req.mode)}`);
+    // A new image needs GPT Image; with fromJob, "create" means editing the created result further.
+    const creating = req.mode === "create" && req.fromJob === undefined;
+    if (creating && req.engine === "claude")
+      throw new HttpError(400, "new images are made with GPT Image, not with claude -p");
+    const engine: EditEngine = req.engine ?? (creating ? "openai" : "claude");
+    const refIds = req.references ?? [];
+    if (!Array.isArray(refIds) || refIds.some((r) => typeof r !== "string"))
+      throw new HttpError(400, "references must be a list of asset ids");
+    if (refIds.length > 0 && engine !== "openai")
+      throw new HttpError(400, "reference images only work with GPT Image");
+    if (refIds.length > MAX_REFERENCES)
+      throw new HttpError(400, `at most ${MAX_REFERENCES} reference images`);
+    const size = req.size ?? "1024x1024";
+    const background = req.background ?? "transparent";
+    if (!CREATE_SIZES.some((o) => o.value === size)) throw new HttpError(400, `unknown size ${String(size)}`);
+    if (!CREATE_BACKGROUNDS.some((o) => o.value === background))
+      throw new HttpError(400, `unknown background ${String(background)}`);
     const availability =
       engine === "openai" ? await this.generativeAvailability() : await this.availability();
     if (!availability.enabled) throw new HttpError(409, availability.reason);
@@ -241,10 +283,17 @@ export class EditManager {
       throw new HttpError(429, `${limit} edits of this kind are running already; wait for one to finish`);
 
     let asset: Asset;
-    let source: string;
+    let source: string | null;
     let earlier: string[] = [];
     let earlierTools: string[] = [];
-    if (req.fromJob !== undefined) {
+    let earlierRefs: string[] = [];
+    let created: { name: string } | undefined;
+    if (creating) {
+      const name = slugName(req.name);
+      created = { name };
+      asset = { id: name, file: "", kind: GENERATED_KIND, tags: [GENERATED_TAG] };
+      source = null;
+    } else if (req.fromJob !== undefined) {
       const prev = this.job(String(req.fromJob));
       if (!prev.outputPath || (prev.info.state !== "done" && prev.info.state !== "kept"))
         throw new HttpError(409, "that edit has no result to work on");
@@ -252,6 +301,8 @@ export class EditManager {
       source = prev.outputPath;
       earlier = prev.info.instructions;
       earlierTools = prev.info.tools;
+      earlierRefs = prev.info.references ?? [];
+      created = prev.info.created;
     } else {
       if (typeof req.assetId !== "string") throw new HttpError(400, "assetId missing");
       const listing = await listAssets(this.dataDir);
@@ -268,8 +319,9 @@ export class EditManager {
       source = resolved.path;
     }
 
-    const ext = path.extname(source).toLowerCase() || ".png";
-    if (engine === "openai") {
+    const references = await this.resolveReferences(refIds);
+    const ext = source ? path.extname(source).toLowerCase() || ".png" : ".png";
+    if (engine === "openai" && source) {
       if (!openaiInputType(`x${ext}`))
         throw new HttpError(
           415,
@@ -280,8 +332,15 @@ export class EditManager {
     }
     const dir = await mkdtemp(path.join(os.tmpdir(), "tattoo-edit-"));
     const inputFile = `${INPUT_BASENAME}${ext}`;
-    const inputPath = path.join(dir, inputFile);
-    await copyFile(source, inputPath);
+    const inputPath = source ? path.join(dir, inputFile) : "";
+    if (source) await copyFile(source, inputPath);
+    // Copies of the references, so a manifest change during the request cannot swap them.
+    const refs: Reference[] = [];
+    for (const [i, r] of references.entries()) {
+      const fileName = `ref-${i + 1}${path.extname(r.path).toLowerCase()}`;
+      await copyFile(r.path, path.join(dir, fileName));
+      refs.push({ ...r, path: path.join(dir, fileName), fileName });
+    }
     await mkdir(this.opts.cacheDir, { recursive: true });
 
     const id = `e${++this.counter}-${Date.now().toString(36)}`;
@@ -289,6 +348,10 @@ export class EditManager {
       id,
       assetId: asset.derived_from ?? asset.id,
       ...(req.fromJob !== undefined ? { fromJob: String(req.fromJob) } : {}),
+      ...(created ? { created } : {}),
+      ...(earlierRefs.length + refIds.length > 0
+        ? { references: [...new Set([...earlierRefs, ...refIds])] }
+        : {}),
       engine,
       instructions: [...earlier, instruction.text],
       tools: [
@@ -299,7 +362,15 @@ export class EditManager {
       startedAt: new Date().toISOString(),
       log: [],
     };
-    const job: Job = { info, asset, dir, inputPath, abort: new AbortController() };
+    const job: Job = {
+      info,
+      asset,
+      dir,
+      inputPath,
+      refs,
+      ...(creating ? { create: { size, background } } : {}),
+      abort: new AbortController(),
+    };
     this.jobs.set(id, job);
     if (engine === "openai") {
       void this.runOpenAI(job, inputFile);
@@ -313,6 +384,30 @@ export class EditManager {
     });
     void this.run(job, prompt);
     return info;
+  }
+
+  /** Manifest assets to send as reference images: their file, type and notes. */
+  private async resolveReferences(ids: readonly string[]): Promise<Omit<Reference, "fileName">[]> {
+    if (ids.length === 0) return [];
+    const listing = await listAssets(this.dataDir);
+    if (listing.status !== "ok") throw new HttpError(409, "cannot read the manifest");
+    const out: Omit<Reference, "fileName">[] = [];
+    for (const id of new Set(ids)) {
+      const a = listing.assets.find((x) => x.id === id);
+      if (!a) throw new HttpError(404, `unknown reference ${id}`);
+      const mimeType = openaiInputType(a.file);
+      if (!mimeType) throw new HttpError(415, `reference ${id}: GPT Image takes PNG, JPEG or WebP only`);
+      const resolved = await resolveInside(this.dataDir!, a.file);
+      if (!resolved.ok) throw new HttpError(404, `reference ${id}: ${resolved.message}`);
+      if ((await stat(resolved.path)).size > MAX_OPENAI_INPUT_BYTES)
+        throw new HttpError(413, `reference ${id} is larger than 50 MB`);
+      out.push({
+        path: resolved.path,
+        mimeType,
+        prompt: { id: a.id, ...(a.notes ? { notes: a.notes } : {}) },
+      });
+    }
+    return out;
   }
 
   private log(job: Job, lines: string[]) {
@@ -398,24 +493,61 @@ export class EditManager {
     }, this.opts.timeoutMs ?? EDIT_TIMEOUT_MS);
     const info = job.info;
     try {
-      const image = await readFile(job.inputPath);
-      const prompt = buildGenerativePrompt({ instructions: info.instructions, asset: job.asset });
-      const send = async (inputFidelity: OpenAISettings["inputFidelity"]) => {
-        this.log(job, [
-          `→ Sending the image to ${settings.model}${inputFidelity ? ` (input fidelity ${inputFidelity})` : ""}…`,
-        ]);
-        const r = await doFetch(OPENAI_EDITS_URL, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${settings.apiKey}` },
-          body: buildEditForm({
-            image,
-            fileName: inputFile,
-            mimeType: openaiInputType(inputFile) ?? "image/png",
-            prompt,
-            settings: { ...settings, inputFidelity },
-          }),
-          signal: job.abort.signal,
+      const images: FormImage[] = [];
+      if (job.inputPath)
+        images.push({
+          bytes: await readFile(job.inputPath),
+          fileName: inputFile,
+          mimeType: openaiInputType(inputFile) ?? "image/png",
         });
+      for (const r of job.refs)
+        images.push({ bytes: await readFile(r.path), fileName: r.fileName, mimeType: r.mimeType });
+      const refPrompts = job.refs.map((r) => r.prompt);
+      const current = info.instructions.at(-1) ?? "";
+      const prompt = job.create
+        ? buildCreatePrompt(current, refPrompts)
+        : buildGenerativePrompt({
+            instructions: info.instructions,
+            asset: job.asset,
+            references: refPrompts,
+          });
+      const send = async (inputFidelity: OpenAISettings["inputFidelity"]) => {
+        const what =
+          images.length === 0
+            ? "the description"
+            : job.inputPath
+              ? `the image${job.refs.length ? ` and ${job.refs.length} reference${job.refs.length > 1 ? "s" : ""}` : ""}`
+              : `${job.refs.length} reference image${job.refs.length > 1 ? "s" : ""}`;
+        this.log(job, [
+          `→ Sending ${what} to ${settings.model}${images.length && inputFidelity ? ` (input fidelity ${inputFidelity})` : ""}…`,
+        ]);
+        // A new image from text alone goes to /generations; anything with images to /edits.
+        const r =
+          images.length === 0
+            ? await doFetch(OPENAI_GENERATIONS_URL, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${settings.apiKey}`, "Content-Type": "application/json" },
+                body: JSON.stringify(
+                  buildGenerationBody({
+                    prompt,
+                    settings,
+                    size: job.create!.size,
+                    background: job.create!.background,
+                  }),
+                ),
+                signal: job.abort.signal,
+              })
+            : await doFetch(OPENAI_EDITS_URL, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${settings.apiKey}` },
+                body: buildEditForm({
+                  images,
+                  prompt,
+                  settings: { ...settings, inputFidelity },
+                  ...(job.create ? job.create : {}),
+                }),
+                signal: job.abort.signal,
+              });
         return parseEditResponse(r.status, await r.json().catch(() => ({})));
       };
       let answer = await send(settings.inputFidelity);
@@ -480,7 +612,7 @@ export class EditManager {
     return job.info;
   }
 
-  /** Writes the result into edits/ and appends its manifest entry; never overwrites anything. */
+  /** Writes the result into edits/ (or generated/) and appends its manifest entry; never overwrites. */
   keep(id: string): Promise<EditJob> {
     const run = this.manifestLock.then(() => this.keepNow(id));
     this.manifestLock = run.catch(() => undefined);
@@ -495,11 +627,13 @@ export class EditManager {
     const dataDir = this.dataDir;
     if (!dataDir) throw new HttpError(409, "TATTOO_DATA_DIR is not set");
     const root = await realpath(dataDir);
-    const folder = path.join(root, EDITS_FOLDER);
+    const created = job.info.created;
+    const folderName = created ? GENERATED_FOLDER : EDITS_FOLDER;
+    const folder = path.join(root, folderName);
     await mkdir(folder, { recursive: true });
     const realFolder = await realpath(folder);
     if (!isInside(root, realFolder) || !(await stat(realFolder)).isDirectory())
-      throw new HttpError(403, `${EDITS_FOLDER}/ leads out of the data folder`);
+      throw new HttpError(403, `${folderName}/ leads out of the data folder`);
 
     const manifestPath = path.join(root, MANIFEST_FILE);
     let manifestText: string | null = null;
@@ -513,10 +647,12 @@ export class EditManager {
     const takenIds = new Set(listing.assets.map((a) => a.id));
     const takenFiles = new Set([
       ...listing.assets.map((a) => a.file.toLowerCase()),
-      ...(await readdir(realFolder)).map((f) => `${EDITS_FOLDER}/${f}`.toLowerCase()),
+      ...(await readdir(realFolder)).map((f) => `${folderName}/${f}`.toLowerCase()),
     ]);
-    const variant = nextVariant(job.info.assetId, takenIds, takenFiles);
-    const original = listing.assets.find((a) => a.id === job.info.assetId);
+    const variant = created
+      ? nextVariant(created.name, takenIds, takenFiles, "created")
+      : nextVariant(job.info.assetId, takenIds, takenFiles);
+    const original = created ? undefined : listing.assets.find((a) => a.id === job.info.assetId);
     let sameSize = false;
     if (original?.crop && job.info.output) {
       const orig = await resolveInside(dataDir, original.file);
@@ -524,7 +660,9 @@ export class EditManager {
       sameSize = !!png && png.width === job.info.output.width && png.height === job.info.output.height;
     }
     const base = original ? { ...original } : job.asset;
-    const entry = keptAsset(base, variant, job.info.instructions, sameSize, job.info.tools);
+    const entry = created
+      ? createdAsset(variant, job.info.instructions, job.info.tools, job.info.references ?? [])
+      : keptAsset(base, variant, job.info.instructions, sameSize, job.info.tools);
     const merged = mergeManifest(manifestText?.trim() ? manifestText : null, [entry]);
     if (!merged.added.includes(variant.id)) throw new HttpError(409, "the manifest refused the new entry");
 
