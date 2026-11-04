@@ -1689,6 +1689,14 @@ button.canvas-action:active:not(:disabled) {
   gap: 8px;
 }
 
+/* Inside a float it must not draw the generic .panel box a second time. */
+.float .pose-control.panel {
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
 .pose-head {
   display: flex;
   align-items: center;
@@ -4069,7 +4077,7 @@ button.share-row.active:hover {
   white-space: nowrap;
 }
 
-.share-bar {
+.proj-inspector .share-bar {
   display: block;
   width: 100%;
   height: 4px;
@@ -4078,7 +4086,7 @@ button.share-row.active:hover {
   overflow: hidden;
 }
 
-.share-bar > span {
+.proj-inspector .share-bar > span {
   display: block;
   height: 100%;
   border-radius: 2px;
