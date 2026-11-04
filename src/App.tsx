@@ -12,9 +12,9 @@ import { useArm } from "./viewer/useArm.ts";
 
 const TABS = [
   { id: "layout", label: "Layout" },
+  { id: "images", label: "Image studio" },
   { id: "compare", label: "Compare" },
   { id: "projection", label: "Projection" },
-  { id: "images", label: "Image studio" },
   { id: "arm", label: "Arm & measurements" },
   { id: "data", label: "Data folder" },
 ] as const;
@@ -127,14 +127,16 @@ export function App() {
             header={header}
           />
         </TabPanel>
+        {/* The Image studio stays mounted too: the picked image, the prompt and the version on view
+            survive a look at the Layout tab (the session itself lives in the dev server). */}
+        <TabPanel id="images" open={tab === "images"} keepMounted>
+          <ImageEditPage active={tab === "images"} />
+        </TabPanel>
         <TabPanel id="compare" open={tab === "compare"}>
           <ComparePage arm={arm} pose={pose} working={working} onOpenLayout={() => setTab("layout")} />
         </TabPanel>
         <TabPanel id="projection" open={tab === "projection"}>
           <ProjectionPage arm={arm} pose={pose} onDirty={setProjectionDirty} header={header} />
-        </TabPanel>
-        <TabPanel id="images" open={tab === "images"}>
-          <ImageEditPage />
         </TabPanel>
         <TabPanel id="arm" open={tab === "arm"}>
           <ArmPage arm={arm} pose={pose} />
