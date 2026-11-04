@@ -3541,24 +3541,41 @@ fieldset:disabled .props {
   white-space: nowrap;
 }
 
-/* ── Edit images tab (src/edits/ImageEditPage.tsx) ───────────────────────────────────────────── */
+/* === Image studio (Pro) (src/edits/ImageEditPage.tsx) ======================================== */
 
-/* Picker | editor. The picker fills the viewport height and scrolls its own grid. */
-.edit-page {
+/* Full-bleed workspace: asset browser | canvas | inspector. Each column scrolls on its own. */
+.studio {
+  --studio-assets-w: 272px;
+  --studio-inspector-w: 320px;
+  --checker-a: #ffffff;
+  --checker-b: #dcdce2;
+  --thumb-bg: #e8e8ed;
   display: grid;
-  grid-template-columns: var(--side-w) minmax(0, 1fr);
-  gap: var(--s-4);
-  align-items: start;
+  grid-template-columns: var(--studio-assets-w) minmax(0, 1fr) var(--studio-inspector-w);
+  height: calc(100dvh - var(--header-h));
+  min-height: 560px;
+  background: var(--bg);
 }
 
-@media (max-width: 800px) {
-  .edit-page {
-    grid-template-columns: 1fr;
-  }
+.studio.backdrop-dark {
+  --checker-a: #1b1b22;
+  --checker-b: #24242c;
+  --thumb-bg: #1b1b22;
 }
 
-/* A link that looks like a button (the empty state's way to the Data folder tab); the look is the
- * shared button style under Controls. */
+/* Loading and the no-data-folder state: the empty canvas with one card. */
+.studio.studio-blank {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  background: var(--canvas-2d);
+}
+
+.studio-blank .empty {
+  margin: 0 var(--s-4);
+}
+
+/* A link that looks like a button (the empty state's way to the Data folder tab). */
 a.button {
   text-decoration: none;
 }
@@ -3575,268 +3592,937 @@ a.button.primary:hover {
   margin-top: var(--s-2);
 }
 
-.edit-picker {
-  position: sticky;
-  top: calc(var(--header-h) + var(--s-3));
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100dvh - var(--header-h) - var(--s-3) - var(--s-6));
-}
-
-.edit-picker input[type="search"] {
-  flex: none;
-  width: 100%;
-}
-
-.edit-count {
-  margin: 6px 2px 0;
-}
-
-.edit-picker .asset-grid {
-  flex: 1;
-  min-height: 0;
-  max-height: none;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.edit-picker .asset-card img {
-  background: #fff;
-}
-
-.edit-main {
-  min-width: 0;
-}
-
-.edit-main .panel-head h2 {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.edit-hint.empty {
-  justify-items: start;
-  text-align: left;
-  margin: var(--s-2) 0 0;
-}
-
-.edit-hint.empty h2 {
-  font-size: var(--fs-md);
-}
-
-.edit-hint.empty p {
-  max-width: 70ch;
-}
-
-.edit-compose {
-  display: grid;
-  grid-template-columns: minmax(160px, 280px) minmax(0, 1fr);
-  gap: var(--s-4);
-}
-
-@media (max-width: 600px) {
-  .edit-compose {
-    grid-template-columns: 1fr;
-  }
-}
-
-.edit-page figure {
-  margin: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.edit-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-
-.edit-form .section-label {
-  margin: var(--s-1) 0 0;
-}
-
-.edit-form textarea {
-  width: 100%;
-}
-
-.edit-engine {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 16px;
-}
-
-.edit-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-/* Preset buttons use the global .chip; no status dot here. */
-.edit-presets .chip::before {
-  display: none;
-}
-
+/* Checkerboard behind images so transparency is visible; light or dark (the canvas bar's switch). */
 .checker {
-  /* Checkerboard behind images so transparency is visible. */
-  background-color: #fff;
-  background-image:
-    linear-gradient(45deg, #ddd 25%, transparent 25%), linear-gradient(-45deg, #ddd 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #ddd 75%), linear-gradient(-45deg, transparent 75%, #ddd 75%);
+  background-color: var(--checker-a);
+  background-image: repeating-conic-gradient(var(--checker-b) 0 25%, transparent 0 50%);
   background-size: 16px 16px;
-  background-position:
-    0 0,
-    0 8px,
-    8px -8px,
-    -8px 0;
-  border: 1px solid var(--border);
   border-radius: var(--r-md);
   overflow: hidden;
   display: flex;
+  align-items: center;
   justify-content: center;
 }
 
 .checker img {
   display: block;
   max-width: 100%;
-  max-height: 420px;
+  max-height: 100%;
   object-fit: contain;
 }
 
-.edit-results-head {
-  margin: var(--s-5) 0 var(--s-2);
-}
-
-.edit-jobs {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+/* Side columns: opaque chrome with a header row like the Layout tab's panels. */
+.studio-assets,
+.studio-inspector {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  background: var(--chrome);
 }
 
-.edit-job.card {
-  margin: 0;
-  border-left: 3px solid var(--border-strong);
+.studio-assets {
+  border-right: 1px solid var(--border);
 }
 
-.edit-job.running {
-  border-left-color: var(--info);
+.studio-inspector {
+  border-left: 1px solid var(--border);
 }
 
-.edit-job.done {
-  border-left-color: var(--text);
-}
-
-.edit-job.failed {
-  border-left-color: var(--danger);
-}
-
-.edit-job.kept {
-  border-left-color: var(--ok);
-}
-
-.edit-job.discarded,
-.edit-job.cancelled {
-  opacity: 0.75;
-}
-
-.edit-job-head {
+.studio-col-head {
+  flex: none;
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: var(--s-2);
+  min-height: 44px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--border);
 }
 
-.edit-job.failed .edit-job-head strong {
-  color: var(--danger);
+/* Asset browser */
+.studio-assets-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 10px 0;
 }
 
-.edit-job.kept .edit-job-head strong {
-  color: var(--ok);
-}
-
-.edit-instructions {
-  margin: 4px 0 var(--s-2);
-  padding-left: 1.4em;
-}
-
-.edit-compare {
+.studio-filters {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--s-3);
-  margin: var(--s-2) 0;
+  gap: 6px;
 }
 
-.edit-log ol {
-  max-height: 220px;
-  overflow-y: auto;
-  margin: 4px 0;
-  padding-left: 1.4em;
-  font-family: var(--font-mono);
+.studio-filters input[type="search"] {
+  grid-column: 1 / -1;
+}
+
+.studio-filters select {
+  min-width: 0;
   font-size: var(--fs-xs);
 }
 
-/* Image studio: create mode and reference images (ADR 0009). */
-.edit-compose.create {
-  grid-template-columns: minmax(0, 1fr);
+.studio-assets-hint {
+  margin: 8px 2px 6px;
+  font-size: var(--fs-2xs);
 }
 
-.edit-title {
+.studio-assets-none,
+.studio-assets-empty {
+  margin: var(--s-2) 2px;
+}
+
+.studio-thumbs {
   flex: 1;
+  min-height: 0;
+  list-style: none;
+  margin: 0 -10px;
+  padding: 2px 10px 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+  align-content: start;
+  gap: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.studio-thumbs > li {
+  position: relative;
   min-width: 0;
+}
+
+button.studio-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  height: auto;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border);
+  text-align: left;
+}
+
+button.studio-thumb:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.studio-thumb img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: var(--r-sm);
+  background: var(--thumb-bg);
+}
+
+.studio-thumb-id {
+  padding: 0 2px 1px;
+  font-size: var(--fs-2xs);
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.edit-create-options {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2) var(--s-4);
-}
-
-.edit-pick {
-  display: grid;
-  gap: 2px;
-}
-
-.edit-pick .ref-toggle {
-  font-size: 0.75em;
-  padding: 0 6px;
-  justify-self: stretch;
-}
-
-.edit-pick .ref-toggle.on {
-  background: var(--seg-active);
+button.studio-thumb.current,
+button.studio-thumb.current:hover {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
   color: var(--text);
 }
 
-.edit-refs {
+.studio-thumb.current .studio-thumb-id {
+  color: var(--accent-text);
+}
+
+/* Reference badge in a thumbnail's corner: "+" to add, the reference number once added. */
+.ref-badge,
+button.ref-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(14, 14, 19, 0.85);
+  box-shadow: inset 0 0 0 1px var(--border-hover);
+  color: var(--text);
+  font: 600 var(--fs-2xs) / 1 var(--font-mono);
+}
+
+button.ref-badge {
+  opacity: 0;
+}
+
+.studio-thumbs > li:hover button.ref-badge,
+button.ref-badge:focus-visible,
+button.ref-badge.on {
+  opacity: 1;
+}
+
+.ref-badge.on,
+button.ref-badge.on,
+button.ref-badge.on:hover {
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--on-ink);
+}
+
+button.ref-badge:hover:not(:disabled, .on) {
+  background: rgba(30, 30, 38, 0.95);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+button.ref-badge:disabled {
+  display: none;
+}
+
+/* Canvas: dot grid with a floating bar on top and a status bar below. */
+.studio-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  background: var(--canvas-2d);
+}
+
+.studio-bar {
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  gap: 6px;
+  padding-left: 12px;
+}
+
+.studio-bar-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.studio-bar-title strong {
+  font-weight: 600;
+}
+
+.studio-bar-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-xs);
+}
+
+.studio-switch {
+  margin-right: 6px;
+  color: var(--muted);
+}
+
+.studio-status {
+  font-size: 11.5px;
+}
+
+.studio-canvas {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 64px 20px 56px;
+}
+
+.studio-center {
+  height: 100%;
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+}
+
+.studio-hint.empty {
+  margin: 0;
+  max-width: 520px;
+}
+
+.studio-hint.empty p {
+  max-width: 60ch;
+}
+
+/* Labels on the canvas: small caps like the float titles. */
+.tile-label {
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The source image alone (no results yet), as large as the canvas allows. */
+figure.studio-hero {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.studio-hero .checker {
+  max-width: 100%;
+  max-height: calc(100% - 28px);
+  box-shadow:
+    0 0 0 1px var(--border-strong),
+    0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.studio-hero .checker img {
+  max-height: calc(100dvh - var(--header-h) - 150px);
+}
+
+.studio-hero figcaption,
+.studio-focus figcaption {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: var(--fs-xs);
+}
+
+/* A new image before it exists: an empty artboard in the chosen format. */
+figure.studio-artboard {
+  --aspect: 1;
+  margin: 0;
+  width: min(100%, 520px, calc((100dvh - var(--header-h) - 200px) * var(--aspect)));
+  aspect-ratio: var(--aspect);
+}
+
+.artboard-frame {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  outline: 1px dashed var(--border-hover);
+  outline-offset: 4px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.artboard-frame.checker {
+  --checker-a: #18181e;
+  --checker-b: #1e1e25;
+}
+
+/* Results: the source plus the open round side by side, then earlier results smaller. */
+.studio-results {
+  display: grid;
+  gap: var(--s-3);
+  align-content: start;
+}
+
+.studio-grid {
+  --n: 1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(min(var(--n), 4), minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.studio-grid.compact {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 1000px) {
+  .studio-grid:not(.compact) {
+    grid-template-columns: repeat(min(var(--n), 2), minmax(0, 1fr));
+  }
+}
+
+.studio-tile {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--panel);
+  backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+}
+
+.studio-tile.done {
+  border-color: var(--accent-line);
+}
+
+.studio-tile.failed {
+  border-color: var(--danger-line);
+}
+
+.studio-tile.compact {
+  gap: 6px;
+  padding: 6px;
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.studio-tile.discarded,
+.studio-tile.cancelled {
+  opacity: 0.7;
+}
+
+.tile-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 24px;
+}
+
+.tile-head .chip {
+  height: 20px;
+  padding: 0 7px;
+  font-size: var(--fs-2xs);
+}
+
+.studio .chip.info {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent-text);
+}
+
+.studio .chip.info::before {
+  background: var(--accent);
+  animation: studio-pulse 1.2s ease-in-out infinite;
+}
+
+.studio .tile-head .chip.plain {
+  color: var(--text);
+}
+
+.tile-meta {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-2xs);
+}
+
+.studio-tile.compact .tile-head {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.studio-tile.compact .tile-label {
+  display: none;
+}
+
+.studio-tile.compact .tile-placeholder {
+  aspect-ratio: auto;
+  height: 72px;
+}
+
+.tile-label {
+  white-space: nowrap;
+}
+
+button.tile-image,
+.tile-image {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+button.tile-image {
+  cursor: zoom-in;
+}
+
+button.tile-image:hover:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 2px var(--accent-line);
+}
+
+.tile-dims {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: var(--r-xs);
+  background: rgba(14, 14, 19, 0.8);
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+}
+
+.tile-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: var(--s-4);
+  background: var(--field-bg);
+  text-align: center;
+  font-size: var(--fs-xs);
+}
+
+.tile-placeholder.running {
+  background:
+    linear-gradient(100deg, transparent 30%, rgba(143, 132, 255, 0.07) 50%, transparent 70%) 0 0 / 250% 100%,
+    var(--field-bg);
+  animation: studio-shimmer 1.8s linear infinite;
+}
+
+.tile-last-log {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-2xs);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  animation: studio-spin 0.9s linear infinite;
+}
+
+@keyframes studio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes studio-shimmer {
+  to {
+    background-position:
+      -250% 0,
+      0 0;
+  }
+}
+
+@keyframes studio-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .tile-placeholder.running,
+  .studio .chip.info::before {
+    animation: none;
+  }
+}
+
+.tile-text {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.tile-prompt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--text);
+}
+
+.studio-tile.source .tile-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  gap: 4px;
+}
+
+.tile-actions:empty {
+  display: none;
+}
+
+.studio-earlier-head {
+  display: flex;
+  gap: 6px;
+  margin: var(--s-3) 2px 0;
+}
+
+.studio-earlier-head .mono {
+  font-size: var(--fs-2xs);
+  letter-spacing: 0;
+}
+
+.edit-log > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.edit-log ol {
+  max-height: 180px;
+  overflow-y: auto;
+  margin: 4px 0 0;
+  padding: 6px 8px 6px 2.4em;
+  border-radius: var(--r-md);
+  background: var(--field-bg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+}
+
+.edit-instructions {
+  margin: 0;
+  padding-left: 1.4em;
+  font-size: var(--fs-xs);
+}
+
+/* Focus view: one result large, before and after side by side, info floating at the bottom. */
+.studio-focus {
+  height: 100%;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+}
+
+.focus-pair {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding-bottom: 150px;
+}
+
+.focus-pair.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.focus-pair figure {
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
 
-.edit-refs .ref-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 4px 2px 2px;
+.focus-pair .checker {
+  flex: 1;
+  min-height: 0;
+  box-shadow: 0 0 0 1px var(--border-strong);
 }
 
-.edit-refs .ref-chip img {
-  width: 24px;
-  height: 24px;
+.focus-pair .checker img {
+  width: 100%;
+  height: 100%;
+}
+
+.focus-info {
+  left: 50%;
+  bottom: 54px;
+  translate: -50% 0;
+  width: min(620px, calc(100% - 24px));
+  max-height: 140px;
+  overflow-y: auto;
+  display: grid;
+  gap: 6px;
+  padding: 8px 12px 10px;
+}
+
+/* Inspector */
+.studio-mode {
+  display: flex;
+  flex: 1;
+}
+
+.studio-mode button {
+  flex: 1;
+}
+
+.studio-inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 12px 12px;
+}
+
+.studio-inspector-body .notices {
+  margin: 8px 0 0;
+}
+
+.studio-section {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.studio-section:last-child {
+  border-bottom: 0;
+}
+
+.studio-section > .props-head {
+  margin: 0;
+}
+
+.studio-section .props-head-note .mono {
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+}
+
+.studio-source {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.studio-source .checker {
+  width: 56px;
+  height: 56px;
+  background-size: 10px 10px;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.studio-source-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.studio-source-text > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-source-text .faint {
+  font-size: var(--fs-xs);
+}
+
+/* Engine: two cards, one pressed (a radio group). */
+.engine-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.engine-options.single {
+  grid-template-columns: 1fr;
+}
+
+button.engine-option,
+.engine-option {
+  height: auto;
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 2px;
+  padding: 7px 9px;
+  border-radius: var(--r-md);
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+  text-align: left;
+  white-space: normal;
+}
+
+.engine-option strong {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.engine-option span {
+  font-size: var(--fs-2xs);
+  font-weight: 400;
+  color: var(--faint);
+  line-height: var(--lh-tight);
+}
+
+button.engine-option.on,
+button.engine-option.on:hover,
+.engine-option.static {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+button.engine-option.on strong,
+.engine-option.static strong {
+  color: var(--accent-text);
+}
+
+.edit-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.edit-presets .chip {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+}
+
+.gen-tag {
+  margin-left: -2px;
+  font: 600 8.5px var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--accent-text);
+}
+
+.studio-section textarea {
+  width: 100%;
+  min-height: 110px;
+  font-size: var(--fs-sm);
+}
+
+.studio-charcount {
+  justify-self: end;
+  margin-top: -4px;
+  font-size: var(--fs-2xs);
+}
+
+.studio-refs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.studio-refs li {
+  display: grid;
+  grid-template-columns: 14px 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 3px 3px 6px;
+  border-radius: var(--r-md);
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.studio-refs img {
+  width: 28px;
+  height: 28px;
   object-fit: cover;
   border-radius: 4px;
+  background: #fff;
 }
 
-.edit-compare.single {
-  grid-template-columns: minmax(0, 1fr);
-  max-width: 420px;
+.ref-num {
+  color: var(--accent-text);
+  font-size: var(--fs-2xs);
+}
+
+.studio-ref-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+}
+
+.studio-props {
+  margin: 0;
+}
+
+.studio-props .props-row {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.studio-props .segmented {
+  justify-self: start;
+}
+
+.studio-props .segmented button {
+  min-width: 34px;
+}
+
+/* Run: pinned to the bottom of the inspector, the one primary action. */
+.studio-run {
+  flex: none;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--chrome);
+}
+
+.studio-estimate .mono {
+  flex: none;
+  white-space: nowrap;
+}
+
+.studio-estimate {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--fs-2xs);
+}
+
+button.studio-run-button {
+  height: var(--control-h-lg);
+  width: 100%;
+}
+
+button.studio-run-alt {
+  width: 100%;
+}
+
+.studio-run-error {
+  margin: 0;
+}
+
+/* Narrow windows: slimmer side columns; below 900 px the columns stack. */
+@media (max-width: 1280px) {
+  .studio {
+    --studio-assets-w: 232px;
+    --studio-inspector-w: 300px;
+  }
+}
+
+@media (max-width: 900px) {
+  .studio:not(.studio-blank) {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 320px minmax(560px, 80dvh) auto;
+  }
+  .studio-assets {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .studio-inspector {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
 }

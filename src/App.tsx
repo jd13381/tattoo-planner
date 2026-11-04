@@ -148,7 +148,7 @@ export function App() {
 }
 
 /** Tabs whose page is a full-bleed workspace (no page padding, fills the viewport under the top bar). */
-const FULL_BLEED: ReadonlySet<TabId> = new Set(["layout"]);
+const FULL_BLEED: ReadonlySet<TabId> = new Set(["layout", "images"]);
 
 function TabPanel(props: { id: TabId; open: boolean; keepMounted?: boolean; children: ReactNode }) {
   const { id, open, keepMounted, children } = props;
