@@ -115,7 +115,7 @@ export function App() {
           <LayoutPage arm={arm} pose={pose} onWorking={setWorking} />
         </TabPanel>
         <TabPanel id="compare" open={tab === "compare"}>
-          <ComparePage arm={arm} pose={pose} working={working} />
+          <ComparePage arm={arm} pose={pose} working={working} onOpenLayout={() => setTab("layout")} />
         </TabPanel>
         <TabPanel id="projection" open={tab === "projection"}>
           <ProjectionPage arm={arm} pose={pose} onDirty={setProjectionDirty} />

@@ -1683,11 +1683,44 @@ button.asset-card {
 
 /* ── Compare tab ──────────────────────────────────────────────────────────────────────────────── */
 
+/* One line under the toolbar: what differs (jumps to the element list) and the shared description. */
+.compare-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px var(--s-3);
+  margin: calc(-1 * var(--s-1)) 0 var(--s-2);
+  min-height: 22px;
+}
+
+button.link.compare-summary-link {
+  padding: 0;
+  color: var(--text);
+  font-weight: 600;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+button.link.compare-summary-link:hover:not(:disabled) {
+  text-decoration-color: currentColor;
+}
+
+.compare-summary .compare-desc {
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.compare-summary .compare-desc::before {
+  content: "·";
+  margin-right: var(--s-3);
+  color: var(--faint);
+}
+
 .compare-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--s-4);
-  margin-top: var(--s-2);
 }
 
 @media (max-width: 860px) {
@@ -1703,17 +1736,47 @@ button.asset-card {
   min-width: 0;
 }
 
+.compare-side > p.compare-desc {
+  margin: 0 2px;
+}
+
+/* The arms leave room for the coverage tables below them on a laptop screen. */
 .compare-side .canvas-wrap {
-  height: max(420px, min(760px, calc(100dvh - var(--header-h) - 200px)));
+  height: max(300px, calc(100dvh - var(--header-h) - 410px));
+}
+
+/* The footnote of both coverage tables is printed once, under the grid. */
+.compare-side .metrics > p.muted {
+  display: none;
+}
+
+.compare-footnote {
+  margin: var(--s-2) 2px 0;
 }
 
 .compare-diff {
-  margin-top: var(--s-4);
+  margin-top: var(--s-3);
+  scroll-margin-top: calc(var(--header-h) + var(--s-3));
+}
+
+.compare-diff:focus {
+  outline: none;
 }
 
 .compare-diff ul {
   margin: var(--s-2) 0;
   padding-left: 1.2em;
+}
+
+/* Below this width the toolbar would wrap: views go back to the short names. */
+@media (max-width: 1360px) {
+  .compare-page .view-side {
+    display: none;
+  }
+}
+
+.empty.compare-empty button {
+  margin-top: var(--s-2);
 }
 
 /* ── Projection tab (docs/adr/0006) ───────────────────────────────────────────────────────────── */

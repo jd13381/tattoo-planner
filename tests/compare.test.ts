@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { PLACEHOLDERS } from "../src/arm/inputs.ts";
 import { buildProfile } from "../src/arm/profile.ts";
 import { diffLayouts } from "../src/compare/diff.ts";
+import { compareSummary } from "../src/compare/summary.ts";
 import { saveLayout } from "../src/data/server/layoutsApi.ts";
 import { moveElement, suggestVariantName } from "../src/editor/edit.ts";
 import type { Layout } from "../src/layout/schema.ts";
@@ -64,6 +65,34 @@ describe("coverage comparison", () => {
     );
     expect(d["forearm-inner"].existing).toBe(0);
     expect(coverageDelta(ca, ca).total.open).toBe(0);
+  });
+});
+
+describe("compare summary", () => {
+  it("counts differing elements and shows the whole-arm open skin from A to B", () => {
+    const a = baseline();
+    const b: Layout = { ...a, elements: a.elements.filter((e) => e.id !== "medusa") };
+    const ca = coverage(classify(a, profile, 3), profile);
+    const cb = coverage(classify(b, profile, 3), profile);
+    const s = compareSummary(diffLayouts(a, b), ca, cb);
+    const openA = sharePct(ca.total, "open");
+    const openB = sharePct(cb.total, "open");
+    expect(openB).toBeGreaterThan(openA);
+    expect(s).toEqual({
+      differing: 1,
+      open: { a: openA, b: openB },
+      text: `1 element differs · open skin ${openA} % → ${openB} %`,
+    });
+  });
+
+  it("says when nothing differs, and leaves out coverage it does not have", () => {
+    const a = baseline();
+    const ca = coverage(classify(a, profile, 3), profile);
+    const same = compareSummary(diffLayouts(a, a), ca, ca);
+    expect(same.text).toBe(`Same elements · open skin ${sharePct(ca.total, "open")} % in both`);
+    const b = baseline();
+    b.elements = b.elements.filter((e) => e.id !== "pegasus" && e.id !== "skull");
+    expect(compareSummary(diffLayouts(a, b), null, ca).text).toBe("2 elements differ");
   });
 });
 
