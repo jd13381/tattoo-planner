@@ -121,8 +121,13 @@ export function handoutFacts(input: ExportInput, date: string): HandoutFacts {
     layout,
     profile,
     date,
-    resolved: layout.elements.map((el) => resolveElement(el, profile, existing, aspects.get(el.id))),
-    coverage: coverage(classify(layout, profile, METRICS_PX_PER_CM, existing, 0, aspects), profile),
+    resolved: layout.elements.map((el) =>
+      resolveElement(el, profile, existing, aspects.get(el.id), sources.patches?.get(el.id)),
+    ),
+    coverage: coverage(
+      classify(layout, profile, METRICS_PX_PER_CM, existing, 0, aspects, sources.patches),
+      profile,
+    ),
     missingImages,
     placeholderMeasurements: input.placeholderMeasurements,
     measurementCount: input.measurementCount,

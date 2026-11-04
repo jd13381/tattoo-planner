@@ -207,8 +207,8 @@ function CompareSide(props: {
 }) {
   const { side, picked, other, mode, profile, assetMap, listingLoaded, viewState, bendDeg, sync } = props;
   const { layout } = picked;
-  const { aspects, sources, loading } = useLayoutSources(layout, assetMap, listingLoaded);
-  const otherSources = useLayoutSources(other.layout, assetMap, listingLoaded);
+  const { aspects, patches, sources, loading } = useLayoutSources(layout, assetMap, listingLoaded, profile);
+  const otherSources = useLayoutSources(other.layout, assetMap, listingLoaded, profile);
 
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
@@ -224,18 +224,28 @@ function CompareSide(props: {
 
   const cov = useMemo(
     () =>
-      layout ? coverage(classify(layout, profile, METRICS_PX_PER_CM, anubisSize, 0, aspects), profile) : null,
-    [layout, profile, aspects],
+      layout
+        ? coverage(classify(layout, profile, METRICS_PX_PER_CM, anubisSize, 0, aspects, patches), profile)
+        : null,
+    [layout, profile, aspects, patches],
   );
   const otherCov = useMemo(
     () =>
       other.layout
         ? coverage(
-            classify(other.layout, profile, METRICS_PX_PER_CM, anubisSize, 0, otherSources.aspects),
+            classify(
+              other.layout,
+              profile,
+              METRICS_PX_PER_CM,
+              anubisSize,
+              0,
+              otherSources.aspects,
+              otherSources.patches,
+            ),
             profile,
           )
         : null,
-    [other.layout, profile, otherSources.aspects],
+    [other.layout, profile, otherSources.aspects, otherSources.patches],
   );
 
   return (

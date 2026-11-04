@@ -1,0 +1,69 @@
+# Projection of the existing Anubis tattoo (PROJECT_BRIEF.md §2.1, §10.1 F9) from several photos onto
+# the arm's skin coordinates (docs/adr/0006-anubis-projection.md). Numbers only: the photos stay in the
+# data folder and are named by their path there (each needs an entry in manifest.yaml).
+# Fitted by Claude on 2026-11-04 from Jan's photos (edges and marks read off the photos, view angles and
+# fine offsets optimised so the photos agree where they overlap). Adjust in the Projection tab or by hand.
+#
+# Photo points are 0..1 from the left/top edge of the photo as shown upright, after `turn`.
+# u = around the arm (0 outer, 0.25 lateral, 0.5 inner, 0.75 medial), v = along it (0 wrist, 1 shoulder).
+name: anubis
+description: "Anubis, inner left forearm, combined from four photos"
+# The area of skin the combined picture covers
+patch:
+  u: [0.1, 0.78] # lateral … medial
+  v: [0.015, 0.42] # from just above the wrist crease (keeps the marker line out) to beyond the elbow
+  px_per_cm: 20
+  feather_cm: 0.5 # soft edge where the patch ends
+blend:
+  exponent: 4 # weight of a photo = cos(viewing angle)^exponent: the most frontal photo wins
+  white_radius_cm: 1.5 # window for the local skin brightness (evens out exposure and shading)
+  skin_level: 0.9 # brightness from which a pixel counts as bare skin (hides hair)
+  ink_threshold: 0.03 # how much ink makes the footprint used by the blockout and the metrics
+photos:
+  - file: arm-photos/anubis1_nr.JPG # palm up, arm lying sideways, wrist on the right; the reference view (u_view fixed at 0.5)
+    turn: 90 # clockwise quarter turn so the wrist points down
+    # The forearm silhouette, each edge as a line through two points
+    edges:
+      left: [{ x: 0.3599, y: 0.3 }, { x: 0.4149, y: 0.58 }]
+      right: [{ x: 0.543, y: 0.3 }, { x: 0.512, y: 0.58 }]
+    # Points at a known distance from the wrist crease along the arm, cm
+    along:
+      - { x: 0.45, y: 0.607, cm: 0 } # wrist crease (marker line)
+      - { x: 0.39, y: 0.235, cm: 28 } # tip of the ears (top of the tattoo)
+    u_view: { wrist: 0.5, elbow: 0.5 } # u facing the camera; differs along the arm when the forearm is turned
+
+  - file: arm-photos/anubis_extra1.JPG # arm upright, palm up; the wrist end turned a little towards medial
+    turn: 0 # clockwise quarter turn so the wrist points down
+    # The forearm silhouette, each edge as a line through two points
+    edges:
+      left: [{ x: 0.3181, y: 0.2 }, { x: 0.3481, y: 0.7 }]
+      right: [{ x: 0.5569, y: 0.25 }, { x: 0.4969, y: 0.7 }]
+    # Points at a known distance from the wrist crease along the arm, cm
+    along:
+      - { x: 0.437, y: 0.718, cm: 0.88 } # wrist marker line (0 cm), moved by the fit
+      - { x: 0.387, y: 0.213, cm: 28.62 } # tip of the ears (top of the tattoo)
+    u_view: { wrist: 0.67, elbow: 0.52 } # u facing the camera; differs along the arm when the forearm is turned
+
+  - file: arm-photos/anubis_extra2.JPG # forearm turned towards the thumb: shows the lateral side, wrist end turned most
+    turn: 0 # clockwise quarter turn so the wrist points down
+    # The forearm silhouette, each edge as a line through two points
+    edges:
+      left: [{ x: 0.3732, y: 0.17 }, { x: 0.3362, y: 0.55 }]
+      right: [{ x: 0.5854, y: 0.15 }, { x: 0.4614, y: 0.62 }]
+    # Points at a known distance from the wrist crease along the arm, cm
+    along:
+      - { x: 0.358, y: 0.656, cm: 3.24 } # lowest visible ink; distance fitted to the other photos
+      - { x: 0.4, y: 0.2, cm: 28.37 } # tip of the ears (top of the tattoo)
+    u_view: { wrist: 0.29, elbow: 0.485 } # u facing the camera; differs along the arm when the forearm is turned
+
+  - file: arm-photos/anubis_extra3.JPG # forearm turned further: the ribbons on the lateral side face the camera
+    turn: 0 # clockwise quarter turn so the wrist points down
+    # The forearm silhouette, each edge as a line through two points
+    edges:
+      left: [{ x: 0.3948, y: 0.17 }, { x: 0.3858, y: 0.55 }]
+      right: [{ x: 0.6015, y: 0.15 }, { x: 0.5075, y: 0.62 }]
+    # Points at a known distance from the wrist crease along the arm, cm
+    along:
+      - { x: 0.38, y: 0.656, cm: 4.5 } # lowest visible ink; distance fitted to the other photos
+      - { x: 0.4, y: 0.23, cm: 28 } # tip of the ears (top of the tattoo)
+    u_view: { wrist: 0.145, elbow: 0.39 } # u facing the camera; differs along the arm when the forearm is turned

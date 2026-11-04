@@ -120,6 +120,11 @@ export function ElementPanel({
         {(el.type === "figure" || el.type === "existing") && (
           <>
             <label>asset {text(el.asset, (asset) => onChange({ ...el, asset }))}</label>
+            {el.type === "existing" && (
+              <label title="A calibration in config/projections/: the tattoo is drawn from all its photos (Projection tab); position, size and cut-out apply only while that cannot be built.">
+                projection {text(el.projection, (projection) => onChange({ ...el, projection }))}
+              </label>
+            )}
             <label>
               u (around){" "}
               {num(el.position.u, (u) => onChange({ ...el, position: { ...el.position, u: u ?? 0 } }))}

@@ -3,7 +3,13 @@ import type { ArmProfile } from "../arm/profile.ts";
 import { wrapU } from "../arm/uv.ts";
 import type { ElementAspects } from "../layout/imageFit.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
-import { resolveElement, wrapDelta, type ExistingSize, type Shape } from "../layout/shapes.ts";
+import {
+  resolveElement,
+  wrapDelta,
+  type ElementPatches,
+  type ExistingSize,
+  type Shape,
+} from "../layout/shapes.ts";
 import { moveElement, movePoint, scaleFigure } from "./edit.ts";
 
 type Props = {
@@ -12,6 +18,8 @@ type Props = {
   existing: ExistingSize;
   /** Image proportions per element id (figures without a width take them). */
   aspects?: ElementAspects;
+  /** Existing tattoos projected from photos (they sit where the photos put them and cannot move). */
+  patches?: ElementPatches;
   /** Rendered unwrap for `centerU`; bumped `version` when it changes. */
   image: HTMLCanvasElement;
   version: number;
@@ -32,7 +40,19 @@ type ViewBox = { x: number; y: number; w: number; h: number };
 
 /** 2D editor on the skin unwrap. SVG units are cm; x grows towards medial (right), y from the shoulder down. */
 export function UnwrapEditor(props: Props) {
-  const { profile, layout, existing, aspects, image, version, centerU, selected, onSelect, onChange } = props;
+  const {
+    profile,
+    layout,
+    existing,
+    aspects,
+    patches,
+    image,
+    version,
+    centerU,
+    selected,
+    onSelect,
+    onChange,
+  } = props;
   const L = profile.length;
   const half = profile.maxCircumference / 2;
   const fullView = useMemo<ViewBox>(() => ({ x: -half - 1, y: -1, w: 2 * half + 2, h: L + 2 }), [half, L]);
@@ -50,8 +70,11 @@ export function UnwrapEditor(props: Props) {
   }, [image, version]);
 
   const resolved = useMemo(
-    () => layout.elements.map((el) => resolveElement(el, profile, existing, aspects?.get(el.id))),
-    [layout, profile, existing, aspects],
+    () =>
+      layout.elements.map((el) =>
+        resolveElement(el, profile, existing, aspects?.get(el.id), patches?.get(el.id)),
+      ),
+    [layout, profile, existing, aspects, patches],
   );
 
   /** Screen (SVG) position of a skin point. */
@@ -80,7 +103,7 @@ export function UnwrapEditor(props: Props) {
     onSelect(index);
     const el = layout.elements[index]!;
     const p = pointer(e);
-    if (!p || el.locked) {
+    if (!p || el.locked || resolved[index]?.shape.kind === "patch") {
       e.stopPropagation();
       return;
     }
@@ -167,35 +190,38 @@ export function UnwrapEditor(props: Props) {
             shape={r.shape}
             label={r.element.id}
             selected={i === selected}
-            locked={!!r.element.locked}
+            locked={!!r.element.locked || r.shape.kind === "patch"}
             toSvg={toSvg}
             profile={profile}
             centerU={centerU}
             onDown={(e) => onElementDown(e, i)}
           />
         ))}
-        {selected !== null && resolved[selected] && !resolved[selected].element.locked && (
-          <Handles
-            shape={resolved[selected].shape}
-            toSvg={toSvg}
-            onScale={(e, cx, cy, hx, hy) =>
-              startDrag(e, {
-                kind: "scale",
-                index: selected,
-                start: layout.elements[selected]!,
-                cx,
-                cy,
-                d0: Math.hypot(hx - cx, hy - cy),
-              })
-            }
-            onRotate={(e, cx, cy) =>
-              startDrag(e, { kind: "rotate", index: selected, start: layout.elements[selected]!, cx, cy })
-            }
-            onPoint={(e, point) =>
-              startDrag(e, { kind: "point", index: selected, point, start: layout.elements[selected]! })
-            }
-          />
-        )}
+        {selected !== null &&
+          resolved[selected] &&
+          !resolved[selected].element.locked &&
+          resolved[selected].shape.kind !== "patch" && (
+            <Handles
+              shape={resolved[selected].shape}
+              toSvg={toSvg}
+              onScale={(e, cx, cy, hx, hy) =>
+                startDrag(e, {
+                  kind: "scale",
+                  index: selected,
+                  start: layout.elements[selected]!,
+                  cx,
+                  cy,
+                  d0: Math.hypot(hx - cx, hy - cy),
+                })
+              }
+              onRotate={(e, cx, cy) =>
+                startDrag(e, { kind: "rotate", index: selected, start: layout.elements[selected]!, cx, cy })
+              }
+              onPoint={(e, point) =>
+                startDrag(e, { kind: "point", index: selected, point, start: layout.elements[selected]! })
+              }
+            />
+          )}
       </svg>
       <p className="muted small">
         Click to select, drag to move; corner handle scales, round handle rotates. Drag the background to pan,
@@ -239,7 +265,8 @@ function ShapeOverlay(props: {
       labelAt = { x: c.x, y: c.y - shape.h / 2 - 0.4 };
       break;
     }
-    case "region": {
+    case "region":
+    case "patch": {
       const ys: number[] = [];
       for (let y = shape.y0; y <= shape.y1 + 1e-9; y += 0.5) ys.push(Math.min(y, shape.y1));
       const left = ys.map((y) => toSvg(shape.u0, y));

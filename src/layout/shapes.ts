@@ -2,6 +2,7 @@
 // Unwrap cm: x from the outer centre line (lateral positive, as src/arm/uv.ts), y from the wrist crease.
 import type { ArmProfile } from "../arm/profile.ts";
 import { uToCm, wrapU } from "../arm/uv.ts";
+import { footprintBounds, patchCovers, type ProjectedPatch } from "../projection/patch.ts";
 import type { ElementAspects } from "./imageFit.ts";
 import type { Layout, LayoutElement } from "./schema.ts";
 
@@ -16,7 +17,26 @@ export type Shape =
   | { kind: "box"; uc: number; cx: number; cy: number; w: number; h: number; rot: number }
   | { kind: "region"; u0: number; u1: number; y0: number; y1: number }
   | { kind: "band"; y: number; half: number }
-  | { kind: "line"; points: { u: number; y: number }[]; half: number };
+  | { kind: "line"; points: { u: number; y: number }[]; half: number }
+  /**
+   * An existing tattoo projected from photos (docs/adr/0006): its footprint in skin coordinates.
+   * u0…u1 and y0…y1 (cm) bound the footprint; `uc` and `cy` are its centre.
+   */
+  | {
+      kind: "patch";
+      patch: ProjectedPatch;
+      u0: number;
+      u1: number;
+      y0: number;
+      y1: number;
+      uc: number;
+      cy: number;
+      /** Arm length (cm), to turn y into v. */
+      armLength: number;
+    };
+
+/** Projected patches by element id, for the elements whose picture could be built. */
+export type ElementPatches = ReadonlyMap<string, ProjectedPatch>;
 
 export type ResolvedElement = { element: LayoutElement; shape: Shape; flags: string[] };
 
@@ -31,9 +51,29 @@ export function resolveElement(
   existing?: ExistingSize,
   /** Width / height of the element's upright image cut-out, when known (src/layout/imageFit.ts). */
   imageAspect?: number,
+  /** The element's projected patch, when it has one and it could be built. */
+  patch?: ProjectedPatch,
 ): ResolvedElement {
   const L = profile.length;
   const flags: string[] = [];
+  if (el.type === "existing" && el.projection && patch) {
+    const b = footprintBounds(patch) ?? { u: [patch.u0, patch.u1], v: [patch.v0, patch.v1] };
+    return {
+      element: el,
+      shape: {
+        kind: "patch",
+        patch,
+        u0: b.u[0],
+        u1: b.u[1],
+        y0: b.v[0] * L,
+        y1: b.v[1] * L,
+        uc: (b.u[0] + b.u[1]) / 2,
+        cy: ((b.v[0] + b.v[1]) / 2) * L,
+        armLength: L,
+      },
+      flags,
+    };
+  }
   switch (el.type) {
     case "figure":
     case "existing": {
@@ -123,6 +163,8 @@ export function hits(shape: Shape, u: number, y: number, c: number): boolean {
     }
     case "band":
       return Math.abs(y - shape.y) <= shape.half;
+    case "patch":
+      return patchCovers(shape.patch, u, y / shape.armLength);
     case "line": {
       const pts = shape.points;
       for (let i = 0; i < pts.length - 1; i++) {
@@ -168,8 +210,11 @@ export function classify(
   existing?: ExistingSize,
   centerU = 0,
   aspects?: ElementAspects,
+  patches?: ElementPatches,
 ): Classification {
-  const resolved = layout.elements.map((el) => resolveElement(el, profile, existing, aspects?.get(el.id)));
+  const resolved = layout.elements.map((el) =>
+    resolveElement(el, profile, existing, aspects?.get(el.id), patches?.get(el.id)),
+  );
   const width = Math.ceil(profile.maxCircumference * pxPerCm);
   const height = Math.ceil(profile.length * pxPerCm);
   const cells = new Uint8Array(width * height);

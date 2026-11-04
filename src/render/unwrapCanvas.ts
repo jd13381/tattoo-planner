@@ -53,7 +53,15 @@ export function renderUnwrap(
     });
     return null;
   }
-  const cls = classify(layout, profile, opts.pxPerCm, opts.existing, opts.centerU ?? 0, opts.aspects);
+  const cls = classify(
+    layout,
+    profile,
+    opts.pxPerCm,
+    opts.existing,
+    opts.centerU ?? 0,
+    opts.aspects,
+    opts.sources?.patches,
+  );
   ctx.putImageData(new ImageData(blockoutPixels(cls, opts.selected), cls.width, cls.height), 0, 0);
   // The grid's centre lines are labelled for the outer-centred texture; skip it for the inner view.
   if (opts.grid && (opts.centerU ?? 0) === 0)

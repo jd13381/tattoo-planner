@@ -100,7 +100,13 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
     () => (listing?.status === "ok" ? new Map(listing.assets.map((a) => [a.id, a])) : null),
     [listing],
   );
-  const { aspects, sources, loading: loadingImages } = useLayoutSources(layout, assetMap, listing !== null);
+  const {
+    aspects,
+    patches,
+    patchIssues,
+    sources,
+    loading: loadingImages,
+  } = useLayoutSources(layout, assetMap, listing !== null, profile);
 
   const dirty = layout !== null && JSON.stringify(layout) !== savedJson;
   useEffect(() => {
@@ -146,15 +152,25 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
 
   const metrics = useMemo(
     () =>
-      layout ? coverage(classify(layout, profile, METRICS_PX_PER_CM, anubisSize, 0, aspects), profile) : null,
-    [layout, profile, aspects],
+      layout
+        ? coverage(classify(layout, profile, METRICS_PX_PER_CM, anubisSize, 0, aspects, patches), profile)
+        : null,
+    [layout, profile, aspects, patches],
   );
 
   const flagsFor = useMemo(() => {
     if (!layout) return [];
-    const cls = classify({ ...layout, elements: layout.elements }, profile, 1, anubisSize, 0, aspects);
+    const cls = classify(
+      { ...layout, elements: layout.elements },
+      profile,
+      1,
+      anubisSize,
+      0,
+      aspects,
+      patches,
+    );
     return cls.resolved.map((r) => r.flags);
-  }, [layout, profile, aspects]);
+  }, [layout, profile, aspects, patches]);
   const flagged =
     layout?.elements.filter((_, i) => flagsFor[i]?.includes("height not set")).map((e) => e.id) ?? [];
 
@@ -334,6 +350,12 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
       )}
       {validationError && <p className="card notice error">Not saved: {validationError}</p>}
       {saveError && <p className="card notice error">Save failed: {saveError}</p>}
+      {[...patchIssues].map(([id, issue]) => (
+        <p key={id} className="card notice warn small">
+          {id}: {patches.has(id) ? "" : "projection not shown, the element's own box is used instead: "}
+          {issue}.
+        </p>
+      ))}
       {flagged.length > 0 && (
         <p className="card notice warn small">Height not set, shown at 10 cm: {flagged.join(", ")}.</p>
       )}
@@ -355,6 +377,7 @@ export function LayoutPage({ arm, pose, onWorking }: Props) {
               layout={layout}
               existing={anubisSize}
               aspects={aspects}
+              patches={patches}
               image={editorImage}
               version={0}
               centerU={centerU}

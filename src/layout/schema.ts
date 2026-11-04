@@ -44,7 +44,19 @@ const figureFields = {
 };
 
 export const figureSchema = z.strictObject({ type: z.literal("figure"), ...figureFields });
-export const existingSchema = z.strictObject({ type: z.literal("existing"), ...figureFields });
+export const existingSchema = z.strictObject({
+  type: z.literal("existing"),
+  ...figureFields,
+  /**
+   * Name of a calibration in config/projections/ (docs/adr/0006): the tattoo is drawn from all its
+   * photos, already in skin coordinates, where they place it. Position, size and cut-out then only
+   * apply while that picture cannot be built (no data folder, photos missing).
+   */
+  projection: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]*$/, "use lowercase letters, digits and dashes")
+    .optional(),
+});
 
 export const fillerSchema = z.strictObject({
   type: z.literal("filler"),
