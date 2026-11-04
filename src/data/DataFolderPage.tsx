@@ -100,7 +100,9 @@ export function DataFolderPage() {
         <section className="panel" aria-label="What needs the data folder">
           <h2>What needs it</h2>
           <p className="muted small">
-            Without the folder these stay off; everything else (layouts, the arm, coverage) works.
+            {files
+              ? "These read the folder or write into it."
+              : "Without the folder these stay off; everything else (layouts, the arm, coverage) works."}
           </p>
           <ul className="needs">
             {NEEDS.map((n) => (
