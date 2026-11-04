@@ -3298,78 +3298,250 @@ fieldset:disabled .props {
   }
 }
 
-/* ── Data folder tab ──────────────────────────────────────────────────────────────────────────── */
+/* === Data folder (Pro) (src/data/DataFolderPage.tsx) ======================================== */
 
-.data-page {
-  max-width: 980px;
+/* A centred setup page (not full-bleed): status header, then main column | side column. */
+.df-page {
+  max-width: 1180px;
   margin: 0 auto;
   display: grid;
   gap: var(--s-3);
 }
 
-.data-page > * {
+.df-page > .notice {
   margin: 0;
 }
 
-.data-head h2 {
+.df-loading {
+  margin: 0;
+}
+
+/* Status header: icon, title + chip, path, counts, Check again. Tinted by state. */
+.df-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 64px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+
+.df-head-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--muted);
+}
+
+.df-head.tone-ok .df-head-icon {
+  background: var(--ok-soft);
+  box-shadow: inset 0 0 0 1px rgba(95, 192, 138, 0.3);
+  color: var(--ok);
+}
+
+.df-head.tone-warn .df-head-icon {
+  background: var(--warn-soft);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
+  color: var(--warn);
+}
+
+.df-head.tone-error .df-head-icon {
+  background: var(--danger-soft);
+  box-shadow: inset 0 0 0 1px var(--danger-line);
+  color: var(--danger);
+}
+
+.df-head-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.df-head-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.df-head-title h2 {
+  margin: 0;
   font-size: var(--fs-lg);
   font-weight: 600;
-  margin: 0;
+  letter-spacing: -0.01em;
 }
 
-.data-path {
+.df-head-path {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.df-stats {
+  flex: none;
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-3);
-}
-
-.data-path code {
-  font-size: var(--fs-sm);
-}
-
-/* The setup steps: an empty-state card, but left-aligned and wide enough for the commands. */
-.empty.data-setup {
-  max-width: none;
   margin: 0;
-  padding: var(--s-6) var(--s-8);
 }
 
-.empty.data-setup > p {
-  max-width: 64ch;
+.df-stats > div {
+  display: grid;
+  gap: 2px;
+  padding: 0 14px;
+  border-left: 1px solid var(--border);
+}
+
+.df-stats dt {
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.df-stats dd {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.df-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
+  gap: var(--s-3);
+  align-items: start;
+}
+
+.df-main,
+.df-side {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+/* Unset: the side column moves under the setup steps only on narrow windows. */
+@media (max-width: 900px) {
+  .df-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .df-stats {
+    display: none;
+  }
+}
+
+/* Panels with an uppercase header row like the floating panels of the Layout tab. */
+.df-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.df-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  min-height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.df-panel-head .mono {
+  font-size: var(--fs-2xs);
+}
+
+.df-panel-note {
+  margin: 10px 12px 4px;
+  font-size: var(--fs-xs);
+}
+
+/* Setup steps */
+.df-setup-intro {
+  padding: 14px 16px 4px;
+}
+
+.df-setup-intro h3 {
+  margin: 0 0 4px;
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.df-setup-intro p {
+  margin: 0;
+  font-size: var(--fs-xs);
+  max-width: 68ch;
+}
+
+.df-setup-intro code {
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .setup-steps {
-  width: 100%;
-  max-width: 720px;
   counter-reset: step;
   list-style: none;
-  padding: 0 !important;
-  gap: var(--s-3) !important;
+  margin: 0;
+  padding: 12px 16px 16px;
+  display: grid;
 }
 
 .setup-steps li {
   counter-increment: step;
   position: relative;
   display: grid;
-  gap: 6px;
-  padding-left: 34px;
+  gap: 7px;
+  padding: 0 0 16px 36px;
+  font-size: var(--fs-sm);
 }
 
+.setup-steps li:last-child {
+  padding-bottom: 0;
+}
+
+/* Number in a circle, with a hairline down to the next step. */
 .setup-steps li::before {
   content: counter(step);
   position: absolute;
   left: 0;
-  top: 0;
+  top: -2px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
   display: grid;
   place-items: center;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent-text);
+  font: 600 var(--fs-2xs) / 1 var(--font-mono);
+}
+
+.setup-steps li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 10.5px;
+  top: 24px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--border-strong);
+}
+
+.setup-steps li > span:not(.command) code {
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
   background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  font-size: var(--fs-xs);
-  font-weight: 600;
 }
 
 /* A command line with a copy button. */
@@ -3378,75 +3550,66 @@ fieldset:disabled .props {
   align-items: center;
   gap: var(--s-2);
   min-width: 0;
-  padding: 3px 3px 3px var(--s-3);
-  background: var(--canvas);
+  min-height: 34px;
+  padding: 3px 4px 3px 12px;
+  background: var(--field-bg);
   border-radius: var(--r-md);
-  color: #ece8e2;
-  color-scheme: dark;
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
-.empty .command code {
+.command code {
   flex: 1;
   min-width: 0;
-  background: none;
-  padding: 0;
-  color: inherit;
+  color: var(--text);
   font-size: var(--fs-xs);
   white-space: pre-wrap;
 }
 
-.command button.ghost {
-  height: 24px;
-  color: rgba(236, 232, 226, 0.75);
+.command code::before {
+  content: "$ ";
+  color: var(--faint);
 }
 
-.command button.ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+.command button.copied {
+  color: var(--ok);
 }
 
-.data-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: var(--s-3);
-  align-items: start;
-}
-
-@media (max-width: 860px) {
-  .data-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
+/* Expected structure */
 .expected {
   list-style: none;
-  padding: 0;
-  margin: var(--s-2) 0 0;
+  padding: 4px 0 6px;
+  margin: 0;
   display: grid;
 }
 
 .expected li {
   display: grid;
-  grid-template-columns: 1.4em 8.5em minmax(0, 1fr) auto;
+  grid-template-columns: 16px 8.5em minmax(0, 1fr) auto;
   gap: var(--s-2);
   align-items: baseline;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: var(--fs-sm);
+  padding: 5px 12px;
+  font-size: var(--fs-xs);
 }
 
-.expected li:last-child {
-  border-bottom: 0;
+.expected li:hover {
+  background: var(--hover);
+}
+
+.expected code {
+  color: var(--text);
 }
 
 .expected .purpose {
   color: var(--muted);
   font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .expected .count {
   color: var(--muted);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-2xs);
 }
 
 .expected .mark {
@@ -3464,39 +3627,65 @@ fieldset:disabled .props {
   color: var(--faint);
 }
 
+/* What needs it: a dot per feature, green once the folder is connected. */
 .needs {
   list-style: none;
-  padding: 0;
-  margin: var(--s-2) 0 0;
+  padding: 4px 0 8px;
+  margin: 0;
   display: grid;
 }
 
 .needs li {
   display: grid;
-  gap: 1px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
+  grid-template-columns: 14px minmax(0, 1fr);
+  column-gap: 6px;
+  row-gap: 1px;
+  padding: 6px 12px;
   font-size: var(--fs-sm);
 }
 
-.needs li:last-child {
-  border-bottom: 0;
-}
-
-.needs .muted {
+.needs li > .muted {
+  grid-column: 2;
   font-size: var(--fs-xs);
 }
 
-.data-files-head {
-  margin-top: var(--s-2) !important;
+.needs-dot {
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.needs.on .needs-dot {
+  background: var(--ok);
+}
+
+/* Files */
+.df-files-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.df-files-head .mono {
+  font-size: var(--fs-2xs);
 }
 
 .data-folder > summary {
   display: flex;
-  align-items: baseline;
-  gap: var(--s-3);
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  padding: 0 12px;
   cursor: pointer;
+  list-style: none;
   font-weight: 600;
+}
+
+.data-folder > summary:hover {
+  background: var(--hover);
 }
 
 .data-folder > summary::-webkit-details-marker {
@@ -3514,7 +3703,13 @@ fieldset:disabled .props {
 }
 
 .data-folder[open] > summary {
-  margin-bottom: var(--s-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.data-folder > summary .mono {
+  margin-left: auto;
+  font-size: var(--fs-2xs);
+  font-weight: 400;
 }
 
 /* Same columns in every folder's table. */
@@ -3522,16 +3717,30 @@ fieldset:disabled .props {
   table-layout: fixed;
 }
 
+.data-folder th:first-child,
+.data-folder td:first-child {
+  padding-left: 12px;
+}
+
+.data-folder th:last-child,
+.data-folder td:last-child {
+  padding-right: 12px;
+}
+
 .data-folder th:nth-child(2) {
-  width: 6em;
+  width: 6.5em;
 }
 
 .data-folder th:nth-child(3) {
-  width: 15em;
+  width: 13em;
 }
 
 .data-folder td {
   white-space: nowrap;
+}
+
+.data-folder tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .data-folder td:first-child code {
@@ -3539,6 +3748,10 @@ fieldset:disabled .props {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.data-folder td.mono {
+  font-size: var(--fs-2xs);
 }
 
 /* === Image studio (Pro) (src/edits/ImageEditPage.tsx) ======================================== */
