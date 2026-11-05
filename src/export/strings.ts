@@ -9,32 +9,33 @@ import type { Category, ZoneId } from "../metrics/coverage.ts";
 export type Mode = "blockout" | "reference";
 
 export const HANDOUT_EN = {
-  kicker: "Tattoo sleeve · sketch for the artist",
-  title: "Left-arm sleeve",
-  subject: "Jan’s left arm, full sleeve from wrist to shoulder",
-  layout: (name: string) => `Layout “${name}”`,
+  kicker: "Tattoo plan · sketch for the artist",
+  /** Shown under the title (the layout's name) when the layout has no description. */
+  subjectFallback: "A placement sketch for the tattoo artist",
+  /** PDF document title. */
+  docTitle: (layout: string) => `Tattoo plan “${layout}”`,
   dateLine: (date: string) => `Prepared ${date}`,
   noteTitle: "This is a sketch, not a design",
   note: [
-    "These pages show the idea for the sleeve: which motifs go where, roughly how big they are, and how figures, fillers and open skin balance out. The arm is a simple 3D model built from tape measurements; the pictures are rough references cut from photos and card art.",
-    "Please read everything here as a starting point. Style, details, exact placement, sizes and flow are yours to design, and changes that make the sleeve work better are welcome. Creative freedom is very welcome.",
+    "These pages show the idea for the sleeve: which motifs go where, roughly how big they are, and how figures, fillers and open skin balance out. The body is a simple 3D model built from measurements; the pictures are rough reference images.",
+    "Please read everything here as a starting point. Style, details, exact placement, sizes and flow are yours to design, and changes that make the tattoo work better are welcome.",
   ],
   contentsTitle: "In this package",
   contents: [
     "All four views at a glance, blockout and reference side by side",
     "Each view on its own page, with the motifs facing that side",
     "The unwrapped skin with a 1 cm grid, in both modes",
-    "Notes per element, coverage per zone and the open questions",
+    "Notes per element, coverage per zone and what is not decided yet",
   ],
   legendTitle: "How to read the pictures",
   legendIntro:
     "Blockout shows every element as a flat shape coloured by type, to judge balance at a glance. Reference shows the same layout with rough reference images: grayscale on the forearm, procedural placeholder patterns for fillers and bands.",
   legend: {
     figure: "Figure (planned motif)",
-    existing: "Existing tattoo (Anubis, outlined)",
-    filler: "Filler (sparse background pattern)",
+    existing: "Existing tattoo (outlined)",
+    filler: "Filler (background pattern)",
     band: "Band around the arm",
-    line: "Red line – the bracket that ties the styles together",
+    line: "Line (brush stroke)",
     open: "Open skin",
   } satisfies Record<Category, string>,
   mode: { blockout: "Blockout", reference: "Reference" } satisfies Record<Mode, string>,
@@ -83,19 +84,6 @@ export const HANDOUT_EN = {
   } satisfies Record<ZoneId, string>,
   wholeArm: "Whole arm",
   questionsTitle: "Open questions",
-  designQuestionsTitle: "Design questions still open",
-  // Copied from PROJECT_BRIEF.md §9 (2026-11-03); keep in sync when Jan answers one.
-  designQuestions: [
-    "Inner upper arm: Pegasus, Athreos, Scale of Ma’at, Ouroboros, scarab or moth?",
-    "Rhonas or God-Eternal Rhonas?",
-    "Medusa modelled on Hythonia – yes or no?",
-    "Dagger type: generic dagger, harpe, Chrysaor’s sword, or Whip of Erebos?",
-    "Exact position of the skull: elbow crease, lower outer upper arm or back of the elbow?",
-    "Shoulder treatment and the transition towards a planned chest piece.",
-    "Amount and path of the red strokes.",
-    "Any colour other than black, grey and red (e.g. a single lazotep blue accent)?",
-    "How dense may the fillers become on the upper arm?",
-  ],
   layoutPointsTitle: "Not decided in this layout yet",
   layoutPointsNone: "Nothing flagged.",
   point: {
