@@ -31,6 +31,8 @@ export type RunContext = {
   engine: EditEngine;
   /** Jobs one click starts. */
   count: number;
+  /** Built-in engine: label of the chosen operation. */
+  opLabel?: string;
 };
 
 /** Text of the run button; it names the version the run starts from. */
@@ -39,14 +41,14 @@ export function runLabel(c: RunContext): string {
   const v = `v${c.version}`;
   if (c.engine === "openai")
     return c.count > 1 ? `Make ${c.count} variants of ${v}` : `Edit ${v} with GPT Image`;
-  return `Edit ${v} with Claude`;
+  return `Apply ${c.opLabel ?? "operation"} to ${v}`;
 }
 
 /** The time and cost line under the run button. */
 export function runEstimate(engine: EditEngine, count: number): string {
   return engine === "openai"
     ? `${count} × GPT Image · ~1 min · a few cents each`
-    : "Claude Code on this Mac · 1–5 min · no API cost";
+    : "Runs on this computer · instant · no key, no cost";
 }
 
 /** Width / height of the artboard drawn for a new image before it exists ("auto" shows a square). */

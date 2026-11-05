@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseManifestText } from "../src/assets/manifestDoc.ts";
-import { keptAsset, OUTPUT_FILE } from "../src/edits/edit.ts";
+import { keptAsset } from "../src/edits/edit.ts";
 import {
   buildEditForm,
   buildGenerativePrompt,
@@ -15,7 +15,7 @@ import {
   rejectsInputFidelity,
   type OpenAISettings,
 } from "../src/edits/openai.ts";
-import { EditManager, editOptionsFromEnv, type Runner } from "../src/edits/server/editsApi.ts";
+import { EditManager, editOptionsFromEnv } from "../src/edits/server/editsApi.ts";
 import type { EditJob } from "../src/edits/types.ts";
 
 /** Header-only PNG: signature, IHDR with the given size and colour type, IEND. */
@@ -129,8 +129,8 @@ describe("OpenAI edit rules", () => {
   it("names each step's tool in the notes when the tools differ", () => {
     const original = { id: "m", file: "refs/m.png", kind: "reference", tags: [] };
     const v = { id: "m-edit-1", file: "edits/m-edit-1.png" };
-    expect(keptAsset(original, v, ["a", "b"], false, ["claude -p", "gpt-image-2.5-sunburst"]).notes).toBe(
-      'Edited: "a" (claude -p), then "b" (gpt-image-2.5-sunburst)',
+    expect(keptAsset(original, v, ["a", "b"], false, ["built-in", "gpt-image-2.5-sunburst"]).notes).toBe(
+      'Edited: "a" (built-in), then "b" (gpt-image-2.5-sunburst)',
     );
     expect(keptAsset(original, v, ["a"], false, ["gpt-image-2.5-sunburst"]).notes).toBe(
       'Edited with gpt-image-2.5-sunburst: "a"',
@@ -140,10 +140,8 @@ describe("OpenAI edit rules", () => {
 
 describe("EditManager with GPT Image", () => {
   let dir: string;
-  let cache: string;
   beforeEach(async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "tp-gen-"));
-    cache = await mkdtemp(path.join(os.tmpdir(), "tp-gen-cache-"));
     await mkdir(path.join(dir, "refs"));
     await writeFile(path.join(dir, "refs", "medusa.png"), png(100, 50, 2));
     await writeFile(path.join(dir, "refs", "anim.gif"), "GIF89a");
@@ -164,10 +162,7 @@ assets:
   });
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
-    await rm(cache, { recursive: true, force: true });
   });
-
-  const enabled = async () => ({ enabled: true as const, claude: "test" });
 
   type Call = { url: string; auth: string | null; form: FormData };
   /** A fetch that answers like the edit endpoint; `answer` decides per call. */
@@ -190,25 +185,22 @@ assets:
   }
 
   it("is disabled without a key and says how to set one", async () => {
-    const m = new EditManager(dir, { bin: "claude", cacheDir: cache, checkClaude: enabled, openai: null });
+    const m = new EditManager(dir, { openai: null });
     const o = await m.overview();
-    expect(o.availability.enabled).toBe(true);
+    expect(o.builtin.enabled).toBe(true);
     expect(o.generative).toMatchObject({
       enabled: false,
-      reason: expect.stringContaining("TATTOO_OPENAI_API_KEY"),
+      reason: expect.stringContaining("OpenAI API key"),
     });
     await expect(
       m.start({ assetId: "medusa-ref-01", instruction: "x", engine: "openai" }),
     ).rejects.toMatchObject({ status: 409 });
   });
 
-  it("sends a copy, keeps the answer as a new asset and chains with a local edit", async () => {
+  it("sends a copy, keeps the answer as a new asset and chains with a built-in operation", async () => {
     const calls: Call[] = [];
     const answer = png(100, 50).toString("base64");
     const m = new EditManager(dir, {
-      bin: "claude",
-      cacheDir: cache,
-      checkClaude: enabled,
       openai: SETTINGS,
       fetchImpl: fakeFetch(calls, () => ({
         status: 200,
@@ -217,14 +209,11 @@ assets:
           usage: { input_tokens: 1000, output_tokens: 4000, input_tokens_details: { image_tokens: 1000 } },
         },
       })),
-      runner: (async ({ cwd }) => {
-        await writeFile(path.join(cwd, OUTPUT_FILE), png(100, 50));
-        return { code: 0, stderr: "" };
-      }) as Runner,
     });
     expect((await m.overview()).generative).toEqual({ enabled: true, model: "gpt-image-2.5-sunburst" });
+    const session = await m.startSession({ mode: "edit", assetId: "medusa-ref-01" });
     const started = await m.start({
-      assetId: "medusa-ref-01",
+      session: session.id,
       instruction: "Weniger Schlangen",
       engine: "openai",
     });
@@ -238,16 +227,17 @@ assets:
     expect(calls[0]!.auth).toBe("Bearer sk-test");
     expect(String(calls[0]!.form.get("prompt"))).toContain("Weniger Schlangen");
 
-    // Then a local edit on the generative result.
-    const next = await m.start({ fromJob: job.id, instruction: "Remove the background" });
-    expect(next.tools).toEqual(["gpt-image-2.5-sunburst", "claude -p"]);
-    expect((await finished(m, next.id)).state).toBe("done");
-    await m.keep(next.id);
+    // Then a built-in operation on the generative result.
+    m.pick(session.id, { job: job.id });
+    const next = await m.apply(session.id, png(100, 50), { step: "Remove background", base: "1" });
+    expect(next.tools).toEqual(["gpt-image-2.5-sunburst", "built-in"]);
+    expect(next.fromJob).toBe(job.id);
+    await m.save(session.id, {});
     const text = await readFile(path.join(dir, "manifest.yaml"), "utf8");
     const entry = (parseManifestText(text).toJS().assets as { id: string; notes?: string }[])[2]!;
     expect(entry.id).toBe("medusa-ref-01-edit-1");
     expect(entry.notes).toBe(
-      'Edited: "Weniger Schlangen" (gpt-image-2.5-sunburst), then "Remove the background" (claude -p)',
+      'Edited: "Weniger Schlangen" (gpt-image-2.5-sunburst), then "Remove background" (built-in)',
     );
     expect(await readFile(path.join(dir, "refs", "medusa.png"))).toEqual(png(100, 50, 2));
     await m.close();
@@ -257,9 +247,6 @@ assets:
     const calls: Call[] = [];
     const answer = png(8, 8).toString("base64");
     const m = new EditManager(dir, {
-      bin: "claude",
-      cacheDir: cache,
-      checkClaude: enabled,
       openai: SETTINGS,
       fetchImpl: fakeFetch(calls, (n) =>
         n === 1
@@ -287,9 +274,6 @@ assets:
 
   it("refuses image types the API does not take and unknown engines", async () => {
     const m = new EditManager(dir, {
-      bin: "claude",
-      cacheDir: cache,
-      checkClaude: enabled,
       openai: SETTINGS,
       fetchImpl: fakeFetch([], () => ({ status: 500, body: {} })),
     });

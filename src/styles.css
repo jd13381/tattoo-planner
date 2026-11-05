@@ -5111,14 +5111,6 @@ button.strip-item.viewing {
   color: var(--ok);
 }
 
-.strip-next {
-  white-space: normal;
-  padding: 0 2px 1px;
-  font-size: 10px;
-  line-height: 1.2;
-  color: var(--accent-text);
-}
-
 .studio-round-head {
   display: flex;
   align-items: center;
@@ -5786,6 +5778,100 @@ button.studio-run-button {
 
 button.studio-run-alt {
   width: 100%;
+}
+
+.studio-run-row {
+  display: flex;
+  gap: 6px;
+}
+
+.studio-run-row button.studio-run-button {
+  flex: 1;
+  width: auto;
+}
+
+.studio-run-row button.ghost {
+  height: var(--control-h-lg);
+}
+
+/* A disabled primary action must not look like one (e.g. Save & close before there is a version). */
+.studio button.primary:disabled {
+  background: transparent;
+  color: var(--faint);
+  font-weight: 500;
+  box-shadow: inset 0 0 0 1px var(--border);
+  opacity: 1;
+}
+
+.studio button.primary:disabled kbd.kbd {
+  opacity: 0.5;
+}
+
+/* Built-in operations: one row per operation, the chosen one opens its controls. */
+.builtin-ops {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.builtin-ops > li.on {
+  padding-bottom: 6px;
+  border-radius: var(--r-md);
+  background: var(--field-bg);
+}
+
+button.builtin-op {
+  width: 100%;
+  justify-content: flex-start;
+  box-shadow: none;
+}
+
+button.builtin-op.on {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent-text);
+}
+
+.builtin-controls {
+  display: grid;
+  gap: 6px;
+  padding: 8px 8px 0;
+}
+
+.builtin-range {
+  display: grid;
+  grid-template-columns: 78px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-xs);
+}
+
+.builtin-range .mono {
+  text-align: right;
+  font-size: var(--fs-2xs);
+}
+
+.builtin-hint {
+  margin: 6px 8px 0;
+}
+
+/* Live preview of a built-in operation, drawn as large as the source image would be. */
+canvas.builtin-preview {
+  display: block;
+  width: min(var(--natural-w, 640px), 100%, calc((100dvh - var(--header-h) - 150px) * var(--aspect, 1)));
+  height: auto;
+}
+
+.studio-setup {
+  display: grid;
+  gap: 6px;
+}
+
+.studio-setup p,
+.studio-pick-hint {
+  margin: 0;
 }
 
 .studio-run-error {

@@ -173,8 +173,3 @@ export function describeStep(id: BuiltinOpId, params: Partial<BuiltinParams> = {
 
 /** Largest side of the copy the panel previews on; the full image is processed only on Apply. */
 export const PREVIEW_MAX_SIDE = 640;
-
-/** Scale factor (≤ 1) of the preview copy of an image. */
-export function previewScale(width: number, height: number, maxSide = PREVIEW_MAX_SIDE): number {
-  return Math.min(1, maxSide / Math.max(width, height, 1));
-}

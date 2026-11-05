@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  applyBuiltin,
-  BUILTIN_OPS,
-  cleanParams,
-  defaultParams,
-  describeStep,
-  previewScale,
-} from "../src/edits/builtin.ts";
+import { applyBuiltin, BUILTIN_OPS, cleanParams, defaultParams, describeStep } from "../src/edits/builtin.ts";
 import {
   blurChannel,
   borderColour,
@@ -224,9 +217,5 @@ describe("built-in catalogue", () => {
     }
     expect(applyBuiltin(img, "rotate", { turns: 1 }).width).toBe(6);
     expect(px(applyBuiltin(img, "remove-background", { feather: 0 }), 0, 0)[3]).toBe(0);
-  });
-  it("scales the preview to at most 640 px", () => {
-    expect(previewScale(1280, 640)).toBe(0.5);
-    expect(previewScale(300, 200)).toBe(1);
   });
 });

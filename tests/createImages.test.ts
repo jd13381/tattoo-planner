@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseManifestText } from "../src/assets/manifestDoc.ts";
-import { createdAsset, nextVariant, OUTPUT_FILE, slugName } from "../src/edits/edit.ts";
+import { createdAsset, nextVariant, slugName } from "../src/edits/edit.ts";
 import {
   buildCreatePrompt,
   buildEditForm,
@@ -11,7 +11,7 @@ import {
   buildGenerativePrompt,
   type OpenAISettings,
 } from "../src/edits/openai.ts";
-import { EditManager, type Runner } from "../src/edits/server/editsApi.ts";
+import { EditManager } from "../src/edits/server/editsApi.ts";
 import type { EditJob } from "../src/edits/types.ts";
 
 /** Header-only PNG: signature, IHDR with the given size and colour type, IEND. */
@@ -58,7 +58,7 @@ describe("rules for new images", () => {
       createdAsset(
         { id: "dreieck-1", file: "generated/dreieck-1.png" },
         ["Rotes Dreieck", "Remove the background"],
-        ["gpt-image-2.5-sunburst", "claude -p"],
+        ["gpt-image-2.5-sunburst", "built-in"],
         ["skull-ref-01"],
       ),
     ).toEqual({
@@ -66,7 +66,7 @@ describe("rules for new images", () => {
       file: "generated/dreieck-1.png",
       kind: "idea",
       notes:
-        'Generated: "Rotes Dreieck" (gpt-image-2.5-sunburst), then "Remove the background" (claude -p); references: skull-ref-01',
+        'Generated: "Rotes Dreieck" (gpt-image-2.5-sunburst), then "Remove the background" (built-in); references: skull-ref-01',
       tags: ["generated"],
     });
   });
@@ -116,10 +116,8 @@ describe("rules for new images", () => {
 
 describe("EditManager: new images and references", () => {
   let dir: string;
-  let cache: string;
   beforeEach(async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "tp-create-"));
-    cache = await mkdtemp(path.join(os.tmpdir(), "tp-create-cache-"));
     await mkdir(path.join(dir, "refs"));
     await writeFile(path.join(dir, "refs", "medusa.png"), png(100, 50, 2));
     await writeFile(path.join(dir, "refs", "triangle.jpg"), png(20, 20));
@@ -141,16 +139,12 @@ assets:
   });
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
-    await rm(cache, { recursive: true, force: true });
   });
 
   type Call = { url: string; body: FormData | string; type: string | null };
   function manager(calls: Call[]): EditManager {
     const answer = png(64, 64).toString("base64");
     return new EditManager(dir, {
-      bin: "claude",
-      cacheDir: cache,
-      checkClaude: async () => ({ enabled: true, claude: "test" }),
       openai: SETTINGS,
       fetchImpl: (async (url: string | URL | Request, init?: RequestInit) => {
         calls.push({
@@ -160,10 +154,6 @@ assets:
         });
         return new Response(JSON.stringify({ data: [{ b64_json: answer }] }), { status: 200 });
       }) as typeof fetch,
-      runner: (async ({ cwd }) => {
-        await writeFile(path.join(cwd, OUTPUT_FILE), png(64, 64));
-        return { code: 0, stderr: "" };
-      }) as Runner,
     });
   }
 
@@ -198,7 +188,7 @@ assets:
     });
     expect(() => m.file(job.id, "input")).toThrow();
 
-    // Edit further locally, then keep: the chain stays a new image.
+    // Edit further, then keep: the chain stays a new image.
     const next = await m.start({ fromJob: job.id, instruction: "Remove the background" });
     expect(next.created).toEqual({ name: "mandala" });
     await finished(m, next.id);
@@ -264,9 +254,14 @@ assets:
   it("refuses references and new images without GPT Image, and unknown references", async () => {
     const m = manager([]);
     await expect(
-      m.start({ assetId: "medusa-ref-01", instruction: "x", references: ["triangle-ref"] }),
+      m.start({
+        assetId: "medusa-ref-01",
+        instruction: "x",
+        engine: "builtin",
+        references: ["triangle-ref"],
+      }),
     ).rejects.toMatchObject({ status: 400 });
-    await expect(m.start({ mode: "create", engine: "claude", instruction: "x" })).rejects.toMatchObject({
+    await expect(m.start({ mode: "create", engine: "builtin", instruction: "x" })).rejects.toMatchObject({
       status: 400,
     });
     await expect(m.start({ mode: "create", instruction: "x", references: ["nope"] })).rejects.toMatchObject({
