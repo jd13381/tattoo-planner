@@ -275,6 +275,27 @@ Jan approved the cuts (2026-11-05); the details below were decided by Claude. De
 - **A disabled primary button looks disabled** (hairline, faint text) instead of a dimmed accent, scoped to the studio (`.studio button.primary:disabled`) so other tabs are unchanged. _Alternative:_ change it for every tab (better consistency, but outside this step).
 - **ADR 0011 table reformatted** (Prettier only) because `npm run check` failed on it on this branch's base.
 
+### Desktop app (C7)
+
+Implemented on `work/desktop` (`docs/adr/0015-desktop-app.md`). Format: decision; _Alternative_; _Change_.
+
+- **electron-builder, not Electron Forge**: DMG, notarisation and "sign only when the secrets exist" come built in, and the roadmap named it. _Alternative:_ Forge with its DMG and notarize makers. _Change:_ `desktop/electron-builder.config.mjs`, the `dist:*` scripts.
+- **Electron 45.1.0, electron-builder 26.18.0**: the newest releases older than 7 days on 2026-11-05 (installed with npm 11, which applies `.npmrc`'s `min-release-age`; npm 10 ignores it). Electron 45 has no postinstall and fetches its binary on first launch, so no `npm rebuild --ignore-scripts=false` is needed. _Change:_ `package.json`.
+- **tsc compiles the shell and the server into `dist-desktop/`** (`rewriteRelativeImportExtensions`), no bundler. _Alternative:_ esbuild, or Node's type stripping inside Electron (works in a checkout, not reliably from `app.asar`). _Change:_ `tsconfig.desktop.json`.
+- **Unsigned by default, signing switches itself on**: ad-hoc signature (`identity: "-"`, needed on Apple Silicon) unless `CSC_LINK`/`CSC_NAME` exist; notarised only with a certificate plus `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`. Jan has not decided on the Apple Developer account (roadmap §7). _Change:_ add the repository secrets; nothing in the code.
+- **Two DMGs (arm64, x64)**, not one universal app. _Alternative:_ `arch: ["universal"]` (one file, twice the size). _Change:_ `mac.target` in the builder config.
+- **Tags create a draft release**, so Jan reviews the notes before it is public; a manual run only uploads the workflow artifact. _Alternative:_ publish directly. _Change:_ drop `--draft` in `desktop.yml`.
+- **The Keychain key wins over `TATTOO_OPENAI_API_KEY`** when both exist (model and options still from the environment); with neither, generative edits stay off. In the desktop app Settings shows "the key from the environment is in use" when only `.env` has one. _Change:_ `settingsFromEnv()` in `server/settings.ts`.
+- **Key check before saving:** text without spaces, at most 512 characters, starting with `sk-` (every OpenAI key format). No test request to OpenAI on save: that would be a network call the user did not start. _Change:_ `keyProblem()` in `desktop/keyStore.ts`.
+- **Linux `basic_text` storage counts as unavailable**, so no key is stored with a fixed password there. Only matters for a Linux build, which is not released.
+- **One settings folder for `npm run desktop` and the installed app** (`userData` set to "Tattoo Planner" explicitly; Electron would use the package name `tattoo-planner` in a checkout). _Change:_ `app.setPath("userData", …)` in `desktop/main.ts`.
+- **CSP and request blocking in the shell, not in `dist/index.html`**, so `npm run dev` (Vite's HMR) is unaffected. Checked in the packed Linux app: the start screen, a new project's Layout tab with WebGL and Settings load without CSP errors.
+- **Fuses:** `runAsNode`, `NODE_OPTIONS`, `--inspect` off, only `app.asar`, cookie encryption; asar integrity validation off until the app is signed. _Change:_ `electronFuses` in the builder config.
+- **"Show in Finder"** next to the project path in Settings → Project (desktop only), and the Image studio's key note now links to Settings → Image generation instead of naming `.env`.
+- **Placeholder icon**: a dark rounded tile with a light forearm and two red bands, drawn by `scripts/desktop-icon.mjs`. _Change:_ that script, or a designed icon before the public release (as SVG source rendered at build time, still no committed binary).
+- **`--no-sandbox` skips `app.enableSandbox()`**, so the app can be smoke-tested as root in a Linux container; per-window `sandbox: true` stays.
+- **Not verified here (Linux container):** the macOS build, `.icns` conversion, Keychain, native folder dialog, Finder reveal and the unsigned first start. Check on Jan's Mac: `npm run desktop`, then `npm run dist:mac` and open the DMG.
+
 ### Phase B
 
 Jan's wishes (2026-11-05) and the UX review findings, implemented on `work/phase-b`. Format: decision; _Alternative_; _Change_.

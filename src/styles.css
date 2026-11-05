@@ -398,6 +398,7 @@ button.icon-button.small-button {
 select,
 textarea,
 input[type="text"],
+input[type="password"],
 input[type="number"],
 input[type="search"],
 .props input:not([type="checkbox"], [type="radio"], [type="range"]),
@@ -414,7 +415,14 @@ input[type="search"],
   min-width: 0;
 }
 
-:is(select, textarea, input[type="text"], input[type="number"], input[type="search"]):hover:not(:disabled) {
+:is(
+    select,
+    textarea,
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    input[type="search"]
+  ):hover:not(:disabled) {
   box-shadow: inset 0 0 0 1px var(--border-hover);
 }
 
@@ -7448,4 +7456,22 @@ button.swatch-button.on {
   display: grid;
   gap: 2px;
   font-size: var(--fs-sm);
+}
+
+/* Settings → Image generation: the desktop app's key form (docs/adr/0015-desktop-app.md). */
+.key-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--s-2);
+  margin: 6px 24px 16px;
+}
+
+.key-form .pj-field input[type="password"] {
+  width: 320px;
+  font-family: var(--font-mono);
+}
+
+.key-form + .field-hint {
+  margin: -8px 24px 12px;
 }

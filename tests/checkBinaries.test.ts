@@ -26,6 +26,19 @@ describe("check-binaries", () => {
     expect(reason("sub/exports/x.json")).toBe("export");
   });
 
+  it("rejects desktop build output", () => {
+    for (const f of [
+      "release/Tattoo-Planner-0.1.0-arm64.dmg",
+      "x/App.DMG",
+      "dist-desktop/desktop/main.js",
+      "dist/index.html",
+      "build/icon.icns",
+      "app.asar",
+    ]) {
+      expect(reason(f), f).not.toBeNull();
+    }
+  });
+
   it("allows code, config and the icon allow-list", () => {
     for (const f of [
       "src/App.tsx",
@@ -33,6 +46,8 @@ describe("check-binaries", () => {
       "README.md",
       "public/icons/arm.png",
       "pdf.ts",
+      "desktop/main.ts",
+      "docs/release-notes.md",
     ]) {
       expect(reason(f), f).toBeNull();
     }
