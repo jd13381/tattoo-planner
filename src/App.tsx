@@ -1,34 +1,34 @@
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import { AssetsPage } from "./assets/AssetsPage.tsx";
 import { ComparePage } from "./compare/ComparePage.tsx";
-import { DataFolderPage } from "./data/DataFolderPage.tsx";
-import { DATA_DIR_VAR } from "./data/types.ts";
 import { useDataFolderStatus, type DataFolderStatus } from "./data/useDataFolderStatus.ts";
 import { ImageEditPage } from "./edits/ImageEditPage.tsx";
 import { LayoutPage, type HeaderSlots } from "./editor/LayoutPage.tsx";
 import type { WorkingLayout } from "./layout/useLayouts.ts";
-import { ProjectionPage } from "./projection/ProjectionPage.tsx";
-import { ArmPage } from "./viewer/ArmPage.tsx";
+import {
+  DEFAULT_SECTION,
+  parseRoute,
+  routeHash,
+  TABS,
+  type Route,
+  type SettingsSection,
+  type TabId,
+} from "./settings/routes.ts";
+import { SettingsPage } from "./settings/SettingsPage.tsx";
 import { useArm } from "./viewer/useArm.ts";
 
-const TABS = [
-  { id: "layout", label: "Layout" },
-  { id: "images", label: "Image studio" },
-  { id: "compare", label: "Compare" },
-  { id: "projection", label: "Projection" },
-  { id: "arm", label: "Arm & measurements" },
-  { id: "data", label: "Data folder" },
-] as const;
-
-type TabId = (typeof TABS)[number]["id"];
-
-/** The open tab lives in the URL hash (#compare), so a reload keeps it. */
-function tabFromHash(): TabId {
-  const id = window.location.hash.slice(1);
-  return TABS.find((t) => t.id === id)?.id ?? "layout";
+/** The open tab (and Settings section) lives in the URL hash (#settings/projection), so a reload keeps it. */
+function routeFromHash(): Route {
+  return parseRoute(window.location.hash);
 }
 
 export function App() {
-  const [tab, setTabState] = useState<TabId>(tabFromHash);
+  const [route, setRouteState] = useState<Route>(routeFromHash);
+  const tab: TabId = route.tab;
+  // The Settings tab reopens the section seen last.
+  const [lastSection, setLastSection] = useState<SettingsSection>(
+    route.tab === "settings" ? route.section : DEFAULT_SECTION,
+  );
   const arm = useArm();
   const [working, setWorking] = useState<WorkingLayout | null>(null);
   const [projectionDirty, setProjectionDirty] = useState(false);
@@ -41,12 +41,23 @@ export function App() {
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
   const header: HeaderSlots = { notices: noticesSlot, actions: actionsSlot };
 
-  const setTab = (id: TabId) => {
-    setTabState(id);
-    if (window.location.hash.slice(1) !== id) window.history.replaceState(null, "", `#${id}`);
+  const setRoute = (r: Route) => {
+    setRouteState(r);
+    if (r.tab === "settings") setLastSection(r.section);
+    const hash = routeHash(r);
+    if (window.location.hash.slice(1) !== hash) window.history.replaceState(null, "", `#${hash}`);
   };
+  const setTab = (id: TabId) =>
+    setRoute(id === "settings" ? { tab: "settings", section: lastSection } : { tab: id });
   useEffect(() => {
-    const onHash = () => setTabState(tabFromHash());
+    // An old or unknown hash (#arm, #data) is rewritten to the route it opened.
+    const hash = routeHash(routeFromHash());
+    if (window.location.hash.slice(1) !== hash) window.history.replaceState(null, "", `#${hash}`);
+    const onHash = () => {
+      const r = routeFromHash();
+      setRouteState(r);
+      if (r.tab === "settings") setLastSection(r.section);
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -54,7 +65,7 @@ export function App() {
   // Unsaved edits: the browser asks before a reload or close throws them away.
   const unsaved: Partial<Record<TabId, boolean>> = {
     layout: !!working?.dirty,
-    projection: projectionDirty,
+    settings: projectionDirty,
   };
   const anyUnsaved = Object.values(unsaved).some(Boolean);
   useEffect(() => {
@@ -113,7 +124,10 @@ export function App() {
         </nav>
         <span className="spacer" />
         <div className="header-slot" ref={setNoticesSlot} />
-        <DataFolderChip status={dataFolder} onOpen={() => setTab("data")} />
+        <DataFolderChip
+          status={dataFolder}
+          onOpen={() => setRoute({ tab: "settings", section: "project" })}
+        />
         <div className="header-slot" ref={setActionsSlot} />
       </header>
       <main className="page">
@@ -135,14 +149,21 @@ export function App() {
         <TabPanel id="compare" open={tab === "compare"}>
           <ComparePage arm={arm} pose={pose} working={working} onOpenLayout={() => setTab("layout")} />
         </TabPanel>
-        <TabPanel id="projection" open={tab === "projection"}>
-          <ProjectionPage arm={arm} pose={pose} onDirty={setProjectionDirty} header={header} />
+        <TabPanel id="assets" open={tab === "assets"}>
+          <AssetsPage />
         </TabPanel>
-        <TabPanel id="arm" open={tab === "arm"}>
-          <ArmPage arm={arm} pose={pose} />
-        </TabPanel>
-        <TabPanel id="data" open={tab === "data"}>
-          <DataFolderPage />
+        <TabPanel id="settings" open={tab === "settings"}>
+          {route.tab === "settings" && (
+            <SettingsPage
+              section={route.section}
+              onSection={(section) => setRoute({ tab: "settings", section })}
+              arm={arm}
+              pose={pose}
+              onProjectionDirty={setProjectionDirty}
+              unsaved={{ projection: projectionDirty }}
+              header={header}
+            />
+          )}
         </TabPanel>
       </main>
     </>
@@ -150,7 +171,7 @@ export function App() {
 }
 
 /** Tabs whose page is a full-bleed workspace (no page padding, fills the viewport under the top bar). */
-const FULL_BLEED: ReadonlySet<TabId> = new Set(["layout", "compare", "projection", "images", "arm"]);
+const FULL_BLEED: ReadonlySet<TabId> = new Set(["layout", "compare", "images", "settings"]);
 
 function TabPanel(props: { id: TabId; open: boolean; keepMounted?: boolean; children: ReactNode }) {
   const { id, open, keepMounted, children } = props;
@@ -168,17 +189,17 @@ function TabPanel(props: { id: TabId; open: boolean; keepMounted?: boolean; chil
   );
 }
 
-/** One place that says whether TATTOO_DATA_DIR is usable; opens the Data folder tab. */
+/** One place that says whether the data folder is usable; opens Settings → Project. */
 function DataFolderChip({ status, onOpen }: { status: DataFolderStatus; onOpen: () => void }) {
   if (status.kind === "loading") return null;
   const [tone, text, title] =
     status.kind === "ok"
-      ? ["ok", "Data folder", `${DATA_DIR_VAR}: ${status.dir}`]
+      ? ["ok", "Data folder", status.dir]
       : status.kind === "unset"
         ? [
             "muted",
             "No data folder",
-            `${DATA_DIR_VAR} is not set: no reference images, photos or export. Click for setup.`,
+            "No project folder: no reference images, photos or export. Click for setup.",
           ]
         : ["error", "Data folder unreadable", status.message];
   return (

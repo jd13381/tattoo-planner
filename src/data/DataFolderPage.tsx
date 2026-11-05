@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { countFiles, EXPECTED_ENTRIES, formatSize, groupByFolder, isPresent } from "./expected.ts";
 import { DATA_DIR_VAR, DATA_FILES_ENDPOINT, type DataFile, type DataListing } from "./types.ts";
 
-type State =
+export type State =
   { kind: "loading" } | { kind: "failed"; message: string } | { kind: "loaded"; listing: DataListing };
 
 /** Which parts of the planner read or write the data folder. */
@@ -21,7 +21,7 @@ const NEEDS: { feature: string; uses: string }[] = [
   },
 ];
 
-function useDataListing(): { state: State; checking: boolean; check: () => void } {
+export function useDataListing(): { state: State; checking: boolean; check: () => void } {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [tick, setTick] = useState(0);
   const [checking, setChecking] = useState(true);

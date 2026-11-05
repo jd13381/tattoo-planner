@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -8,8 +8,10 @@ import {
   imageContentType,
   isInside,
   listAssets,
+  parseEntryPatch,
   parseManifestText,
   resolveInside,
+  updateAssetEntry,
 } from "../src/data/server/assetsApi.ts";
 
 describe("imageContentType", () => {
@@ -156,5 +158,38 @@ describe("listAssets and findAssetImage", () => {
   it("resolveInside follows symlinks before the containment check", async () => {
     expect(await resolveInside(dir, "refs/escape.png")).toMatchObject({ ok: false });
     expect(await resolveInside(dir, "refs")).toMatchObject({ ok: false, message: "not a file" });
+  });
+});
+
+describe("entry updates", () => {
+  let root: string;
+  beforeAll(async () => {
+    root = await mkdtemp(path.join(os.tmpdir(), "assets-entry-"));
+    await writeFile(
+      path.join(root, "manifest.yaml"),
+      "version: 1\nassets:\n  - id: medusa # keep\n    file: refs/medusa.jpg\n    kind: reference\n",
+    );
+  });
+  afterAll(() => rm(root, { recursive: true, force: true }));
+
+  it("accepts only tags, notes and hidden", () => {
+    expect(parseEntryPatch({ tags: ["a"], notes: null, hidden: true })).toEqual({
+      tags: ["a"],
+      notes: null,
+      hidden: true,
+    });
+    expect(parseEntryPatch({ file: "../x" })).toBeNull();
+    expect(parseEntryPatch({ tags: "a" })).toBeNull();
+    expect(parseEntryPatch({ hidden: "yes" })).toBeNull();
+    expect(parseEntryPatch(null)).toBeNull();
+  });
+
+  it("writes the change into manifest.yaml and keeps comments", async () => {
+    expect(await updateAssetEntry(root, "medusa", { tags: ["face"], hidden: true })).toEqual({ ok: true });
+    const listing = await listAssets(root);
+    expect(listing).toMatchObject({ status: "ok", assets: [{ id: "medusa", tags: ["face"], hidden: true }] });
+    expect(await readFile(path.join(root, "manifest.yaml"), "utf8")).toContain("# keep");
+    expect(await updateAssetEntry(root, "nope", { hidden: true })).toMatchObject({ ok: false, status: 404 });
+    expect(await updateAssetEntry(root, "../x", {})).toMatchObject({ ok: false, status: 400 });
   });
 });

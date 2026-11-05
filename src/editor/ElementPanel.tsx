@@ -1,6 +1,8 @@
 import { AssetThumb } from "../assets/AssetBrowser.tsx";
 import { ArrowDownIcon, ArrowUpIcon, DuplicateIcon, LockIcon, TrashIcon, WarnIcon } from "../ui/icons.tsx";
 import type { ReactNode } from "react";
+import { BAND_PATTERNS, FILLER_PATTERNS } from "../render/patterns/index.ts";
+import { colorToHex, LINE_SWATCHES } from "./edit.ts";
 import type { AssetInfo } from "../assets/types.ts";
 import { FULL_IMAGE } from "../layout/imageFit.ts";
 import {
@@ -26,6 +28,12 @@ type Props = {
   onLayer: (dir: 1 | -1) => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  /** Opens the image picker next to the given button (figures and existing tattoos). */
+  onChangeImage?: (anchor: HTMLElement) => void;
+  /** Steps to the previous (-1) or next (+1) image of the same kind; null when there is none. */
+  onStepImage?: ((dir: 1 | -1) => void) | null;
+  /** Error of the id field (duplicate or invalid), shown under it. */
+  idError?: string | null;
   /** Keyboard hints for the button tooltips, e.g. { duplicate: "⌘D" }. */
   keys?: Partial<Record<"duplicate" | "delete" | "forward" | "back", string>>;
 };
@@ -43,6 +51,9 @@ export function ElementPanel({
   onLayer,
   onDelete,
   onDuplicate,
+  onChangeImage,
+  onStepImage,
+  idError,
   keys = {},
 }: Props) {
   const locked = !!el.locked;
@@ -101,7 +112,9 @@ export function ElementPanel({
           <WarnIcon />
           <span>
             {flags.includes("height not set") ? "Height not set: drawn 10 cm tall. " : ""}
-            {flags.includes("width assumed") ? "Width not set: drawn at 0.55 × height." : ""}
+            {flags.includes("width assumed")
+              ? "Width not set: drawn at 0.55 × height until an image sets it."
+              : ""}
           </span>
         </p>
       )}
@@ -158,16 +171,29 @@ export function ElementPanel({
             type="text"
             value={el.id}
             disabled={locked}
+            aria-invalid={idError ? true : undefined}
+            aria-describedby={idError ? "element-id-error" : undefined}
             onChange={(e) =>
               onChange({ ...el, id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })
             }
           />
+          {idError && (
+            <span id="element-id-error" className="field-error" role="alert">
+              {idError}
+            </span>
+          )}
         </label>
         {(el.type === "figure" || el.type === "existing") && (
           <>
-            <label>asset {text(el.asset, (asset) => onChange({ ...el, asset }))}</label>
+            <ImageSwap
+              el={el}
+              asset={asset}
+              locked={locked}
+              onChangeImage={onChangeImage}
+              onStepImage={onStepImage}
+            />
             {el.type === "existing" && (
-              <label title="A calibration in config/projections/: the tattoo is drawn from all its photos (Projection tab); position, size and cut-out apply only while that cannot be built.">
+              <label title="A calibration made in Settings → Projection: the tattoo is drawn from all its photos; position, size and cut-out apply only while that cannot be built.">
                 projection {text(el.projection, (projection) => onChange({ ...el, projection }))}
               </label>
             )}
@@ -211,17 +237,7 @@ export function ElementPanel({
                 })}
               </Box>
             </div>
-            <h3 className="props-head">Style</h3>
-            <label>style {text(el.style, (style) => onChange({ ...el, style }))}</label>
-            <label className="check red-accents">
-              <input
-                type="checkbox"
-                checked={!!el.red_accents}
-                disabled={locked}
-                onChange={(e) => onChange({ ...el, red_accents: e.target.checked || undefined })}
-              />
-              red accents
-            </label>
+            {/* style and red_accents stay in the YAML but are left out here (not used for drawing). */}
             <ImageFields el={el} asset={asset} autoFilter={autoFilter} locked={locked} onChange={onChange} />
           </>
         )}
@@ -255,7 +271,13 @@ export function ElementPanel({
             {cm}
             <h3 className="props-head">Style</h3>
             <label>
-              pattern {text(el.pattern, (pattern) => onChange({ ...el, pattern: pattern ?? "" }))}
+              pattern
+              <PatternSelect
+                value={el.pattern}
+                options={FILLER_PATTERNS}
+                disabled={locked}
+                onChange={(pattern) => onChange({ ...el, pattern })}
+              />
             </label>
             <label>
               density{" "}
@@ -277,7 +299,13 @@ export function ElementPanel({
             </label>
             <h3 className="props-head">Style</h3>
             <label>
-              pattern {text(el.pattern, (pattern) => onChange({ ...el, pattern: pattern ?? "" }))}
+              pattern
+              <PatternSelect
+                value={el.pattern}
+                options={BAND_PATTERNS}
+                disabled={locked}
+                onChange={(pattern) => onChange({ ...el, pattern })}
+              />
             </label>
           </>
         )}
@@ -306,7 +334,14 @@ export function ElementPanel({
               </button>
             </div>
             <h3 className="props-head">Style</h3>
-            <label>color {text(el.color, (color) => onChange({ ...el, color }))}</label>
+            <div className="props-row">
+              <span>colour</span>
+              <ColorField
+                value={el.color}
+                disabled={locked}
+                onChange={(color) => onChange({ ...el, color })}
+              />
+            </div>
             <label>
               width cm {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), { step: 0.1 })}
             </label>
@@ -356,16 +391,7 @@ function ImageFields(props: {
   const crop = el.crop ?? asset?.crop;
   return (
     <fieldset className="image-fields" disabled={locked}>
-      <legend>Reference image</legend>
-      {!el.asset ? (
-        <p className="muted small">No asset: pick one in the asset list.</p>
-      ) : asset === null ? (
-        <p className="warn small">{el.asset} is not in the manifest.</p>
-      ) : asset === undefined ? (
-        <p className="muted small">No asset manifest available.</p>
-      ) : (
-        <AssetThumb asset={asset} crop={crop} />
-      )}
+      <legend>Image fit</legend>
       <div className="crop-row">
         <span>crop {el.crop ? "" : asset?.crop ? "(asset)" : "(whole image)"}</span>
         {CROP_KEYS.map((k) => (
@@ -415,7 +441,8 @@ function ImageFields(props: {
           }
         >
           <option value="">auto ({autoFilter})</option>
-          {IMAGE_FILTERS.map((f) => (
+          {/* The option equal to "auto" would read twice; it stays only while explicitly set. */}
+          {IMAGE_FILTERS.filter((f) => f !== autoFilter || el.filter === f).map((f) => (
             <option key={f} value={f}>
               {f}
             </option>
@@ -445,5 +472,119 @@ function ImageFields(props: {
         mirror left-right
       </label>
     </fieldset>
+  );
+}
+
+/** The figure's image, large, with Change image and quick previous / next arrows. */
+function ImageSwap(props: {
+  el: FigureLike;
+  asset?: AssetInfo | null;
+  locked: boolean;
+  onChangeImage?: (anchor: HTMLElement) => void;
+  onStepImage?: ((dir: 1 | -1) => void) | null;
+}) {
+  const { el, asset, locked, onChangeImage, onStepImage } = props;
+  const crop = el.crop ?? asset?.crop;
+  return (
+    <div className="image-swap">
+      <div className="image-swap-thumb">
+        {!el.asset ? (
+          <p className="muted small">No image yet.</p>
+        ) : asset === null ? (
+          <p className="warn small">{el.asset} is not in the catalogue.</p>
+        ) : asset === undefined ? (
+          <p className="muted small">No images available.</p>
+        ) : (
+          <AssetThumb asset={asset} crop={crop} />
+        )}
+      </div>
+      <div className="image-swap-bar">
+        <button
+          type="button"
+          className="ghost icon-button"
+          aria-label="Previous image"
+          title="Previous image of the same kind"
+          disabled={locked || !onStepImage}
+          onClick={() => onStepImage?.(-1)}
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          className="primary change-image"
+          disabled={locked || !onChangeImage}
+          onClick={(e) => onChangeImage?.(e.currentTarget)}
+          title={locked ? "Unlock it to change its image" : "Pick another image"}
+        >
+          {el.asset ? "Change image" : "Choose image"}
+        </button>
+        <button
+          type="button"
+          className="ghost icon-button"
+          aria-label="Next image"
+          title="Next image of the same kind"
+          disabled={locked || !onStepImage}
+          onClick={() => onStepImage?.(1)}
+        >
+          ›
+        </button>
+      </div>
+      {el.asset && <p className="image-swap-id mono faint">{el.asset}</p>}
+    </div>
+  );
+}
+
+function PatternSelect(props: {
+  value: string;
+  options: readonly string[];
+  disabled: boolean;
+  onChange: (pattern: string) => void;
+}) {
+  const { value, options, disabled, onChange } = props;
+  // A pattern name from the YAML that is not in the list stays selectable.
+  const all = options.includes(value) ? options : [value, ...options];
+  return (
+    <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      {all.map((p) => (
+        <option key={p} value={p}>
+          {p}
+          {options.includes(p) ? "" : " (unknown)"}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** A colour picker plus a few swatches; red stays the named "red" the sleeve uses. */
+export function ColorField(props: {
+  value: string | undefined;
+  disabled?: boolean;
+  onChange: (color: string) => void;
+}) {
+  const { value, disabled, onChange } = props;
+  const hex = colorToHex(value);
+  return (
+    <span className="color-field">
+      <input
+        type="color"
+        aria-label="Line colour"
+        value={hex}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {LINE_SWATCHES.map((s) => (
+        <button
+          key={s.value}
+          type="button"
+          className={`swatch-button${colorToHex(s.value) === hex ? " on" : ""}`}
+          style={{ background: colorToHex(s.value) }}
+          aria-label={s.label}
+          aria-pressed={colorToHex(s.value) === hex}
+          title={s.label}
+          disabled={disabled}
+          onClick={() => onChange(s.value)}
+        />
+      ))}
+    </span>
   );
 }

@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { manifestSchema, type Asset } from "../src/assets/manifest.ts";
-import { fileKey, ManifestError, mergeManifest, NEW_MANIFEST_TEXT } from "../src/assets/manifestDoc.ts";
+import {
+  fileKey,
+  ManifestError,
+  mergeManifest,
+  NEW_MANIFEST_TEXT,
+  updateManifestEntry,
+} from "../src/assets/manifestDoc.ts";
 
 const idea = (n: number, bbox: [number, number, number, number] = [1, 2, 3, 4]): Asset => ({
   id: `ideas-p01-0${n}`,
@@ -120,5 +126,50 @@ assets:
     );
     const dup = "assets:\n  - {id: a, file: x.png, kind: idea}\n  - {id: a, file: y.png, kind: idea}\n";
     expect(() => mergeManifest(dup, [])).toThrow(/duplicate id a/);
+  });
+});
+
+describe("updateManifestEntry", () => {
+  const text = `# catalogue
+version: 1
+assets:
+  # the Medusa
+  - id: medusa
+    file: refs/medusa.jpg
+    kind: reference
+    source: Pinterest # where from
+    tags: [medusa]
+
+  - id: skull
+    file: refs/skull.jpg
+    kind: reference
+`;
+
+  it("changes tags and notes and keeps comments and other entries", () => {
+    const out = updateManifestEntry(text, "medusa", { tags: ["medusa", "realistic"], notes: "Nice face" });
+    expect(out).toContain("# the Medusa");
+    expect(out).toContain("source: Pinterest # where from");
+    expect(out).toContain("tags: [medusa, realistic]");
+    const m = manifestSchema.parse(parse(out));
+    expect(m.assets[0]).toMatchObject({ notes: "Nice face", tags: ["medusa", "realistic"] });
+    // notes goes after source, before tags (KEY_ORDER).
+    expect(Object.keys(parse(out).assets[0])).toEqual(["id", "file", "kind", "source", "notes", "tags"]);
+    expect(m.assets[1]).toEqual({ id: "skull", file: "refs/skull.jpg", kind: "reference", tags: [] });
+  });
+
+  it("sets and clears hidden and removes empty notes", () => {
+    const hidden = updateManifestEntry(text, "skull", { hidden: true });
+    expect(parse(hidden).assets[1].hidden).toBe(true);
+    const shown = updateManifestEntry(hidden, "skull", { hidden: false });
+    expect(parse(shown).assets[1]).not.toHaveProperty("hidden");
+    const noted = updateManifestEntry(text, "medusa", { notes: "x" });
+    expect(parse(updateManifestEntry(noted, "medusa", { notes: null })).assets[0]).not.toHaveProperty(
+      "notes",
+    );
+  });
+
+  it("refuses an unknown id and a broken manifest", () => {
+    expect(() => updateManifestEntry(text, "nope", { hidden: true })).toThrow(ManifestError);
+    expect(() => updateManifestEntry("assets: [{ id: 1 }]", "x", {})).toThrow(ManifestError);
   });
 });
