@@ -151,25 +151,3 @@ describe("draft helpers", () => {
     expect(draftSize({ body: "male", regions: { torso: { chest: 1, waist: null } } })).toBe(3);
   });
 });
-
-describe("saveMeasurements (dev server)", () => {
-  it("writes valid text atomically and refuses invalid text", async () => {
-    const { mkdtemp, readFile, readdir, rm, writeFile } = await import("node:fs/promises");
-    const os = await import("node:os");
-    const { saveMeasurements } = await import("../src/data/server/measurementsApi.ts");
-    const dir = await mkdtemp(path.join(os.tmpdir(), "measurements-"));
-    const file = path.join(dir, "measurements.yaml");
-    try {
-      await writeFile(file, LEGACY);
-      const next = updateMeasurementsText(LEGACY, { regions: { torso: { waist: 80 } } });
-      expect(await saveMeasurements(file, { text: next })).toBe(next);
-      expect(await readFile(file, "utf8")).toBe(next);
-      await expect(saveMeasurements(file, { text: "units: inch\n" })).rejects.toThrow(/units/);
-      await expect(saveMeasurements(file, { text: 3 })).rejects.toThrow(/text/);
-      expect(await readFile(file, "utf8")).toBe(next);
-      expect(await readdir(dir)).toEqual(["measurements.yaml"]);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-});

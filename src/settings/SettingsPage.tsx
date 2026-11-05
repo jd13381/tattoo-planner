@@ -2,8 +2,8 @@
 // small side navigation: Project (the former Data folder tab), Body & measurements (sample body, own
 // measurements per region, the measuring wizard), Projection and the image-generation status.
 import type { ReactNode } from "react";
-import { DataFolderPage } from "../data/DataFolderPage.tsx";
 import type { HeaderSlots } from "../editor/LayoutPage.tsx";
+import { ProjectPage } from "../project/ProjectPage.tsx";
 import { ProjectionPage } from "../projection/ProjectionPage.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
 import { BodyPage } from "./BodyPage.tsx";
@@ -28,7 +28,7 @@ export function SettingsPage({ section, onSection, arm, pose, onProjectionDirty,
   let body: ReactNode;
   switch (section) {
     case "project":
-      body = <DataFolderPage />;
+      body = <ProjectPage />;
       break;
     case "body":
       body = <BodyPage arm={arm} pose={pose} />;

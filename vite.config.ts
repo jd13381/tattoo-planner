@@ -1,32 +1,33 @@
-import path from "node:path";
 import react from "@vitejs/plugin-react";
-import { defineConfig, loadEnv } from "vite";
-import { assetsPlugin } from "./src/data/server/assetsApi.ts";
-import { resolveDataDir } from "./src/data/server/dataDir.ts";
-import { layoutsPlugin } from "./src/data/server/layoutsApi.ts";
-import { measurementsPlugin } from "./src/data/server/measurementsApi.ts";
-import { projectionsPlugin } from "./src/data/server/projectionsApi.ts";
-import { dataFolderPlugin } from "./src/data/server/vitePlugin.ts";
-import { editsPlugin } from "./src/edits/server/editsApi.ts";
-import { exportsPlugin } from "./src/export/server/exportsApi.ts";
+import { defineConfig, loadEnv, type Plugin } from "vite";
+import { createApi, type ApiContext } from "./server/api.ts";
+import { createContext } from "./server/context.ts";
+
+/** Mounts the planner's API (server/api.ts) in the dev server and in `vite preview`. */
+function apiPlugin(context: ApiContext): Plugin {
+  return {
+    name: "tattoo-planner-api",
+    configureServer(server) {
+      const api = createApi(context);
+      server.httpServer?.on("close", () => void api.close());
+      server.middlewares.use(api);
+    },
+    configurePreviewServer(server) {
+      const api = createApi(context);
+      server.httpServer.on("close", () => void api.close());
+      server.middlewares.use(api);
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const root = import.meta.dirname;
   // Prefix "TATTOO_" keeps the variable server-side: Vite only exposes VITE_* to the browser.
   // Variables already set in the shell win over .env.
   const env = { ...loadEnv(mode, root, "TATTOO_"), ...process.env };
-  const dataDir = resolveDataDir(env, root);
+  const context = createContext({ env, root });
   return {
-    plugins: [
-      react(),
-      dataFolderPlugin(dataDir),
-      assetsPlugin(dataDir),
-      exportsPlugin(dataDir),
-      editsPlugin(dataDir, env),
-      layoutsPlugin(path.join(root, "config", "layouts")),
-      projectionsPlugin(path.join(root, "config", "projections")),
-      measurementsPlugin(path.join(root, "config", "measurements.yaml")),
-    ],
+    plugins: [react(), apiPlugin(context)],
     server: {
       // Local only (PROJECT_BRIEF.md §10.2): never listen on the network.
       host: "127.0.0.1",

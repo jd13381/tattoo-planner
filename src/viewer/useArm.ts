@@ -9,13 +9,21 @@ import { parseMeasurements, type LoadResult } from "../config/loadMeasurements.t
 import type { Measurements } from "../config/measurements.ts";
 import { draftSize, updateMeasurementsText, type MeasurementDraft } from "../config/measurementsDoc.ts";
 import type { ExistingSize } from "../layout/shapes.ts";
-import { getMeasurementsText, saveMeasurementsText, useMeasurementsText } from "./measurementsStore.ts";
+import { withProjectBody } from "../project/projectData.ts";
+import { heightSchema } from "../project/schema.ts";
+import {
+  bodyInProject,
+  getMeasurementsText,
+  saveBodyChoice,
+  saveMeasurementsText,
+  useMeasurementsState,
+} from "./measurementsStore.ts";
 
 export const INPUT_COUNT = Object.keys(PLACEHOLDERS).length;
 
 const initial = parseMeasurements(getMeasurementsText());
 
-/** Anubis size from measurements.yaml (read once; a hand edit of `existing` reloads the page). */
+/** Anubis size from measurements.yaml (read once at load; Body & measurements never changes it). */
 export const anubisSize: ExistingSize =
   initial.ok && initial.measurements.existing
     ? {
@@ -35,6 +43,7 @@ export type ArmState = {
   region: (id: RegionId) => RegionProfile;
   /** measurements.yaml as loaded (an error keeps the sample body). */
   loaded: LoadResult;
+  /** measurements.yaml with body and height from project.yaml where it gives them. */
   measurements: Measurements | null;
   /** Unsaved edits from Settings → Body & measurements; every 3D view shows them at once. */
   draft: MeasurementDraft;
@@ -45,15 +54,21 @@ export type ArmState = {
   setBody: (body: BodyId | undefined) => void;
   setHeight: (cm: number | null | undefined) => void;
   discard: () => void;
-  /** Writes the draft into measurements.yaml; rejects with a readable message. */
+  /**
+   * Writes the draft: values into measurements.yaml, body and height into project.yaml for a project
+   * folder (else into measurements.yaml too). Rejects with a readable message.
+   */
   save: () => Promise<void>;
 };
 
 /** The body shared by all tabs: file values plus the unsaved draft. */
 export function useArm(): ArmState {
-  const text = useMeasurementsText();
+  const { text, project } = useMeasurementsState();
   const loaded = useMemo(() => parseMeasurements(text), [text]);
-  const measurements = loaded.ok ? loaded.measurements : null;
+  const measurements = useMemo(
+    () => withProjectBody(loaded.ok ? loaded.measurements : null, project),
+    [loaded, project],
+  );
   const [draft, setDraft] = useState<MeasurementDraft>({});
   const body = useMemo(() => resolveDraft(measurements, draft), [measurements, draft]);
   const left = body.regions["arm-left"];
@@ -82,8 +97,18 @@ export function useArm(): ArmState {
     setHeight: (cm) => setDraft((d) => ({ ...d, heightCm: cm })),
     discard: () => setDraft({}),
     save: async () => {
-      const next = updateMeasurementsText(getMeasurementsText(), draft);
-      await saveMeasurementsText(next);
+      const h = draft.heightCm;
+      if (h !== undefined && h !== null && !heightSchema.safeParse(h).success)
+        throw new Error("the body height must be between 50 and 260 cm");
+      const inProject = bodyInProject();
+      const bodyChanged = draft.body !== undefined || draft.heightCm !== undefined;
+      // In a project, project.yaml holds body and height: the height leaves measurements.yaml.
+      const forText: MeasurementDraft = inProject
+        ? { regions: draft.regions, ...(draft.heightCm !== undefined ? { heightCm: null } : {}) }
+        : draft;
+      const next = updateMeasurementsText(getMeasurementsText(), forText);
+      if (next !== getMeasurementsText()) await saveMeasurementsText(next);
+      if (inProject && bodyChanged) await saveBodyChoice({ body: draft.body, height_cm: draft.heightCm });
       setDraft({});
     },
   };

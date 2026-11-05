@@ -1,65 +1,72 @@
-// The text of config/measurements.yaml as the page knows it. Loaded the way it always was (bundled
-// with `?raw`); a save or a hand edit of the file replaces it in place, without a page reload, so
-// unsaved work in other tabs survives. `saveMeasurementsText` is the one place that talks to the dev
-// server: rewire it (and the import below) when the measurements move into the project folder.
+// The text of measurements.yaml and the project's body choice as the page knows them. Both load once
+// before the app renders (src/project/projectData.ts); a save from Settings → Body & measurements
+// replaces them in place, without a page reload, so unsaved work in other tabs survives.
+// `saveMeasurementsText` and `saveBodyChoice` are the only places that talk to the server.
 import { useSyncExternalStore } from "react";
-import initialText from "../../config/measurements.yaml?raw";
-import { parseMeasurements } from "../config/loadMeasurements.ts";
+import { updateProject } from "../project/api.ts";
+import { measurementsText as initialText, projectStatus } from "../project/projectData.ts";
+import { PROJECT_ENDPOINT, type MeasurementsFile, type ProjectStatus } from "../project/schema.ts";
 
-let text: string = initialText;
+/** Body and height in project.yaml (null: not given there, measurements.yaml decides). */
+export type ProjectBody = Pick<ProjectStatus, "body" | "height_cm"> | null;
+
+type State = { text: string; project: ProjectBody };
+
+let state: State = {
+  text: initialText,
+  project: projectStatus ? { body: projectStatus.body, height_cm: projectStatus.height_cm } : null,
+};
 const listeners = new Set<() => void>();
 
-function setText(next: string) {
-  if (next === text) return;
-  text = next;
+function set(next: Partial<State>) {
+  state = { ...state, ...next };
   for (const l of listeners) l();
 }
 
 export function getMeasurementsText(): string {
-  return text;
+  return state.text;
 }
 
-export function subscribeMeasurements(listener: () => void): () => void {
+function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-/** The current text of measurements.yaml; re-renders when it is saved or edited by hand. */
-export function useMeasurementsText(): string {
-  return useSyncExternalStore(subscribeMeasurements, getMeasurementsText);
+/** The current text of measurements.yaml and the project's body choice; re-renders after a save. */
+export function useMeasurementsState(): State {
+  return useSyncExternalStore(subscribe, () => state);
 }
 
-/** Writes the full text of measurements.yaml (validated by the dev server) and makes it current. */
+/** Whether body and height belong in project.yaml (a project folder) rather than measurements.yaml. */
+export function bodyInProject(): boolean {
+  return projectStatus?.status === "project";
+}
+
+/** Writes the full text of measurements.yaml (validated by the server) and makes it current. */
 export async function saveMeasurementsText(next: string): Promise<void> {
   let res: Response;
   try {
-    res = await fetch("/api/measurements", {
+    res = await fetch(`${PROJECT_ENDPOINT}/measurements`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: next }),
     });
   } catch {
-    throw new Error("Cannot reach the planner's dev server. Restart the planner and try again.");
+    throw new Error("Cannot reach the planner's server. Restart the planner and try again.");
   }
-  const body = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+  const body = (await res.json().catch(() => ({}))) as Partial<MeasurementsFile> & { error?: string };
   if (!res.ok || typeof body.text !== "string") throw new Error(body.error ?? `save failed (${res.status})`);
-  setText(body.text);
+  set({ text: body.text });
 }
 
-/** The `existing` block, which the pages read once at load (src/viewer/useArm.ts `anubisSize`). */
-function existingOf(t: string): string {
-  const r = parseMeasurements(t);
-  return r.ok ? JSON.stringify(r.measurements.existing ?? null) : "";
-}
-
-// A save (or a hand edit) changes the file on disk, and Vite sends the new text here instead of
-// reloading the page; only a changed `existing` block still reloads.
-if (import.meta.hot) {
-  const hot = import.meta.hot;
-  hot.accept("../../config/measurements.yaml?raw", (mod) => {
-    if (!mod || typeof mod.default !== "string") return;
-    if (existingOf(mod.default) !== existingOf(initialText))
-      hot.invalidate("measurements.yaml: existing changed");
-    else setText(mod.default);
+/** Writes body and height into project.yaml (only for a project folder, see bodyInProject). */
+export async function saveBodyChoice(patch: {
+  body?: NonNullable<ProjectStatus["body"]>;
+  height_cm?: number | null;
+}): Promise<void> {
+  const p = await updateProject({
+    ...(patch.body ? { body: patch.body } : {}),
+    ...(patch.height_cm !== undefined ? { height_cm: patch.height_cm } : {}),
   });
+  set({ project: { body: p.body, height_cm: p.height_cm } });
 }

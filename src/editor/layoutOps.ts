@@ -80,7 +80,7 @@ export function followSelection(prev: Layout, next: Layout, selected: number | n
     : null;
 }
 
-/** Variant names the layouts endpoint accepts (src/data/server/layoutsApi.ts). */
+/** Variant names the layouts endpoint accepts (server/layoutsApi.ts). */
 export const VARIANT_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export type VariantNameCheck =

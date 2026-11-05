@@ -1,4 +1,4 @@
-// Dev-server endpoint that writes exports into <TATTOO_DATA_DIR>/exports/ (never into the repo).
+// API that writes exports into <project>/exports/ (never into the repo).
 //   GET  /api/exports          → ExportStatus: can exports be written at all?
 //   POST /api/exports          body { layout, date } → ExportReservation: a fresh name for today's
 //                              export (`-2`, `-3`, … when one exists); creates its PNG folder
@@ -6,16 +6,23 @@
 //                              <path> = `<base>.pdf` or `<base>/<name>.png` of a reserved base
 //   GET  /api/exports/<path>   the bytes of a written export file (read-only, same path rules)
 // Files are never overwritten, never leave exports/ (also not through symlinks) and are checked for
-// type (extension, Content-Type and magic bytes) and size. Local dev server only.
+// type (extension, Content-Type and magic bytes) and size. Local server only.
 import { createReadStream } from "node:fs";
 import { lstat, mkdir, realpath, stat, unlink, writeFile } from "node:fs/promises";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
-import type { Plugin } from "vite";
-import { isInside } from "../../data/server/assetsApi.ts";
+import { isInside } from "./assetsApi.ts";
+import {
+  HttpError,
+  isCrossSite,
+  readJson,
+  readRawBody,
+  send,
+  sendError,
+  subPath,
+  type Handler,
+} from "./http.ts";
 import {
   CONTENT_TYPES,
-  EXPORTS_ENDPOINT,
   EXPORTS_FOLDER,
   exportBase,
   isIsoDate,
@@ -27,15 +34,7 @@ import {
   type ExportReservation,
   type ExportStatus,
   type WrittenFile,
-} from "../names.ts";
-
-export class HttpError extends Error {
-  readonly status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
+} from "../src/export/names.ts";
 
 const UNSET_REASON = "No project folder: open one in Settings → Project to export.";
 
@@ -189,99 +188,48 @@ export async function findExportFile(
   return { path: real, type: CONTENT_TYPES[target.kind], size: s.size };
 }
 
-export function readRawBody(req: IncomingMessage, limit: number): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const declared = Number(req.headers["content-length"]);
-    if (Number.isFinite(declared) && declared > limit) {
-      reject(new HttpError(413, "file too large"));
-      req.resume();
-      return;
-    }
-    const chunks: Buffer[] = [];
-    let size = 0;
-    req.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > limit) {
-        reject(new HttpError(413, "file too large"));
-        req.destroy();
+/** Export files in the open project's exports/ (`dir` null = no project). */
+export function exportsHandler(dir: () => Promise<string | null>): Handler {
+  return async (req, res, url) => {
+    try {
+      const sub = subPath(url).replace(/^\//, "");
+      const dataDir = await dir();
+      if (req.method === "GET" && sub === "") return send(res, 200, await exportStatus(dataDir));
+      if (req.method === "GET") {
+        let rel: string;
+        try {
+          rel = decodeURIComponent(sub);
+        } catch {
+          throw new HttpError(400, "invalid path");
+        }
+        const file = await findExportFile(dataDir, rel);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", file.type);
+        res.setHeader("Content-Length", String(file.size));
+        res.setHeader("Cache-Control", "private, no-cache");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        createReadStream(file.path).pipe(res);
         return;
       }
-      chunks.push(chunk);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
-}
-
-/**
- * Only the planner page itself may write. Browsers send Sec-Fetch-Site; a request from another
- * site is refused. (The non-simple Content-Types also force a CORS preflight that Vite never grants.)
- */
-export function isCrossSite(headers: IncomingMessage["headers"]): boolean {
-  const site = headers["sec-fetch-site"];
-  return site !== undefined && site !== "same-origin" && site !== "none";
-}
-
-function send(res: ServerResponse, status: number, body: unknown) {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("Cache-Control", "no-store");
-  res.end(JSON.stringify(body));
-}
-
-export function exportsPlugin(dataDir: string | null): Plugin {
-  return {
-    name: "tattoo-planner-exports",
-    configureServer(server) {
-      server.middlewares.use(EXPORTS_ENDPOINT, (req, res) => {
-        const sub = ((req.url ?? "/").split("?")[0] ?? "/").replace(/^\//, "");
-        const run = async () => {
-          if (req.method === "GET" && sub === "") return send(res, 200, await exportStatus(dataDir));
-          if (req.method === "GET") {
-            let rel: string;
-            try {
-              rel = decodeURIComponent(sub);
-            } catch {
-              throw new HttpError(400, "invalid path");
-            }
-            const file = await findExportFile(dataDir, rel);
-            res.statusCode = 200;
-            res.setHeader("Content-Type", file.type);
-            res.setHeader("Content-Length", String(file.size));
-            res.setHeader("Cache-Control", "private, no-cache");
-            res.setHeader("X-Content-Type-Options", "nosniff");
-            createReadStream(file.path).pipe(res);
-            return;
-          }
-          if (isCrossSite(req.headers)) throw new HttpError(403, "cross-site request refused");
-          if (req.method === "POST" && sub === "") {
-            if (req.headers["content-type"] !== "application/json") throw new HttpError(415, "JSON only");
-            let body: { layout?: unknown; date?: unknown };
-            try {
-              body = JSON.parse((await readRawBody(req, 10_000)).toString("utf8")) as typeof body;
-            } catch (e) {
-              throw e instanceof HttpError ? e : new HttpError(400, "invalid JSON");
-            }
-            return send(res, 200, await reserveExport(dataDir, body?.layout, body?.date));
-          }
-          if (req.method === "PUT" && sub !== "") {
-            let rel: string;
-            try {
-              rel = decodeURIComponent(sub);
-            } catch {
-              throw new HttpError(400, "invalid path");
-            }
-            const limit = rel.endsWith(".pdf") ? MAX_PDF_BYTES : MAX_PNG_BYTES;
-            const bytes = await readRawBody(req, limit);
-            return send(res, 200, await writeExportFile(dataDir, rel, req.headers["content-type"], bytes));
-          }
-          throw new HttpError(405, "method not allowed");
-        };
-        run().catch((e: unknown) => {
-          const status = e instanceof HttpError ? e.status : 500;
-          send(res, status, { error: e instanceof Error ? e.message : String(e) });
-        });
-      });
-    },
+      if (isCrossSite(req.headers)) throw new HttpError(403, "cross-site request refused");
+      if (req.method === "POST" && sub === "") {
+        const body = (await readJson(req, 10_000)) as { layout?: unknown; date?: unknown } | null;
+        return send(res, 200, await reserveExport(dataDir, body?.layout, body?.date));
+      }
+      if (req.method === "PUT" && sub !== "") {
+        let rel: string;
+        try {
+          rel = decodeURIComponent(sub);
+        } catch {
+          throw new HttpError(400, "invalid path");
+        }
+        const limit = rel.endsWith(".pdf") ? MAX_PDF_BYTES : MAX_PNG_BYTES;
+        const bytes = await readRawBody(req, limit);
+        return send(res, 200, await writeExportFile(dataDir, rel, req.headers["content-type"], bytes));
+      }
+      throw new HttpError(405, "method not allowed");
+    } catch (e) {
+      sendError(res, e, 500);
+    }
   };
 }

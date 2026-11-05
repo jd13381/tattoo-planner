@@ -20,7 +20,7 @@ export type AssetListing =
 export const ASSETS_SCAN_ENDPOINT = "/api/assets/scan";
 
 export type ScanReport = {
-  /** Images in the scanned folders (cards/, refs/, existing/, arm-photos/). */
+  /** Images in the scanned folders (images/, photos/ and the older cards/, refs/, existing/, arm-photos/). */
   found: number;
   /** Ids of the entries this scan added. */
   added: string[];
@@ -45,7 +45,7 @@ export function scanSummary(r: ScanReport): string {
     );
   if (r.outside.length > 0)
     parts.push(
-      `${r.outside.length} outside cards/, refs/, existing/, arm-photos/: ${r.outside.slice(0, 3).join(", ")}${r.outside.length > 3 ? " …" : ""}`,
+      `${r.outside.length} outside images/, photos/ and the other image folders: ${r.outside.slice(0, 3).join(", ")}${r.outside.length > 3 ? " …" : ""}`,
     );
   if (r.truncated) parts.push("the data folder is large; some files may be missed");
   return parts.join(" · ");
