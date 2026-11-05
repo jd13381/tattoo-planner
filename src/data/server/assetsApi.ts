@@ -180,7 +180,7 @@ async function serveImage(req: IncomingMessage, res: ServerResponse, dataDir: st
   if (!found.ok) return sendJson(res, found.status, { error: found.message });
   const s = await stat(found.path);
   const lastModified = s.mtime.toUTCString();
-  // Private: never stored by shared caches. Revalidated, so a re-ingested image shows up at once.
+  // Private: never stored by shared caches. Revalidated, so a replaced image shows up at once.
   res.setHeader("Cache-Control", "private, no-cache");
   res.setHeader("Last-Modified", lastModified);
   res.setHeader("X-Content-Type-Options", "nosniff");

@@ -184,3 +184,43 @@ Jan approved the session flow (proposal "Image studio: iteration flow review and
 - **Dark checkerboard and thumbnail background by default** (Jan: white backgrounds look odd); the Light switch stays for black line work on transparent backgrounds and is remembered per browser (`localStorage`).
 - **Reload runs the scan** (`POST /api/assets/scan`) before re-reading the manifest (Jan: new files did not show up). It only adds entries, like `npm run assets:scan`, and reports images outside `cards/`, `refs/`, `existing/`, `arm-photos/` instead of cataloguing them (`ideas/`, `edits/`, `generated/`, `exports/` are filled by the planner and not reported). _Alternative:_ catalogue any folder, or watch the folder.
 - **Tab order Layout, Image studio, Compare, Projection, …** (Jan, 2026-11-04: the two tabs he uses most side by side). The Image studio now stays mounted like the Layout tab, so switching back and forth keeps the picked image, the prompt text and the version on view; the session itself was already kept by the dev server.
+
+## 2026-11-05: product rework (roadmap phases B and C)
+
+Jan asked Claude (2026-11-05) to run Phase B and then work through Phase C on its own, deciding open points and logging them here.
+
+### Architecture
+
+- **Bodies are built from lofted regions** (`docs/adr/0011-bodies-and-regions.md`): arms, legs and torso are lofts like today's arm; head, neck, hands, feet and joints are neutral, non-editable shapes. Sample bodies `female` and `male` are parameter sets, not meshes. _Alternative:_ a CC0 MakeHuman mesh with a UV atlas (realistic, but not cm-true and much more work). _Change:_ a mesh can be added later as another geometry source per region.
+- **Torso seam on the left flank**, so chest and back pieces stay whole in the unwrap. _Change:_ `seam` of the torso region.
+- **A-pose with palms forward**, so the arm keeps today's conventions.
+- **One project folder per person** (`docs/adr/0012-project-folder.md`) with `project.yaml`; current project remembered in `~/.config/tattoo-planner/config.json`, `TATTOO_DATA_DIR` still wins. Jan's Seafile folder opens as a legacy project and keeps using the repo's `config/` until "Move into project" (or `npm run migrate`) copies it over.
+- **Server code moves out of the Vite plugins** into `server/`, mounted by Vite in dev and by the desktop app.
+
+### Cuts and simplifications (roadmap Phase C step 6)
+
+Jan approved the cuts (2026-11-05); the details below were decided by Claude. Details in `docs/adr/0013-builtin-image-operations.md`; ADR 0003 and ADR 0007 are marked superseded.
+
+- **ideas.pdf ingestion removed** (`npm run ingest`, mupdf, `src/assets/ideasLayout.ts`, `src/assets/server/pdfExtract.ts`, their tests). `slug()` moved into `src/assets/scan.ts`. The manifest schema keeps `page` and `bbox`, so entries extracted into `ideas/` earlier stay valid; `ideas/` stays a managed (not scanned) folder. _Alternative:_ drop `page`/`bbox` from the schema (would break Jan's manifest). _Change:_ `src/assets/manifest.ts`.
+- **package-lock.json updated with `npm uninstall mupdf --package-lock-only`** instead of a plain `npm uninstall`, because this worktree shares `node_modules` with other checkouts that still had mupdf. _Change:_ run `npm ci` after merging to drop the package locally.
+- **Built-in operations run in the browser, the server only checks and stores the PNG** (`POST /api/edits/sessions/<id>/apply?step=…&base=N`, body `image/png`). _Alternative:_ run them in the dev server (needs a Node image codec such as `sharp`). _Change:_ `applyOp` in `src/edits/ImageEditPage.tsx`, `apply` in `src/edits/server/editsApi.ts`.
+- **A built-in result becomes the next version at once**, without "Continue with this": the operation is deterministic, there is nothing to choose. _Alternative:_ show it as a result to pick, like generative variants. _Change:_ `apply` could leave `session.versions` alone.
+- **Race guard `base`:** the page sends the number of versions it saw; the server refuses (409) when the session changed meanwhile, checked before and after copying the files. _Alternative:_ send the job id of the source version.
+- **Upload limits:** complete PNG only (signature, IHDR, ends with IEND), at most 50 MB (as the existing outputs) and 100 megapixels. _Change:_ `MAX_OUTPUT_BYTES`, `MAX_OUTPUT_PIXELS` in `src/edits/edit.ts`.
+- **Operations and defaults:** remove background (tolerance 32, soft edge 2 px), line art (level 128, smoothing 1 px), levels / contrast (black 20, white 235), black and grey, invert, rotate (90° left / right, 180°), mirror (left to right only). Levels shows black and white point; gamma stays in the function but not in the panel (two controls at most). Tolerance is the largest channel difference to the border colour (median of the opaque border pixels); the soft edge fades inward only, so no removed background comes back. _Change:_ `BUILTIN_OPS` in `src/edits/builtin.ts`.
+- **No crop and no eraser brush in the studio:** crop exists per layout element and asset; a brush needs a canvas editor. **No segmentation model for photos** (roadmap §4.4 leaves it optional): large dependency and weights; generative edits cover the hard cases.
+- **Live preview on a copy of at most 640 px**, pixel-sized controls scaled to it; Apply runs on the full image. _Change:_ `PREVIEW_MAX_SIDE` in `src/edits/builtin.ts`.
+- **Built-in is the default engine**, and while it is chosen the canvas at the last version shows the preview instead of the grid of generative results (switching to Generative or clicking an earlier version shows them). _Alternative:_ GPT Image as default (needs a key).
+- **Undo** in the built-in run area drops the last version (it stays visible as a result of the version before until the session closes), without asking: a built-in step is cheap to redo. Generative steps keep the existing confirm on "Continue from vK".
+- **Presets** are generative only now: Simplify, Remove an object, and Remove text / watermark (moved from the claude presets, since filling in removed text needs new pixels). The other claude presets (remove background, keep main figure only, stronger contrast, black and grey, trim to motif, mirror) are covered by built-in operations or dropped. _Change:_ `EDIT_PRESETS` in `src/edits/types.ts`.
+- **Notes of a saved image** name the built-in steps by their parameters, e.g. `"Line art (level 128, smoothing 1 px)" (built-in)`. Notes of older edits that say `claude -p` stay as they are.
+- **No component test for the studio page:** `tsconfig.node.json` (which type-checks `tests/`) has no JSX setting, and adding one only for this would widen the change. A throwaway jsdom render test was run once (no key: built-in usable, generative setup shown, create disabled; with a key the first run opens the session) and not committed.
+
+### Image studio UX review items (coordinator, 2026-11-05)
+
+- **Generative availability checked once up front** (the overview the studio already loads). Without a key the Generative engine card says "needs an API key", choosing it shows one setup note (key from platform.openai.com, `TATTOO_OPENAI_API_KEY` in `.env`, restart), and the GPT run button, Create mode's run button and its name / format / background fields are disabled. No session is opened by a request that would fail. The built-in engine stays fully usable. _Alternative:_ hide the Generative engine without a key (then nobody learns it exists).
+- **No "Start editing" gate:** picking an image shows the engines at once; the first Apply or GPT run opens the session (for a new image, the first Create run). _Alternative:_ keep the explicit start (one more click per image).
+- **One hint on the canvas:** the head row above the canvas says "The next run starts here" (or "Preview of … · the next run starts here"); the strip only outlines the last version, and the caption under the large image is gone.
+- **Plain wording in the studio:** "Unsaved versions are lost when the planner closes", "No data folder is set up …", "Cannot reach the planner's edit service … Restart the planner." The API key note still names `TATTOO_OPENAI_API_KEY` and `.env`, because that is the only way to set a key until the settings screen of roadmap §4.3 exists. _Change:_ point it at the settings screen then.
+- **A disabled primary button looks disabled** (hairline, faint text) instead of a dimmed accent, scoped to the studio (`.studio button.primary:disabled`) so other tabs are unchanged. _Alternative:_ change it for every tab (better consistency, but outside this step).
+- **ADR 0011 table reformatted** (Prettier only) because `npm run check` failed on it on this branch's base.

@@ -1,147 +1,22 @@
-// Framework-free rules for editing reference images with `claude -p` (ADR 0007): the prompt, the
-// command line, how Claude's progress stream becomes log lines, how a result PNG is checked, and
-// the name and manifest entry of a kept edit. The dev-server endpoint (server/editsApi.ts) wires
-// these to processes and files.
+// Framework-free rules shared by the Image studio engines: how a result PNG is checked, and the name
+// and manifest entry of a kept edit or new image (ADR 0007, 0009, 0013). The dev-server endpoint
+// (server/editsApi.ts) wires these to requests and files.
 import type { Asset } from "../assets/manifest.ts";
 import { EDITED_TAG, EDITS_FOLDER, GENERATED_FOLDER, GENERATED_KIND, GENERATED_TAG } from "./types.ts";
 
 export const INPUT_BASENAME = "input";
-/** How a local edit is named in a kept edit's notes. */
-export const CLAUDE_TOOL = "claude -p";
 export const OUTPUT_FILE = "output.png";
 export const MAX_INSTRUCTION_CHARS = 2000;
 export const MAX_OUTPUT_BYTES = 50 * 1024 * 1024;
-/** Longest an edit may run before it is stopped. */
+/** Largest result in pixels (width × height) the studio takes, about 100 megapixels. */
+export const MAX_OUTPUT_PIXELS = 100_000_000;
+/** Longest a generative request may run before it is stopped. */
 export const EDIT_TIMEOUT_MS = 15 * 60 * 1000;
-/** Edits allowed at the same time; each one is a full Claude session. */
-export const MAX_RUNNING = 2;
 const MAX_VARIANTS = 999;
-
-/** Tools Claude may use without asking. No web tools: the image must not leave the Mac (§10.2). */
-export const ALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep"] as const;
-export const DISALLOWED_TOOLS = ["WebFetch", "WebSearch"] as const;
-
-export type PromptInput = {
-  /** File name of the image in the working folder, e.g. input.jpg. */
-  inputFile: string;
-  /** Every instruction of the chain, oldest first; earlier ones are already applied to the input. */
-  instructions: string[];
-  asset: Pick<Asset, "id" | "kind" | "notes" | "source">;
-  /** Folder where Claude may keep a Python virtualenv between edits. */
-  cacheDir: string;
-};
-
-/** The task given to `claude -p` (sent on stdin). */
-export function buildEditPrompt(p: PromptInput): string {
-  const current = p.instructions.at(-1) ?? "";
-  const earlier = p.instructions.slice(0, -1);
-  const context = [
-    `asset id ${p.asset.id}, kind ${p.asset.kind}`,
-    p.asset.source ? `source: ${p.asset.source}` : "",
-    p.asset.notes ? `notes: ${p.asset.notes}` : "",
-  ].filter(Boolean);
-  return [
-    "You are editing one reference image for a tattoo sketch tool, on the user's own computer.",
-    "",
-    `The image is ./${p.inputFile} in the current folder. It is a ${p.asset.kind} reference (${context.join("; ")}).`,
-    earlier.length > 0
-      ? `It has already been edited with these instructions, in order: ${earlier.map((s) => JSON.stringify(s)).join(", ")}.`
-      : "",
-    "",
-    "Instruction from the user:",
-    "<<<",
-    current.trim(),
-    ">>>",
-    "",
-    "Rules:",
-    `- Write the result as ./${OUTPUT_FILE} (PNG; RGBA with real transparency wherever the background was removed). Keep the resolution unless the instruction says otherwise.`,
-    `- Never change, move or delete ./${p.inputFile}. Work only in this folder and in ${p.cacheDir}.`,
-    "- Do the edit with local tools only: Python (Pillow, numpy, OpenCV), ImageMagick, or for background removal `rembg`.",
-    `  If a Python package is missing, create or reuse a virtualenv at ${p.cacheDir}/venv (python3 -m venv) and pip install it there. Never install system-wide.`,
-    "- Never upload the image or any part of it to a website or online service. Downloading packages and models is fine.",
-    `- Look at ./${p.inputFile} before you start and at ./${OUTPUT_FILE} when you are done, and fix the result if it does not do what was asked (e.g. leftover background, cut-off parts of the motif, halos).`,
-    "- Work on the original pixels: cut, mask, retouch, adjust. Never redraw, re-render or replace the motif or parts of it with shapes you made up, and do not invent new design elements; this is a reference for a tattoo artist, not a new design.",
-    "- Finish with two or three short sentences on what you changed and anything that did not work out.",
-  ]
-    .filter((line, i, all) => line !== "" || all[i - 1] !== "")
-    .join("\n");
-}
-
-/** Arguments for `claude`; the prompt goes to stdin. */
-export function claudeArgs(cacheDir: string, model?: string): string[] {
-  return [
-    "-p",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--permission-mode",
-    "acceptEdits",
-    "--no-session-persistence",
-    "--strict-mcp-config",
-    "--add-dir",
-    cacheDir,
-    ...(model ? ["--model", model] : []),
-    "--allowedTools",
-    ...ALLOWED_TOOLS,
-    "--disallowedTools",
-    ...DISALLOWED_TOOLS,
-  ];
-}
-
-export type StreamEvent =
-  { kind: "log"; lines: string[] } | { kind: "result"; ok: boolean; text: string } | { kind: "none" };
 
 function oneLine(s: string, max = 200): string {
   const flat = s.replace(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
-}
-
-/** Turns one line of `--output-format stream-json` into log lines or the final result. */
-export function parseStreamLine(line: string): StreamEvent {
-  if (!line.trim()) return { kind: "none" };
-  let ev: unknown;
-  try {
-    ev = JSON.parse(line);
-  } catch {
-    return { kind: "log", lines: [oneLine(line)] };
-  }
-  if (typeof ev !== "object" || ev === null) return { kind: "none" };
-  const e = ev as {
-    type?: string;
-    subtype?: string;
-    is_error?: boolean;
-    result?: unknown;
-    message?: unknown;
-  };
-  if (e.type === "result") {
-    const text = typeof e.result === "string" ? e.result.trim() : "";
-    return {
-      kind: "result",
-      ok: e.subtype === "success" && !e.is_error,
-      text: text || String(e.subtype ?? ""),
-    };
-  }
-  if (e.type !== "assistant") return { kind: "none" };
-  const content = (e.message as { content?: unknown } | undefined)?.content;
-  if (!Array.isArray(content)) return { kind: "none" };
-  const lines: string[] = [];
-  for (const block of content as { type?: string; text?: unknown; name?: unknown; input?: unknown }[]) {
-    if (block.type === "text" && typeof block.text === "string" && block.text.trim())
-      lines.push(oneLine(block.text));
-    else if (block.type === "tool_use" && typeof block.name === "string") {
-      const input = (block.input ?? {}) as Record<string, unknown>;
-      const detail =
-        typeof input.description === "string"
-          ? input.description
-          : typeof input.command === "string"
-            ? input.command
-            : typeof input.file_path === "string"
-              ? input.file_path.split("/").pop()!
-              : "";
-      lines.push(`→ ${block.name}${detail ? `: ${oneLine(detail, 160)}` : ""}`);
-    }
-  }
-  return lines.length > 0 ? { kind: "log", lines } : { kind: "none" };
 }
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -174,6 +49,15 @@ export function readPngInfo(bytes: Uint8Array): PngInfo | null {
   return { width, height, alpha };
 }
 
+/** Whether the bytes end with an IEND chunk, i.e. the PNG was not cut off. */
+export function endsWithIend(bytes: Uint8Array): boolean {
+  const n = bytes.length;
+  if (n < 12) return false;
+  const tail = bytes.subarray(n - 12);
+  const isIend = String.fromCharCode(tail[4]!, tail[5]!, tail[6]!, tail[7]!) === "IEND";
+  return isIend && tail[0] === 0 && tail[1] === 0 && tail[2] === 0 && tail[3] === 0;
+}
+
 /** The original an edit chain belongs to: an edit's `derived_from`, else the asset itself. */
 export function rootAssetId(asset: Pick<Asset, "id" | "derived_from">): string {
   return asset.derived_from ?? asset.id;
@@ -204,10 +88,10 @@ export function keptAsset(
   variant: { id: string; file: string },
   instructions: string[],
   sameSize: boolean,
-  /** Tool of each step, same order as `instructions`; defaults to `claude -p` for every step. */
-  tools: readonly string[] = [],
+  /** Tool of each step, same order as `instructions`. */
+  tools: readonly string[],
 ): Asset {
-  const toolOf = (i: number) => tools[i] ?? CLAUDE_TOOL;
+  const toolOf = (i: number) => tools[i] ?? "unknown tool";
   const sameTool = instructions.every((_, i) => toolOf(i) === toolOf(0));
   const steps = instructions.map(
     (s, i) => `${JSON.stringify(oneLine(s, 300))}${sameTool ? "" : ` (${toolOf(i)})`}`,
@@ -259,7 +143,9 @@ export function createdAsset(
   tools: readonly string[],
   references: readonly string[],
 ): Asset {
-  const steps = instructions.map((s, i) => `${JSON.stringify(oneLine(s, 300))} (${tools[i] ?? CLAUDE_TOOL})`);
+  const steps = instructions.map(
+    (s, i) => `${JSON.stringify(oneLine(s, 300))} (${tools[i] ?? "unknown tool"})`,
+  );
   const refs = references.length > 0 ? `; references: ${references.join(", ")}` : "";
   return {
     id: variant.id,

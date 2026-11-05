@@ -1,6 +1,6 @@
 # ADR 0007: Editing reference images with `claude -p`
 
-- Status: accepted (2026-11-04); the iteration flow (Keep / Edit further / Discard) is superseded by ADR 0010 (editing sessions)
+- Status: superseded (2026-11-05) by ADR 0013 (built-in image operations): the `claude -p` engine needed Claude Code on the user's machine, which a published app cannot assume, so simple edits became built-in operations (`docs/product/roadmap.md` §3, §4.4). The `edits/` folder, `derived_from` and the manifest entry of a kept edit described here stay. Earlier: accepted 2026-11-04; the iteration flow (Keep / Edit further / Discard) was superseded by ADR 0010 (editing sessions).
 - Context: Jan needs to touch up reference images (remove a background, take out text or a watermark, small changes) without leaving the planner for some web service, and suggested driving the edits with `claude -p`.
 
 ## Decision
