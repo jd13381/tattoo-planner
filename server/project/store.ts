@@ -14,13 +14,16 @@ import {
   type ProjectMeta,
   type ProjectStatus,
   type RecentProject,
+  type SaveSampleResult,
 } from "../../src/project/schema.ts";
 import { newLayoutText } from "../../src/layout/yamlDoc.ts";
 import { newProjectText, updateProjectText } from "../../src/project/yamlDoc.ts";
 import { expandUser } from "../dataDir.ts";
+import { isInside } from "../assetsApi.ts";
 import { HttpError } from "../http.ts";
 import { inspectFolder, readProjectFile } from "./folder.ts";
 import { hasLegacyConfig, MEASUREMENTS_FILE, migrateFolder } from "./migrate.ts";
+import { copySample, SAMPLE_READ_ONLY } from "./sample.ts";
 import { addRecent, readUserConfig, writeUserConfig, type UserConfig } from "./userConfig.ts";
 
 export type StoreOptions = {
@@ -31,6 +34,8 @@ export type StoreOptions = {
   home: string;
   /** The checkout's config/ with Jan's layouts, projections and measurements; null when absent. */
   legacyConfigDir: string | null;
+  /** The read-only sample project shipped with the app (samples/demo); null or absent: none. */
+  sampleDir?: string | null;
 };
 
 /** Where the open project keeps each kind of data; all null when none is open. */
@@ -39,12 +44,20 @@ export type ProjectPaths = {
   layoutsDir: string | null;
   projectionsDir: string | null;
   measurementsFile: string | null;
+  /** The sample project is open: every write is refused (server/sampleApi.ts). */
+  readOnly: boolean;
 };
 
 type Current =
   | { status: "none"; problem: string | null }
   | { status: "legacy"; dir: string; problem: string | null }
-  | { status: "project"; dir: string; meta: ProjectMeta | null; problem: string | null };
+  | {
+      status: "project";
+      dir: string;
+      meta: ProjectMeta | null;
+      problem: string | null;
+      sample?: boolean;
+    };
 
 export const STARTER_LAYOUT = "first-sketch";
 
@@ -52,7 +65,13 @@ function starterLayoutText(): string {
   return newLayoutText({ name: STARTER_LAYOUT, region: "arm-left", elements: [] });
 }
 
-const NO_PATHS: ProjectPaths = { dir: null, layoutsDir: null, projectionsDir: null, measurementsFile: null };
+const NO_PATHS: ProjectPaths = {
+  dir: null,
+  layoutsDir: null,
+  projectionsDir: null,
+  measurementsFile: null,
+  readOnly: false,
+};
 
 function atomicWrite(file: string, text: string): Promise<void> {
   const tmp = `${file}.tmp-${process.pid}`;
@@ -63,6 +82,11 @@ export class ProjectStore {
   private readonly opts: StoreOptions;
   /** Serialises changes, so two quick clicks do not race on config.json or project.yaml. */
   private lock: Promise<unknown> = Promise.resolve();
+  /**
+   * The sample is open. Kept in memory only, never in config.json: a restart goes back to the
+   * remembered project (or the start screen), and the sample's app-internal path is never remembered.
+   */
+  private sampleOpen = false;
 
   constructor(opts: StoreOptions) {
     this.opts = opts;
@@ -78,8 +102,21 @@ export class ProjectStore {
     return run;
   }
 
+  get sampleDir(): string | null {
+    return this.opts.sampleDir ?? null;
+  }
+
+  /** Whether the sample project is open (and so every write is refused). */
+  get readOnly(): boolean {
+    return this.sampleOpen && !this.locked && this.sampleDir !== null;
+  }
+
   private async current(): Promise<Current> {
     const { envDir } = this.opts;
+    if (this.readOnly) {
+      const sample = await this.projectAt(this.sampleDir!);
+      return sample.status === "project" ? { ...sample, sample: true } : sample;
+    }
     if (envDir) {
       const state = await inspectFolder(envDir);
       if (state === "missing" || state === "file")
@@ -120,6 +157,7 @@ export class ProjectStore {
       layoutsDir: path.join(base, "layouts"),
       projectionsDir: path.join(base, "projections"),
       measurementsFile: path.join(base, MEASUREMENTS_FILE),
+      readOnly: c.status === "project" && c.sample === true,
     };
   }
 
@@ -141,6 +179,8 @@ export class ProjectStore {
       recent: this.locked ? [] : await this.recent(config),
       locked: this.locked,
       problem: c.problem,
+      sample: c.status === "project" && c.sample === true,
+      sampleAvailable: !this.locked && this.sampleDir !== null,
     };
     if (c.status === "none")
       return {
@@ -187,7 +227,12 @@ export class ProjectStore {
       throw new HttpError(409, "This planner always opens the same folder (set in its start-up settings).");
   }
 
+  private refuseWhenSample() {
+    if (this.readOnly) throw new HttpError(409, SAMPLE_READ_ONLY);
+  }
+
   private async remember(dir: string | null): Promise<void> {
+    this.sampleOpen = false;
     const config = await readUserConfig(this.opts.configFile);
     await writeUserConfig(this.opts.configFile, {
       ...config,
@@ -220,6 +265,65 @@ export class ProjectStore {
     });
   }
 
+  /** Opens the sample shipped with the app, read-only. The remembered project stays in config.json. */
+  openSample(): Promise<ProjectStatus> {
+    return this.serial(async () => {
+      this.refuseWhenLocked();
+      if (!this.sampleDir || (await inspectFolder(this.sampleDir)) !== "project")
+        throw new HttpError(404, "The sample project is not part of this installation.");
+      this.sampleOpen = true;
+      return this.status();
+    });
+  }
+
+  /**
+   * An empty or new folder for a new project: creates a missing one (its parent must exist) and
+   * refuses a project, a file or a folder with other content. Returns the folder's state before.
+   */
+  private async newFolder(dir: string, allowLegacy: boolean): Promise<"empty" | "missing" | "legacy"> {
+    const state = await inspectFolder(dir);
+    if (state === "project") throw new HttpError(409, "This folder is a project already. Open it instead.");
+    if (state === "file") throw new HttpError(400, "This is a file, not a folder.");
+    if (state === "other" || (state === "legacy" && !allowLegacy))
+      throw new HttpError(
+        409,
+        "This folder is not empty. Choose an empty folder or enter a new folder name.",
+      );
+    if (state === "missing") {
+      try {
+        await mkdir(dir);
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        throw new HttpError(
+          400,
+          code === "ENOENT" ? "The parent folder does not exist." : `cannot create the folder: ${code}`,
+        );
+      }
+    }
+    return state;
+  }
+
+  /**
+   * "Save as new project": copies the sample into an empty or new folder (placeholders become PNG
+   * files there), with the chosen name and body, and opens the copy.
+   */
+  saveSampleAs(body: unknown): Promise<SaveSampleResult> {
+    return this.serial(async () => {
+      this.refuseWhenLocked();
+      if (!this.sampleDir) throw new HttpError(404, "The sample project is not part of this installation.");
+      const req = (body ?? {}) as { path?: unknown; name?: unknown; body?: unknown };
+      const dir = this.folderArg(req.path);
+      const fields = newProjectSchema.safeParse({ name: req.name, body: req.body });
+      if (!fields.success) throw new HttpError(400, fields.error.issues.map((i) => i.message).join("; "));
+      if (isInside(path.resolve(this.sampleDir), dir) || path.resolve(this.sampleDir) === dir)
+        throw new HttpError(400, "Choose a folder outside the app.");
+      await this.newFolder(dir, false);
+      const copy = await copySample(this.sampleDir, dir, fields.data);
+      await this.remember(dir);
+      return { project: await this.status(), ...copy };
+    });
+  }
+
   /**
    * Makes a folder a project: an empty or new folder gets project.yaml, an empty manifest and the
    * standard sub-folders; an old data folder is moved into the project (migration). Any other folder
@@ -233,29 +337,11 @@ export class ProjectStore {
       const fields = newProjectSchema.safeParse({ name: req.name, body: req.body });
       if (!fields.success) throw new HttpError(400, fields.error.issues.map((i) => i.message).join("; "));
       const { name, body: kind } = fields.data;
-      const state = await inspectFolder(dir);
+      const state = await this.newFolder(dir, true);
       let migration: MigrationReport | null = null;
-      if (state === "project") throw new HttpError(409, "This folder is a project already. Open it instead.");
-      if (state === "file") throw new HttpError(400, "This is a file, not a folder.");
-      if (state === "other")
-        throw new HttpError(
-          409,
-          "This folder is not empty. Choose an empty folder or enter a new folder name.",
-        );
       if (state === "legacy") {
         migration = await migrateFolder(dir, { configDir: this.opts.legacyConfigDir, name, body: kind });
       } else {
-        if (state === "missing") {
-          try {
-            await mkdir(dir);
-          } catch (e) {
-            const code = (e as NodeJS.ErrnoException).code;
-            throw new HttpError(
-              400,
-              code === "ENOENT" ? "The parent folder does not exist." : `cannot create the folder: ${code}`,
-            );
-          }
-        }
         for (const f of PROJECT_FOLDERS) await mkdir(path.join(dir, f), { recursive: true });
         await writeFile(path.join(dir, MANIFEST_FILE), mergeManifest(null, []).text, { flag: "wx" });
         // A first, empty layout on the left arm, so the Layout tab has something to draw on.
@@ -272,6 +358,7 @@ export class ProjectStore {
   /** Changes name, body or height in project.yaml, keeping its comments and unknown keys. */
   update(body: unknown): Promise<ProjectStatus> {
     return this.serial(async () => {
+      this.refuseWhenSample();
       const patch = projectPatchSchema.safeParse(body);
       if (!patch.success)
         throw new HttpError(
@@ -297,6 +384,7 @@ export class ProjectStore {
   /** "Move into project": copies the app's old config into the open legacy folder. */
   migrate(): Promise<{ project: ProjectStatus; migration: MigrationReport }> {
     return this.serial(async () => {
+      this.refuseWhenSample();
       const c = await this.current();
       if (c.status !== "legacy")
         throw new HttpError(409, "Only an old data folder can be moved into a project.");
@@ -317,6 +405,7 @@ export class ProjectStore {
   }
 
   async writeMeasurements(text: string): Promise<void> {
+    this.refuseWhenSample();
     const { measurementsFile } = await this.paths();
     if (!measurementsFile) throw new HttpError(409, "no project is open");
     await atomicWrite(measurementsFile, text);

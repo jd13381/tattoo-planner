@@ -9,6 +9,7 @@ import { sendError, type Handler, type Middleware } from "./http.ts";
 import { layoutsHandler } from "./layoutsApi.ts";
 import { projectHandler } from "./projectApi.ts";
 import { projectionsHandler } from "./projectionsApi.ts";
+import { handleSampleRequest } from "./sampleApi.ts";
 import type { ProjectStore } from "./project/store.ts";
 import type { ServerSettings } from "./settings.ts";
 
@@ -52,7 +53,13 @@ export function createApi(context: ApiContext): Api {
   const middleware: Middleware = (req, res, next) => {
     const found = route(routes, req.url ?? "/");
     if (!found) return next();
-    found.handler(req, res, found.rest).catch((e: unknown) => sendError(res, e));
+    const run = async () => {
+      // The sample project is read-only and draws its images (server/sampleApi.ts).
+      const sampleDir = context.projects.readOnly ? context.projects.sampleDir : null;
+      if (sampleDir && (await handleSampleRequest(req, res, sampleDir))) return;
+      await found.handler(req, res, found.rest);
+    };
+    run().catch((e: unknown) => sendError(res, e));
   };
   return Object.assign(middleware, { close: edits.close });
 }

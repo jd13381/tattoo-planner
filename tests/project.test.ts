@@ -90,6 +90,7 @@ describe("projects on disk", () => {
       layoutsDir: null,
       projectionsDir: null,
       measurementsFile: null,
+      readOnly: false,
     });
   });
 
