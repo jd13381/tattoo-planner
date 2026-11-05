@@ -30,3 +30,7 @@
 - No forearm rotation (pronation), no carrying angle, no muscle bulge when flexing.
 - The cross-section keeps its width (X) in the crease; only the depth shrinks.
 - The export (PDF and PNGs) still shows the straight arm only. A bent view in the handout is a follow-up: `renderArmViews` would need a pose parameter and the handout one more page.
+
+## Body regions (2026-11-05)
+
+With ADR 0011 the bend applies to both arms (the right arm's local frame also has the palm side at +Z, so the same function bends it) and only in the region view; legs and the torso stay straight, and the full-body view shows the straight A-pose.

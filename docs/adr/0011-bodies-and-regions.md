@@ -9,13 +9,13 @@
 
 Regions for v1:
 
-| id          | from → to (v = 0 → 1)        | u = 0 (texture centre)     | seam (u = 0.5)   |
-| ----------- | ---------------------------- | -------------------------- | ---------------- |
-| `arm-left`  | wrist crease → shoulder point | outer centre line          | inner centre line |
-| `arm-right` | wrist crease → shoulder point | outer centre line          | inner centre line |
-| `leg-left`  | ankle → hip crease            | front centre line (shin)   | back centre line (calf) |
-| `leg-right` | ankle → hip crease            | front centre line (shin)   | back centre line (calf) |
-| `torso`     | waist (navel height) → base of the neck | right flank       | left flank       |
+| id          | from → to (v = 0 → 1)                   | u = 0 (texture centre)   | seam (u = 0.5)          |
+| ----------- | --------------------------------------- | ------------------------ | ----------------------- |
+| `arm-left`  | wrist crease → shoulder point           | outer centre line        | inner centre line       |
+| `arm-right` | wrist crease → shoulder point           | outer centre line        | inner centre line       |
+| `leg-left`  | ankle → hip crease                      | front centre line (shin) | back centre line (calf) |
+| `leg-right` | ankle → hip crease                      | front centre line (shin) | back centre line (calf) |
+| `torso`     | waist (navel height) → base of the neck | right flank              | left flank              |
 
 - u keeps its meaning as a fraction of the local circumference; for arms 0.25 stays lateral (thumb side) and 0.75 medial on both sides, so the right arm is the mirror of the left one (geometry mirrored in X, unwrap seen from outside as before).
 - On the torso u runs 0 right flank → 0.25 front centre (sternum) → 0.5 left flank (seam) → 0.75 back centre (spine). The seam sits on the left flank so that chest and back pieces both stay whole in the unwrap.
@@ -41,3 +41,11 @@ Regions for v1:
 - Shoulders, armpits and hips look stylised where regions meet. Acceptable for planning placement and size; it is a sketch tool.
 - The `src/arm` modules become `src/body` (profile, geometry, uv, ellipse, interpolate stay framework-free and keep their tests); `arm` keeps working as the first region type.
 - Coverage zones become per region (arm: forearm inner/outer, elbow, upper arm inner/outer, shoulder as today; leg: shin, calf, knee, thigh front/back; torso: chest, stomach, back upper/lower, flanks).
+
+## Implementation notes (2026-11-05)
+
+- Modules: `src/body/profile.ts` (generic loft, arm/leg/torso builders), `regions.ts` (ids, centre lines, ends), `geometry.ts` (one mesh builder), `placement.ts` (A-pose and neutral parts), `samples.ts`, `body.ts` (resolution of measurements), `uv.ts`.
+- **Legs:** u = 0.25 is lateral on both legs, as on the arms.
+- **Mirroring** is a property of the profile (`mirrored`), not a reflected mesh: the cross-sections are symmetric, so a mirrored region is built with its ring turning the other way and its triangles wound to face outwards. Placements are plain turns about Z plus a shift.
+- **Missing values** of a right or left limb fall back to the measured other side before the sample body.
+- **Layouts** keep one region each; the Layout tab picks the region, the full-body view shows every region's last opened (else first) layout.
