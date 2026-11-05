@@ -67,7 +67,7 @@ export function useLayoutSources(
       const cal = calibrations.get(e.projection);
       if (!cal) {
         if (projectionFiles === null) patchesLoading = true;
-        else patchIssues.set(e.id, `projection ${e.projection} not found in config/projections/`);
+        else patchIssues.set(e.id, `projection ${e.projection} not found in the project's projections`);
         continue;
       }
       // A projection belongs to one region (docs/adr/0014); on another region it has no place.

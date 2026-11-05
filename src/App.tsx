@@ -186,8 +186,19 @@ function TabPanel(props: { id: TabId; open: boolean; keepMounted?: boolean; chil
   );
 }
 
-/** The open project's name; opens Settings → Project. */
+/** The open project's name; opens Settings → Project. The sample says it is read-only. */
 function ProjectChip({ project, onOpen }: { project: ProjectStatus; onOpen: () => void }) {
+  if (project.sample)
+    return (
+      <button
+        type="button"
+        className="chip warn"
+        onClick={onOpen}
+        title="Changes cannot be saved here. Open to save the sample as a new project."
+      >
+        Sample project (read-only)
+      </button>
+    );
   const legacy = project.status === "legacy";
   const tone = project.problem ? "error" : legacy ? "warn" : "ok";
   const title =

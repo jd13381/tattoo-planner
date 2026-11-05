@@ -46,7 +46,10 @@ export async function reloadProjections(): Promise<void> {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     setFiles((await r.json()) as StoredProjection[]);
   } catch (e) {
-    setFiles([], `Cannot load projections (${String(e)}). They load only under npm run dev.`);
+    setFiles(
+      [],
+      `Cannot load projections (${String(e)}). The planner's local server did not answer; restart the planner.`,
+    );
   }
 }
 
