@@ -1,6 +1,6 @@
 // Resolves the body the planner shows (docs/adr/0011): the chosen sample body, adjusted by own
 // measurements. For every value of every region the first of these wins:
-//   1. an unsaved edit from the measurements panel (left arm only, for now),
+//   1. an unsaved edit from Settings → Body & measurements (null there drops the file's value),
 //   2. the value measured for that region in measurements.yaml,
 //   3. the value measured for the same key on the other side (an unmeasured right arm copies the left),
 //   4. the sample body's value, scaled by own height / sample height when `height_cm` is given.
@@ -40,10 +40,10 @@ export type ResolvedBody = {
   layout: BodyLayout;
 };
 
-/** Per-region edits that are not saved in measurements.yaml yet. */
-export type RegionOverrides = Partial<Record<RegionId, Partial<Record<string, number>>>>;
+/** Per-region edits that are not saved in measurements.yaml yet; null drops the file's value. */
+export type RegionOverrides = Partial<Record<RegionId, Partial<Record<string, number | null>>>>;
 
-const MIRROR: Partial<Record<RegionId, RegionId>> = {
+export const MIRROR: Partial<Record<RegionId, RegionId>> = {
   "arm-left": "arm-right",
   "arm-right": "arm-left",
   "leg-left": "leg-right",

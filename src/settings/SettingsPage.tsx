@@ -1,12 +1,12 @@
 // The Settings tab: everything that is set up once rather than used every day, as sections with a
-// small side navigation. The sections are the former tabs (Data folder, Arm & measurements,
-// Projection), shown unchanged, plus the image-generation status.
+// small side navigation: Project (the former Data folder tab), Body & measurements (sample body, own
+// measurements per region, the measuring wizard), Projection and the image-generation status.
 import type { ReactNode } from "react";
 import { DataFolderPage } from "../data/DataFolderPage.tsx";
 import type { HeaderSlots } from "../editor/LayoutPage.tsx";
 import { ProjectionPage } from "../projection/ProjectionPage.tsx";
-import { ArmPage } from "../viewer/ArmPage.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
+import { BodyPage } from "./BodyPage.tsx";
 import { ImageGenerationSettings } from "./ImageGenerationSettings.tsx";
 import { SETTINGS_SECTIONS, type SettingsSection } from "./routes.ts";
 
@@ -31,7 +31,7 @@ export function SettingsPage({ section, onSection, arm, pose, onProjectionDirty,
       body = <DataFolderPage />;
       break;
     case "body":
-      body = <ArmPage arm={arm} pose={pose} />;
+      body = <BodyPage arm={arm} pose={pose} />;
       break;
     case "projection":
       body = <ProjectionPage arm={arm} pose={pose} onDirty={onProjectionDirty} header={header} />;

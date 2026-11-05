@@ -3047,10 +3047,10 @@ a.button.small-button {
   margin-bottom: 2px;
 }
 
-/* One value: name | number | source. */
+/* One value: name | number | source | reset to sample. */
 .measurements .field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 56px 46px;
+  grid-template-columns: minmax(0, 1fr) 58px 52px 22px;
   gap: 6px;
   align-items: center;
   min-height: 28px;
@@ -3139,40 +3139,286 @@ a.button.small-button {
   font-weight: 600;
 }
 
-.changed-values {
-  margin: 0 0 4px;
-  padding: 8px 10px 8px;
-  border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--accent-soft) 60%, transparent);
-  box-shadow: inset 0 0 0 1px var(--accent-line);
+/* Settings → Body & measurements: region-aware form, save bar and the measuring wizard. */
+.body-page {
+  --arm-side-w: 340px;
 }
 
-.changed-values-head {
+.measurements .field select {
+  grid-column: 2 / -1;
+  width: 100%;
+  height: 24px;
+  font-size: var(--fs-xs);
+}
+
+.measurements .field.sample input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.measurements .field.measured .tag {
+  color: var(--ok);
+}
+
+button.field-reset {
+  width: 22px;
+  height: 22px;
+  min-width: 0;
+  padding: 0;
+  font-size: var(--fs-sm);
+  line-height: 1;
+}
+
+button.field-reset:disabled {
+  visibility: hidden;
+}
+
+.region-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2);
+  gap: 6px;
+  margin: 2px 0 8px;
+}
+
+.region-row select {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+}
+
+.measure-savebar {
+  flex: none;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.measure-savebar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.measure-status {
+  margin: 0 0 6px;
   font-size: var(--fs-xs);
+}
+
+.measure-status.ok {
+  color: var(--ok);
+}
+
+.measure-status.error {
+  color: var(--danger);
+}
+
+.wizard {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 8px 0 12px;
+}
+
+.wizard-title {
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.wizard-progress {
+  height: 2px;
+  background: var(--border);
+}
+
+.wizard-progress > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.wizard-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 14px 12px;
+}
+
+.wizard-count {
+  margin: 0 0 4px;
+  font-size: var(--fs-2xs);
+}
+
+.measure-diagram {
+  display: block;
+  width: 100%;
+  max-height: 230px;
+  margin: 0 0 6px;
+  border-radius: var(--r-md);
+  background: var(--field-bg);
+}
+
+.md-outline,
+.md-neutral {
+  fill: color-mix(in srgb, var(--skin) 26%, transparent);
+  stroke: color-mix(in srgb, var(--skin) 70%, transparent);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.md-neutral {
+  fill: color-mix(in srgb, var(--skin) 7%, transparent);
+  stroke: color-mix(in srgb, var(--skin) 35%, transparent);
+}
+
+.md-axis {
+  stroke: color-mix(in srgb, var(--skin) 22%, transparent);
+  stroke-dasharray: 3 4;
+}
+
+.md-landmark circle {
+  fill: var(--skin);
+}
+
+.md-landmark .md-leader {
+  stroke: color-mix(in srgb, var(--skin) 30%, transparent);
+  stroke-dasharray: 2 3;
+}
+
+.md-landmark text {
+  fill: var(--muted);
+  font: 10px var(--font-ui);
+}
+
+.md-tape {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.md-tape .md-tape-back {
+  stroke-width: 1.6;
+  stroke-dasharray: 3 3;
+  opacity: 0.7;
+}
+
+.md-tape .md-leader {
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  opacity: 0.8;
+}
+
+.wizard-label {
+  margin: 4px 0 4px;
+  font-size: var(--fs-lg);
+}
+
+.wizard-instruction {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+
+.wizard-tips {
+  margin: 0 0 10px;
+  padding-left: 16px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+.wizard-body-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+.wizard-body-choice select {
+  flex: 1;
+  height: 26px;
+}
+
+.wizard-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wizard-entry input {
+  width: 120px;
+  height: var(--control-h-lg);
+  padding: 0 10px;
+  text-align: right;
+  font: 600 var(--fs-lg) var(--font-mono);
+}
+
+.wizard-fallback {
+  margin: 6px 0 0;
+  font-size: var(--fs-xs);
+}
+
+.wizard-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.wizard-summary {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.wizard-summary tr {
+  cursor: pointer;
+}
+
+.wizard-summary tr:hover {
+  background: var(--hover);
+}
+
+.wizard-summary th {
+  padding: 4px 6px 4px 0;
+  text-align: left;
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--muted);
+}
+
+.wizard-summary td {
+  padding: 4px 0 4px 6px;
+  text-align: right;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+}
+
+.wizard-summary tr.changed th {
+  color: var(--text);
   font-weight: 600;
 }
 
-.changed-values pre {
-  margin: 8px 0 6px;
-  padding: 6px 8px;
-  max-height: 10em;
-  overflow: auto;
-  background: var(--field-bg);
-  border-radius: var(--r-sm);
-  box-shadow: inset 0 0 0 1px var(--border);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  line-height: 1.5;
-  user-select: all;
-}
-
-.changed-values p {
-  margin: 0;
-  font-size: var(--fs-2xs);
+.wizard-summary tr.changed td:last-child {
+  color: var(--accent-text);
 }
 
 /* Narrow windows: the inspector moves under the arm. */
