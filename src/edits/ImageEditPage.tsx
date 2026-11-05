@@ -1052,9 +1052,8 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                       Generative edits and new images need an OpenAI API key (from platform.openai.com).
                     </p>
                     <p className="faint small">
-                      Add it to the planner&apos;s <code>.env</code> file as{" "}
-                      <code>TATTOO_OPENAI_API_KEY</code>, then restart the planner. The built-in operations
-                      work without it.
+                      <a href="#settings/image-generation">Set it up in Settings → Image generation</a>. The
+                      built-in operations work without it.
                     </p>
                   </div>
                 </InspectorSection>
