@@ -1,20 +1,13 @@
-// Folder picking for New / Open project. The desktop app will offer a native dialog through its
+// Folder picking for New / Open project. The desktop app offers a native dialog through its
 // preload bridge (window.tattooDesktop.pickFolder); in a browser a page cannot learn a real path, so a
 // small dialog walks the folders the planner's server lists (inside the home folder only).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { desktopBridge, type PickOptions } from "../desktop/bridge.ts";
 import { browseFolders } from "./api.ts";
 import { breadcrumb } from "./folders.ts";
 import type { BrowseListing, FolderKind } from "./schema.ts";
 
-export type PickPurpose = "open" | "create";
-export type PickOptions = { title: string; purpose: PickPurpose };
-
-declare global {
-  interface Window {
-    /** Set by the desktop shell's preload script; absent in a browser. */
-    tattooDesktop?: { pickFolder?: (opts: PickOptions) => Promise<string | null> };
-  }
-}
+export type { PickOptions, PickPurpose } from "../desktop/bridge.ts";
 
 type Pending = { opts: PickOptions; resolve: (path: string | null) => void };
 
@@ -28,8 +21,8 @@ export function useFolderPicker(): {
 } {
   const [pending, setPending] = useState<Pending | null>(null);
   const pickFolder = useCallback((opts: PickOptions) => {
-    const native = window.tattooDesktop?.pickFolder;
-    if (native) return native(opts);
+    const desktop = desktopBridge();
+    if (desktop) return desktop.pickFolder(opts);
     return new Promise<string | null>((resolve) => setPending({ opts, resolve }));
   }, []);
   const finish = (path: string | null) => {

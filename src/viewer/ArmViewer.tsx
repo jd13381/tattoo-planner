@@ -11,7 +11,8 @@ import { MAX_FLEXION_DEG } from "../body/bend.ts";
 import { addSample, textureToLayout, type UV } from "../editor/stroke.ts";
 import { armGeometry, LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
 import { useViewState, type ViewState } from "./useViewState.ts";
-import { CAMERA_FOV, viewCamera, viewsFor, type Bounds } from "./views.ts";
+import { useFreeInsets } from "./useFreeInsets.ts";
+import { boundsAspect, CAMERA_FOV, fitCamera, viewDir, viewsFor, type Bounds } from "./views.ts";
 
 type Props = {
   profile: RegionProfile;
@@ -45,6 +46,8 @@ type Props = {
   footer?: boolean;
   /** Puts the Screenshot button, as an icon, at the end of the toolbar instead of the canvas corner. */
   screenshotInToolbar?: boolean;
+  /** The fixed views frame the region clear of the `.float` panels inside this element. */
+  frameAround?: HTMLElement | null;
 };
 
 /** How to move the camera; the viewers' hint starts with it. */
@@ -57,10 +60,10 @@ export function ArmViewer(props: Props) {
   const vs = viewState ?? own;
   const geometry = useMemo(() => armGeometry(profile, bendDeg), [profile, bendDeg]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  const bounds = useMemo<Bounds | undefined>(() => {
+  const bounds = useMemo<Bounds>(() => {
     const box = geometry.boundingBox;
-    return bendDeg > 0 && box ? { min: box.min.toArray(), max: box.max.toArray() } : undefined;
-  }, [geometry, bendDeg]);
+    return box ? { min: box.min.toArray(), max: box.max.toArray() } : { min: [0, 0, 0], max: [1, 1, 1] };
+  }, [geometry]);
   const drawing = !!props.draw?.active;
   const brush = useBrush(profile, props.draw);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -148,7 +151,14 @@ export function ArmViewer(props: Props) {
           {brush.preview.length >= 2 && (
             <Line points={brush.preview} color="#d01810" lineWidth={4} depthTest={false} />
           )}
-          <CameraRig profile={profile} bounds={bounds} state={vs} sync={sync} rotate={!drawing} />
+          <CameraRig
+            profile={profile}
+            bounds={bounds}
+            state={vs}
+            sync={sync}
+            rotate={!drawing}
+            frameAround={props.frameAround}
+          />
         </Canvas>
       </div>
       {toolbar && props.footer !== false && (
@@ -306,12 +316,16 @@ function useBrush(profile: RegionProfile, draw: Props["draw"]) {
   };
 }
 
+/** Room around the region in a fixed view (1 = touching the free part's edges). */
+const FRAME_MARGIN = 1.15;
+
 function CameraRig(props: {
   profile: RegionProfile;
-  bounds?: Bounds;
+  bounds: Bounds;
   state: ViewState;
   sync?: { bus: CameraSync; id: string };
   rotate?: boolean;
+  frameAround?: HTMLElement | null;
 }) {
   const { profile, bounds, state, sync, rotate = true } = props;
   const { view, request, free, setFree } = state;
@@ -322,25 +336,29 @@ function CameraRig(props: {
   const applying = useRef(false);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
+  const dir = viewDir(profile, view);
+  const insets = useFreeInsets(props.frameAround, boundsAspect(bounds, dir, FRAME_MARGIN));
 
-  // Re-frame on a view request and whenever the arm or the canvas changes size.
+  // Re-frame on a view request and whenever the region or the canvas changes size; panels that move
+  // only re-frame a fixed view, never a hand-rotated camera.
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
     const key = `${view}:${request}:${size.width}x${size.height}`;
     if (free && framedFor.current.key === key && framedFor.current.profile === profile) return;
     framedFor.current = { key, profile };
-    const { position, target } = viewCamera(
-      profile,
-      view,
-      size.width / Math.max(size.height, 1),
-      1.25,
-      bounds,
-    );
-    camera.position.set(...position);
-    c.target.set(...target);
+    const fit = fitCamera(bounds, dir, size.width, size.height, insets, FRAME_MARGIN);
+    if ("setViewOffset" in camera) {
+      if (fit.offset[0] === 0 && fit.offset[1] === 0) camera.clearViewOffset();
+      else
+        camera.setViewOffset(size.width, size.height, fit.offset[0], fit.offset[1], size.width, size.height);
+    }
+    camera.position.set(...fit.position);
+    c.target.set(...fit.target);
     c.update();
-  }, [profile, bounds, view, request, free, camera, size.width, size.height]);
+    // `dir` follows `view` and `profile`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, bounds, view, request, free, camera, size.width, size.height, insets]);
 
   useEffect(() => {
     if (!sync) return;

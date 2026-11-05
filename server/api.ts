@@ -1,6 +1,6 @@
 // The planner's HTTP API as one Connect-style middleware (docs/adr/0012-project-folder.md).
 // Vite mounts it in dev and preview (vite.config.ts); server/standalone.ts mounts it next to the built
-// page, as the desktop shell will. Requests outside /api/ go to `next`.
+// page, as the desktop shell does. Requests outside /api/ go to `next`.
 import { assetsHandler } from "./assetsApi.ts";
 import { dataFilesHandler } from "./dataFilesApi.ts";
 import { editsHandler } from "./editsApi.ts";
@@ -38,7 +38,8 @@ export function route(
 export function createApi(context: ApiContext): Api {
   const paths = () => context.projects.paths();
   const dir = async () => (await paths()).dir;
-  const edits = editsHandler(dir, { openai: context.settings.openai });
+  // The settings object itself, not a copy of its key: the desktop app can set a key at runtime.
+  const edits = editsHandler(dir, context.settings);
   const routes = new Map<string, Handler>([
     ["/api/data-files", dataFilesHandler(dir)],
     ["/api/assets", assetsHandler(dir)],

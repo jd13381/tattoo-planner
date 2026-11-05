@@ -1,0 +1,68 @@
+# Builds the macOS desktop app (docs/adr/0015-desktop-app.md): one DMG per architecture, uploaded as a
+# workflow artifact and, for a tag v*, attached to a GitHub Release. Never committed to the repo.
+# Signing and notarisation switch on only when the secrets exist (roadmap §7, open point 1):
+#   CSC_LINK, CSC_KEY_PASSWORD                         Developer ID certificate (.p12, base64)
+#   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID  notarisation
+# Without them the app is ad-hoc signed and users open it once via right-click → Open.
+name: Desktop
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  dmg:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write # create the release on tags
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Build the DMGs
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          # Missing secrets arrive as empty strings; electron-builder must not see them at all.
+          if [ -z "${CSC_LINK}" ] || [ -z "${CSC_KEY_PASSWORD}" ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "::notice::No signing certificate: building an unsigned (ad-hoc signed) app."
+          fi
+          if [ -z "${CSC_LINK:-}" ] || [ -z "${APPLE_ID}" ] || [ -z "${APPLE_APP_SPECIFIC_PASSWORD}" ] || [ -z "${APPLE_TEAM_ID}" ]; then
+            unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            echo "::notice::No notarisation credentials: the app is not notarised."
+          fi
+          npm run dist:mac
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tattoo-planner-dmg
+          path: release/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+      - name: Attach to the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release/*.dmg --clobber
+          else
+            gh release create "$tag" release/*.dmg --title "$tag" --generate-notes --draft
+          fi

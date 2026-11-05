@@ -3,6 +3,7 @@
 // structure and files.
 import { useState } from "react";
 import { FolderContents } from "../data/DataFolderPage.tsx";
+import { desktopBridge } from "../desktop/bridge.ts";
 import {
   closeProject,
   migrateProject,
@@ -21,6 +22,7 @@ export function ProjectPage() {
   const [busy, setBusy] = useState(false);
   const [migration, setMigration] = useState<MigrationReport | null>(null);
   const { pickFolder, dialog } = useFolderPicker();
+  const desktop = desktopBridge();
 
   const act = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -75,6 +77,15 @@ export function ProjectPage() {
           </div>
           <p className="df-head-path">
             <code>{status.path}</code>
+            {desktop && status.path && (
+              <button
+                type="button"
+                className="ghost small-button"
+                onClick={() => void act(() => desktop.revealInFinder(status.path!))}
+              >
+                Show in Finder
+              </button>
+            )}
           </p>
         </div>
         {!status.locked && (

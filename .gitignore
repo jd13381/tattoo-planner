@@ -14,6 +14,12 @@ dist/
 coverage/
 *.tsbuildinfo
 
+# Desktop app build output (docs/adr/0015-desktop-app.md): compiled shell, generated icon, DMGs.
+dist-desktop/
+release/
+*.[dD][mM][gG]
+*.[iI][cC][nN][sS]
+
 # Exports are written to <TATTOO_DATA_DIR>/exports, never into the repo.
 # These entries are defence in depth in case an export lands here by mistake.
 exports/

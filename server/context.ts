@@ -8,7 +8,7 @@ import type { ApiContext } from "./api.ts";
 import { resolveDataDir } from "./dataDir.ts";
 import { ProjectStore } from "./project/store.ts";
 import { userConfigFile } from "./project/userConfig.ts";
-import { settingsFromEnv, type Env } from "./settings.ts";
+import { settingsFromEnv, type Env, type KeyProvider } from "./settings.ts";
 
 /** The checkout's git-ignored .env merged under the shell environment (the shell wins), as Vite does. */
 export function readEnv(root: string, shell: Env = process.env): Env {
@@ -24,9 +24,17 @@ export type ContextOptions = {
   /** Defaults: os.homedir() and userConfigFile(env, home); tests pass temp paths. */
   home?: string;
   configFile?: string;
+  /** The desktop shell's Keychain key; wins over TATTOO_OPENAI_API_KEY when it returns one. */
+  openaiKey?: KeyProvider;
 };
 
-export function createContext({ env, root, home = os.homedir(), configFile }: ContextOptions): ApiContext {
+export function createContext({
+  env,
+  root,
+  home = os.homedir(),
+  configFile,
+  openaiKey,
+}: ContextOptions): ApiContext {
   const legacyConfigDir = path.join(root, "config");
   const projects = new ProjectStore({
     envDir: resolveDataDir(env, root, home),
@@ -34,5 +42,5 @@ export function createContext({ env, root, home = os.homedir(), configFile }: Co
     home,
     legacyConfigDir: existsSync(legacyConfigDir) ? legacyConfigDir : null,
   });
-  return { projects, home, settings: settingsFromEnv(env) };
+  return { projects, home, settings: settingsFromEnv(env, openaiKey) };
 }

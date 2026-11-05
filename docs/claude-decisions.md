@@ -212,7 +212,7 @@ Jan asked Claude (2026-11-05) to run Phase B and then work through Phase C on it
 - **Compare follows the region open in the Layout tab** (no picker of its own). _Change:_ `region` in `ComparePage.tsx`.
 - **Handout wording per region:** the left arm keeps `HANDOUT_EN` unchanged (Jan's sleeve, design questions included); other regions get their own title, views, lines, zones and landmarks and no design questions. _Change:_ `handoutText` in `src/export/strings.ts`.
 - **Photo projection only on the left arm** (ADR 0006 models the left forearm); elsewhere the element falls back to its box with a notice.
-- **Torso 3D region view frames with 1.5 × the margin**, since the short, wide torso otherwise fills the canvas behind the floating panels.
+- **Torso 3D region view frames with 1.5 × the margin**, since the short, wide torso otherwise fills the canvas behind the floating panels. (The live views now use the panel-aware framing of Measuring wizard (C4); the export keeps this.)
 
 ### Project folder and server (C1, C2)
 
@@ -232,6 +232,20 @@ Implemented on `work/project` (docs/adr/0012-project-folder.md, "Implementation"
 - **Writes to layouts and projections now also refuse cross-site requests** (`Sec-Fetch-Site`), like every other write. Otherwise endpoint behaviour is unchanged.
 - **Settings → Project replaces the Data folder page:** project header (name, chip, path, Open other / Close), details form (name, body, height 50–260 cm; body or height changes reload), Move into project with its summary, then the folder's structure and files. The setup steps with `.env` and `npm` commands are gone from the page (README covers them); the structure list shows the project layout and older locations only where they hold files. _Change:_ `src/project/ProjectPage.tsx`, `src/data/expected.ts`.
 - **`config/` wording left in the Body & measurements and Projection pages** (`ArmPage`, `MeasurementsPanel`, `ProjectionPage`): the wizard steps working on those pages in parallel own them. _Change:_ say "measurements.yaml" / "projections/" there.
+
+### Measuring wizard (C4)
+
+Implemented on `work/measure`. Format: decision; _Alternative_; _Change_.
+
+- **Settings → Body & measurements is one page for every region:** sample body and height on top, a region select, the region in 3D with the cm grid (the old arm page generalised), and a form generated from `INPUT_SECTIONS`. Empty fields show the value in use as placeholder; tags say measured / edited / sample / other side; ↺ resets a field. _Alternative:_ a page per region kind. _Change:_ `src/settings/BodyPage.tsx`.
+- **Edits are one shared draft** (`useArm`: per-region values, body, height; `null` clears a file value), resolved live in every tab through `resolveBody`, saved together with **Save**. Typing the file's own value drops the edit. _Alternative:_ save every field on blur (no way to try values). _Change:_ `MeasurementDraft` in `src/config/measurementsDoc.ts`, `fieldStatuses` in `src/body/fieldStatus.ts`.
+- **Writing keeps the file byte for byte where nothing changed:** values that exist are replaced in the text at their source range (alignment and trailing comments survive); new keys and removals go through the yaml Document API and only the top-level blocks they change are re-rendered (yaml's printer would otherwise re-align every comment in Jan's file). The left arm stays in the legacy top-level blocks when the file uses them (a new legacy section lists all its keys, null where unmeasured); everything else goes under `regions:` in region, section and key order, and emptied blocks are removed. _Alternative:_ always `doc.toString()` (reformats comments). _Change:_ `updateMeasurementsText`.
+- **Saving:** `saveMeasurementsText(text)` (`src/viewer/measurementsStore.ts`) PUTs the whole text to `/api/project/measurements`; body and height go to `project.yaml` (`PATCH /api/project`) in a project folder, and the height then leaves `measurements.yaml`; in a legacy folder they stay `body` / `height_cm` in `measurements.yaml`. After a save the page keeps the returned text in a small store instead of reloading. The copy-as-YAML panel is gone. _Change:_ `save` in `src/viewer/useArm.ts`.
+- **The wizard starts with the body height, then the region's taped values in measuring order** (a position right after the circumference whose tape it measures to; arm order from `docs/measuring.md`). The torso's shoulder line and its three shape ratios have no step (no tape gives them) and stay in the form. Values go into the draft as typed; **Skip** restores the value the step opened with, **Leave** keeps what was entered. Switching region restarts the wizard. _Change:_ `wizardSteps`, `untapedKeys` in `src/body/measureGuide.ts`.
+- **Instructions in English, short, from `docs/measuring.md`** for the arm; legs and torso use the landmarks of `src/body/profile.ts` (ankle, knee centre ±8 cm, hip crease; navel, lowest ribs, chest at the armpits, neck base, shoulder points). _Change:_ `ARM_STEPS`, `LEG_STEPS`, `TORSO_STEPS`.
+- **Diagrams are hand-built SVG schematics** (outline by half-width knots per kind, limbs drawn wider than to scale so the tape stays readable, landmarks labelled on the left, a girth as a front/back ellipse, a length as an arrow beside the outline). _Alternative:_ render the 3D region with the tape line (heavier; the live 3D view is next to it anyway). _Change:_ `src/settings/MeasureDiagram.tsx`.
+- **Body height must be 50–260 cm to save** (the project schema's range), but any positive value previews. **The `existing` (Anubis) size is read once at load**; the page never edits it.
+- **3D framing clear of floating panels:** fixed views fit the mesh's bounding box into the part of the canvas the `.float` panels leave free (largest panel first, cut away by the side that keeps the most room for the region's on-screen aspect) and move the picture there with `setViewOffset`, so orbiting still turns about the region. Used in the Layout tab's region and full-body views and on this page; the export renderer keeps `viewCamera`. _Alternative:_ fixed insets per page. _Change:_ `freeInsets`, `fitCamera` in `src/viewer/views.ts`, `useFreeInsets`.
 
 ### Cuts and simplifications (roadmap Phase C step 6)
 
@@ -260,6 +274,27 @@ Jan approved the cuts (2026-11-05); the details below were decided by Claude. De
 - **Plain wording in the studio:** "Unsaved versions are lost when the planner closes", "No data folder is set up …", "Cannot reach the planner's edit service … Restart the planner." The API key note still names `TATTOO_OPENAI_API_KEY` and `.env`, because that is the only way to set a key until the settings screen of roadmap §4.3 exists. _Change:_ point it at the settings screen then.
 - **A disabled primary button looks disabled** (hairline, faint text) instead of a dimmed accent, scoped to the studio (`.studio button.primary:disabled`) so other tabs are unchanged. _Alternative:_ change it for every tab (better consistency, but outside this step).
 - **ADR 0011 table reformatted** (Prettier only) because `npm run check` failed on it on this branch's base.
+
+### Desktop app (C7)
+
+Implemented on `work/desktop` (`docs/adr/0015-desktop-app.md`). Format: decision; _Alternative_; _Change_.
+
+- **electron-builder, not Electron Forge**: DMG, notarisation and "sign only when the secrets exist" come built in, and the roadmap named it. _Alternative:_ Forge with its DMG and notarize makers. _Change:_ `desktop/electron-builder.config.mjs`, the `dist:*` scripts.
+- **Electron 45.1.0, electron-builder 26.18.0**: the newest releases older than 7 days on 2026-11-05 (installed with npm 11, which applies `.npmrc`'s `min-release-age`; npm 10 ignores it). Electron 45 has no postinstall and fetches its binary on first launch, so no `npm rebuild --ignore-scripts=false` is needed. _Change:_ `package.json`.
+- **tsc compiles the shell and the server into `dist-desktop/`** (`rewriteRelativeImportExtensions`), no bundler. _Alternative:_ esbuild, or Node's type stripping inside Electron (works in a checkout, not reliably from `app.asar`). _Change:_ `tsconfig.desktop.json`.
+- **Unsigned by default, signing switches itself on**: ad-hoc signature (`identity: "-"`, needed on Apple Silicon) unless `CSC_LINK`/`CSC_NAME` exist; notarised only with a certificate plus `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`. Jan has not decided on the Apple Developer account (roadmap §7). _Change:_ add the repository secrets; nothing in the code.
+- **Two DMGs (arm64, x64)**, not one universal app. _Alternative:_ `arch: ["universal"]` (one file, twice the size). _Change:_ `mac.target` in the builder config.
+- **Tags create a draft release**, so Jan reviews the notes before it is public; a manual run only uploads the workflow artifact. _Alternative:_ publish directly. _Change:_ drop `--draft` in `desktop.yml`.
+- **The Keychain key wins over `TATTOO_OPENAI_API_KEY`** when both exist (model and options still from the environment); with neither, generative edits stay off. In the desktop app Settings shows "the key from the environment is in use" when only `.env` has one. _Change:_ `settingsFromEnv()` in `server/settings.ts`.
+- **Key check before saving:** text without spaces, at most 512 characters, starting with `sk-` (every OpenAI key format). No test request to OpenAI on save: that would be a network call the user did not start. _Change:_ `keyProblem()` in `desktop/keyStore.ts`.
+- **Linux `basic_text` storage counts as unavailable**, so no key is stored with a fixed password there. Only matters for a Linux build, which is not released.
+- **One settings folder for `npm run desktop` and the installed app** (`userData` set to "Tattoo Planner" explicitly; Electron would use the package name `tattoo-planner` in a checkout). _Change:_ `app.setPath("userData", …)` in `desktop/main.ts`.
+- **CSP and request blocking in the shell, not in `dist/index.html`**, so `npm run dev` (Vite's HMR) is unaffected. Checked in the packed Linux app: the start screen, a new project's Layout tab with WebGL and Settings load without CSP errors.
+- **Fuses:** `runAsNode`, `NODE_OPTIONS`, `--inspect` off, only `app.asar`, cookie encryption; asar integrity validation off until the app is signed. _Change:_ `electronFuses` in the builder config.
+- **"Show in Finder"** next to the project path in Settings → Project (desktop only), and the Image studio's key note now links to Settings → Image generation instead of naming `.env`.
+- **Placeholder icon**: a dark rounded tile with a light forearm and two red bands, drawn by `scripts/desktop-icon.mjs`. _Change:_ that script, or a designed icon before the public release (as SVG source rendered at build time, still no committed binary).
+- **`--no-sandbox` skips `app.enableSandbox()`**, so the app can be smoke-tested as root in a Linux container; per-window `sandbox: true` stays.
+- **Not verified here (Linux container):** the macOS build, `.icns` conversion, Keychain, native folder dialog, Finder reveal and the unsigned first start. Check on Jan's Mac: `npm run desktop`, then `npm run dist:mac` and open the DMG.
 
 ### Phase B
 
