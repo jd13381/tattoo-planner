@@ -6,7 +6,7 @@ import { resolveBody } from "../src/body/body.ts";
 import { layoutSchema } from "../src/layout/schema.ts";
 import { layoutsShowing, layoutTarget, linkProjection } from "../src/projection/layoutLink.ts";
 import { turnedToStored } from "../src/projection/model.ts";
-import { parseProjection } from "../src/projection/yamlDoc.ts";
+import { newProjectionText, parseProjection } from "../src/projection/yamlDoc.ts";
 import {
   coveringArc,
   facingOptions,
@@ -16,6 +16,7 @@ import {
   nearestFacing,
   newDraft,
   newPhoto,
+  sectionSketch,
   slugify,
   stepIssue,
   stepIndex,
@@ -103,6 +104,9 @@ describe("photos", () => {
   });
 
   it("turning a photo keeps every point on the same spot of the picture", () => {
+    const fresh = newPhoto("a.jpg");
+    // Untouched starting points stay on the screen.
+    expect(turnPhoto(fresh, 90).marks).toEqual(fresh.marks);
     const p = newPhoto("a.jpg");
     p.edges.left[0] = { x: 0.2, y: 0.1 };
     for (const turn of [90, 180, 270] as const) {
@@ -278,5 +282,33 @@ describe("linking a projection into a layout", () => {
     expect(r.layout).toMatchObject({ name: "leg-left-1", region: "leg-left" });
     expect(r.changed).toBe(true);
     expect(layoutSchema.safeParse(r.layout).success).toBe(true);
+  });
+});
+
+describe("orientation sketch", () => {
+  it("puts the side facing the camera at the bottom and matches the photo's left and right", () => {
+    const s = sectionSketch("arm-left", 0.5);
+    const inner = s.lines.find((l) => l.u === 0.5)!;
+    expect(inner.p.x).toBeCloseTo(0, 6);
+    expect(inner.p.y).toBeGreaterThan(0.5);
+    // Seen from the inner side, lateral (0.25) is on the right, as in the photo.
+    expect(s.lines.find((l) => l.u === 0.25)!.p.x).toBeGreaterThan(0.5);
+    // The torso from the front: the left flank (0.5) on the right.
+    const t = sectionSketch("torso", 0.25);
+    expect(t.lines.find((l) => l.u === 0.5)!.p.x).toBeGreaterThan(0.5);
+    expect(t.lines.find((l) => l.u === 0.25)!.p.y).toBeGreaterThan(0.3);
+  });
+});
+
+describe("a new projection file", () => {
+  it("is written in the hand-written style and reads back", () => {
+    const r = toCalibration({ ...draft(), region: "torso" }, body.regions.torso.profile);
+    if (!r.ok) throw new Error(r.error);
+    const text = newProjectionText(r.calibration);
+    expect(text).toContain("u_view: { wrist: 0.5, elbow: 0.5 }");
+    expect(text).toMatch(/left: \[\{ x: [\d.]+, y: [\d.]+ \}, \{ x/);
+    expect(text).toContain("blend:\n  exponent: 4");
+    const back = parseProjection(text);
+    expect(back.ok && back.calibration).toEqual(r.calibration);
   });
 });

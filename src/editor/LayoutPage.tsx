@@ -214,6 +214,18 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   } = useLayoutSources(layout, assetMap, listing !== null, profile);
 
   const dirty = layout !== null && JSON.stringify(layout) !== savedJson;
+  // A layout saved elsewhere (the projection wizard links a tattoo into it) reloads here, unless it
+  // has unsaved edits: then the next save here wins, as for a hand edit of the file.
+  const openText = files?.find((f) => f.name === name)?.text;
+  const [seenText, setSeenText] = useState<string | undefined>(undefined);
+  if (openText !== seenText) {
+    setSeenText(openText);
+    const r = openText !== undefined && seenText !== undefined && !dirty ? parseLayout(openText) : null;
+    if (r?.ok && JSON.stringify(r.layout) !== savedJson) {
+      setHistory(createHistory(r.layout));
+      setSavedJson(JSON.stringify(r.layout));
+    }
+  }
   useEffect(() => {
     onWorking?.(name && layout ? { name, layout, dirty } : null);
   }, [onWorking, name, layout, dirty]);

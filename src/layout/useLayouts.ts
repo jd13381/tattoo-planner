@@ -6,6 +6,19 @@ export type StoredLayout = { name: string; text: string };
 export type WorkingLayout = { name: string; layout: Layout; dirty: boolean };
 const ENDPOINT = "/api/layouts";
 
+/**
+ * Fired on window when another part of the page saved a layout (the projection wizard links a tattoo
+ * into one); `detail` is the StoredLayout. Every useLayouts list takes it in.
+ */
+export const LAYOUT_SAVED_EVENT = "tattoo-planner:layout-saved";
+
+function announceLayoutSaved(saved: StoredLayout): void {
+  window.dispatchEvent(new CustomEvent<StoredLayout>(LAYOUT_SAVED_EVENT, { detail: saved }));
+}
+
+const withFile = (list: StoredLayout[] | null, f: StoredLayout) =>
+  [...(list ?? []).filter((x) => x.name !== f.name), f].sort((a, b) => a.name.localeCompare(b.name));
+
 /** Layout files from config/layouts via the dev server; `onLoad` runs once with the first list. */
 export function useLayouts(onLoad?: (list: StoredLayout[]) => void) {
   const onLoadRef = useRef(onLoad);
@@ -44,6 +57,17 @@ export function useLayouts(onLoad?: (list: StoredLayout[]) => void) {
     };
   }, []);
 
+  useEffect(() => {
+    const onSaved = (e: Event) => {
+      const f = (e as CustomEvent<StoredLayout>).detail;
+      setFiles((list) =>
+        list?.some((x) => x.name === f.name && x.text === f.text) ? list : withFile(list, f),
+      );
+    };
+    window.addEventListener(LAYOUT_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(LAYOUT_SAVED_EVENT, onSaved);
+  }, []);
+
   /** Saves a layout; `from` (for a new variant) copies that variant's comments into the new file. */
   const save = useCallback(async (layout: Layout, from?: string): Promise<StoredLayout> => {
     const r = await fetch(`${ENDPOINT}/${encodeURIComponent(layout.name)}`, {
@@ -53,10 +77,9 @@ export function useLayouts(onLoad?: (list: StoredLayout[]) => void) {
     });
     const body = (await r.json()) as StoredLayout & { error?: string };
     if (!r.ok) throw new Error(body.error ?? `HTTP ${r.status}`);
-    setFiles((list) => {
-      const rest = (list ?? []).filter((f) => f.name !== body.name);
-      return [...rest, { name: body.name, text: body.text }].sort((a, b) => a.name.localeCompare(b.name));
-    });
+    const saved = { name: body.name, text: body.text };
+    setFiles((list) => withFile(list, saved));
+    announceLayoutSaved(saved);
     return body;
   }, []);
 

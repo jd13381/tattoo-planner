@@ -5,6 +5,8 @@
 // The user answers one question per step: name and region, which photos, then per photo the turn, the
 // two silhouette edges, two marks at known distances and which side faces the camera. Everything else
 // in a calibration (the patch area, the blend settings) is derived or kept from the saved file.
+import { arcLengthInverse, semiAxes } from "../body/ellipse.ts";
+import { U0_ANGLE } from "../body/geometry.ts";
 import { REGIONS, type RegionId } from "../body/regions.ts";
 import type { RegionProfile } from "../body/profile.ts";
 import { wrapU } from "../body/uv.ts";
@@ -183,10 +185,17 @@ export function storedToTurned(x: number, y: number, turn: Turn): Vec {
 
 /**
  * The photo shown with another turn: every point moves with the picture, so it stays on the same spot
- * of the skin.
+ * of the skin. Points nobody has moved yet stay where they are on the screen.
  */
 export function turnPhoto(photo: WizardPhoto, turn: Turn): WizardPhoto {
   if (turn === photo.turn) return photo;
+  // Points still at their starting places belong to the screen, not to the picture: they stay.
+  const fresh = newPhoto(photo.file);
+  const untouched =
+    JSON.stringify(photo.edges) === JSON.stringify(fresh.edges) &&
+    JSON.stringify(photo.marks.map(({ x, y }) => ({ x, y }))) ===
+      JSON.stringify(fresh.marks.map(({ x, y }) => ({ x, y })));
+  if (untouched) return { ...photo, turn };
   const move = <P extends PhotoPoint>(p: P): P => {
     const s = turnedToStored(p.x, p.y, photo.turn);
     const t = storedToTurned(s.x, s.y, turn);
@@ -218,6 +227,37 @@ export function facingOptions(region: RegionId): FacingOption[] {
       k % 2 === 0 ? cap(lines[k / 2]!) : `Between ${lines[(k - 1) / 2]!} and ${lines[((k + 1) / 2) % 4]!}`;
     return { u, label };
   });
+}
+
+/**
+ * A cross-section of the region as the camera sees it from above, for the orientation thumbnails:
+ * the outline and its four centre lines, in units of the larger semi-axis, x = the photo's right,
+ * y = towards the camera (down in the thumbnail). Same maths as sectionView in model.ts.
+ */
+export function sectionSketch(
+  region: RegionId,
+  uView: number,
+  aspect = REGIONS[region].kind === "torso" ? 1.5 : 1.25,
+): { outline: Vec[]; lines: { u: number; label: string; p: Vec }[] } {
+  const def = REGIONS[region];
+  const { a, b } = semiAxes(2 * Math.PI, aspect);
+  const start = U0_ANGLE[def.kind];
+  const plain = arcLengthInverse(a, b, start, 360);
+  const angleAt = (u: number) => (def.mirrored ? 2 * start - plain(wrapU(u)) : plain(wrapU(u)));
+  const pv = angleAt(uView);
+  const nl = Math.hypot(b * Math.cos(pv), a * Math.sin(pv));
+  const n = { x: (b * Math.cos(pv)) / nl, z: (a * Math.sin(pv)) / nl };
+  const r = { x: n.z, z: -n.x };
+  const scale = Math.max(a, b);
+  const at = (u: number): Vec => {
+    const phi = angleAt(u);
+    const p = { x: a * Math.cos(phi), z: b * Math.sin(phi) };
+    return { x: (p.x * r.x + p.z * r.z) / scale, y: (p.x * n.x + p.z * n.z) / scale };
+  };
+  return {
+    outline: Array.from({ length: 64 }, (_, k) => at(k / 64)),
+    lines: def.short.map((label, k) => ({ u: k / 4, label, p: at(k / 4) })),
+  };
 }
 
 /** The orientation closest to u (wrapping round). */

@@ -160,6 +160,7 @@ export function App() {
               arm={arm}
               pose={pose}
               onProjectionDirty={setProjectionDirty}
+              openLayout={working}
               unsaved={{ projection: projectionDirty }}
               header={header}
             />

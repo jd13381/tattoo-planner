@@ -1,6 +1,6 @@
 // Reading and writing config/projections/*.yaml so hand edits survive: only the numbers that changed
 // are rewritten in place, comments and flow style stay as they are.
-import { isMap, isScalar, isSeq, parseDocument, type Document } from "yaml";
+import { isMap, isScalar, isSeq, parseDocument, visit, type Document } from "yaml";
 import { projectionSchema, type ProjectionCalibration } from "./schema.ts";
 
 export type ProjectionParse = { ok: true; calibration: ProjectionCalibration } | { ok: false; error: string };
@@ -66,10 +66,30 @@ function valueAt(root: unknown, path: Path): unknown {
   return cur;
 }
 
-/** A fresh calibration file. */
+/** A fresh calibration file, in the hand-written file's style: points and short lists on one line. */
 export function newProjectionText(calibration: ProjectionCalibration): string {
-  return updateProjectionText(
-    `# Projection ${calibration.name} (docs/adr/0006-anubis-projection.md). Edited in the Tattoo Planner.\nname: ${calibration.name}\n`,
-    calibration,
+  const doc = parseDocument(
+    `# Projection ${calibration.name} (docs/adr/0014-guided-projection.md). Edited in the Tattoo Planner.\nname: ${calibration.name}\n`,
   );
+  for (const [k, v] of Object.entries(calibration)) if (k !== "name") doc.set(k, doc.createNode(v));
+  // Maps first (a visit reaches a list before its items), then the lists of scalars or flow maps.
+  visit(doc, {
+    Map(_, node, path) {
+      if (depth(path) >= 2 && node.items.every((p) => isScalar(p.value))) node.flow = true;
+    },
+  });
+  visit(doc, {
+    Seq(_, node, path) {
+      if (depth(path) >= 2 && node.items.every((i) => isScalar(i) || (isMap(i) && i.flow))) node.flow = true;
+    },
+  });
+  return doc
+    .toString({ lineWidth: 0, flowCollectionPadding: true })
+    .replace(/\[ /g, "[")
+    .replace(/ \]/g, "]");
+}
+
+/** Nesting depth of a node below the document's top-level map (counting maps and lists). */
+function depth(path: readonly unknown[]): number {
+  return path.filter((n) => isMap(n) || isSeq(n)).length;
 }
