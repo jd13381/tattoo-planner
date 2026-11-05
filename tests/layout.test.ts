@@ -5,7 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PLACEHOLDERS } from "../src/body/inputs.ts";
 import { buildProfile } from "../src/body/profile.ts";
-import { listLayouts, saveLayout } from "../src/data/server/layoutsApi.ts";
+import { listLayouts, saveLayout } from "../server/layoutsApi.ts";
 import { moveElement, newElement, reorder, uniqueId } from "../src/editor/edit.ts";
 import type { Layout, LayoutElement } from "../src/layout/schema.ts";
 import { classify, hits, OUTSIDE, resolveElement, wrapDelta, wrappedMidU } from "../src/layout/shapes.ts";

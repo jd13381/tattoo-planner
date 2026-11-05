@@ -4,6 +4,10 @@ import type { Asset } from "./manifest.ts";
 
 /** Folders that `assets:scan` looks at, and the kind their images get. */
 export const SCAN_FOLDERS: Readonly<Record<string, string>> = {
+  // A project's folders (docs/adr/0012-project-folder.md) …
+  images: "reference",
+  photos: "arm-photo",
+  // … and those of the older data folder, which stay valid.
   cards: "card-art",
   refs: "reference",
   existing: "existing",

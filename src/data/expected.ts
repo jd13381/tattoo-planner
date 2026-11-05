@@ -1,23 +1,37 @@
-// The data folder layout suggested in PROJECT_BRIEF.md §12.3, used by the sanity page.
+// The project folder layout, shown in Settings → Project.
 import type { DataFile } from "./types.ts";
 
-export type ExpectedEntry = { name: string; kind: "file" | "folder"; purpose: string };
+export type ExpectedEntry = {
+  name: string;
+  kind: "file" | "folder";
+  purpose: string;
+  /** A location of the older data folder: still read, but new projects do not get it. */
+  older?: boolean;
+};
 
+/** The project folder (docs/adr/0012-project-folder.md), then the older data-folder locations. */
 export const EXPECTED_ENTRIES: ExpectedEntry[] = [
-  { name: "ideas.pdf", kind: "file", purpose: "Jan's collected ideas" },
-  { name: "manifest.yaml", kind: "file", purpose: "asset catalogue (Phase 4)" },
+  { name: "project.yaml", kind: "file", purpose: "name, body and height of the project" },
+  { name: "measurements.yaml", kind: "file", purpose: "your measurements (optional)" },
+  { name: "manifest.yaml", kind: "file", purpose: "image catalogue, kept by the planner" },
+  { name: "layouts", kind: "folder", purpose: "layout variants" },
+  { name: "projections", kind: "folder", purpose: "how photos of existing tattoos map onto the body" },
+  { name: "images", kind: "folder", purpose: "reference images" },
+  { name: "photos", kind: "folder", purpose: "body photos for projections" },
+  { name: "edits", kind: "folder", purpose: "edited images kept in the Image studio" },
+  { name: "generated", kind: "folder", purpose: "new images created in the Image studio" },
+  { name: "exports", kind: "folder", purpose: "PDF / PNG handouts" },
+  { name: "ideas.pdf", kind: "file", purpose: "collected ideas", older: true },
   {
     name: "ideas",
     kind: "folder",
-    purpose: "images extracted from ideas.pdf earlier (no longer re-extracted)",
+    purpose: "images extracted from ideas.pdf earlier",
+    older: true,
   },
-  { name: "refs", kind: "folder", purpose: "Instagram / Pinterest references" },
-  { name: "cards", kind: "folder", purpose: "MTG card art" },
-  { name: "existing", kind: "folder", purpose: "photos of existing tattoos" },
-  { name: "arm-photos", kind: "folder", purpose: "left arm from four sides" },
-  { name: "edits", kind: "folder", purpose: "edited images kept in the Image studio" },
-  { name: "generated", kind: "folder", purpose: "new images created in the Image studio" },
-  { name: "exports", kind: "folder", purpose: "generated PNG / PDF handouts (Phase 5)" },
+  { name: "refs", kind: "folder", purpose: "references", older: true },
+  { name: "cards", kind: "folder", purpose: "card art", older: true },
+  { name: "existing", kind: "folder", purpose: "photos of existing tattoos", older: true },
+  { name: "arm-photos", kind: "folder", purpose: "arm photos", older: true },
 ];
 
 /** Whether an expected entry is present. Empty folders do not show up in a file listing. */

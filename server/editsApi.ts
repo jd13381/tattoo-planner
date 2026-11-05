@@ -1,4 +1,4 @@
-// Dev-server endpoint of the Image studio. Generative edits run here with the OpenAI Images API
+// API of the Image studio. Generative edits run here with the OpenAI Images API
 // (ADR 0008, 0009); built-in operations run in the page and arrive as finished PNGs (ADR 0013).
 //   GET  /api/edits                     → EditOverview: can edits run, and every job of this server run
 //   POST /api/edits                     body EditRequest → EditJob (starts a GPT Image request;
@@ -36,12 +36,11 @@ import {
 import type { IncomingMessage, ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
-import type { Plugin } from "vite";
-import { MANIFEST_FILE, type Asset } from "../../assets/manifest.ts";
-import { mergeManifest } from "../../assets/manifestDoc.ts";
-import { imageContentType, isInside, listAssets, resolveInside } from "../../data/server/assetsApi.ts";
-import { HttpError, isCrossSite, readRawBody } from "../../export/server/exportsApi.ts";
-import { BUILTIN_TOOL } from "../builtin.ts";
+import { MANIFEST_FILE, type Asset } from "../src/assets/manifest.ts";
+import { mergeManifest } from "../src/assets/manifestDoc.ts";
+import { imageContentType, isInside, listAssets, resolveInside } from "./assetsApi.ts";
+import { HttpError, isCrossSite, readRawBody, send, sendError, type Handler } from "./http.ts";
+import { BUILTIN_TOOL } from "../src/edits/builtin.ts";
 import {
   checkInstruction,
   createdAsset,
@@ -55,8 +54,8 @@ import {
   OUTPUT_FILE,
   readPngInfo,
   slugName,
-} from "../edit.ts";
-import { pickVersion, runSource, sessionForAsset, truncateVersions } from "../session.ts";
+} from "../src/edits/edit.ts";
+import { pickVersion, runSource, sessionForAsset, truncateVersions } from "../src/edits/session.ts";
 import {
   buildCreatePrompt,
   buildEditForm,
@@ -75,11 +74,10 @@ import {
   type FormImage,
   type OpenAISettings,
   type PromptReference,
-} from "../openai.ts";
+} from "../src/edits/openai.ts";
 import {
   CREATE_BACKGROUNDS,
   CREATE_SIZES,
-  EDITS_ENDPOINT,
   EDITS_FOLDER,
   GENERATED_FOLDER,
   GENERATED_KIND,
@@ -93,7 +91,7 @@ import {
   type EditSession,
   type GenerativeAvailability,
   type SessionRequest,
-} from "../types.ts";
+} from "../src/edits/types.ts";
 
 const MAX_LOG_LINES = 400;
 
@@ -150,11 +148,11 @@ export class EditManager {
 
   /** Null when the data folder is usable, else why not. */
   private async dataFolderProblem(): Promise<string | null> {
-    if (!this.dataDir) return "No data folder is set up, so there are no images to edit.";
+    if (!this.dataDir) return "No project is open, so there are no images to edit.";
     try {
       if (!(await stat(this.dataDir)).isDirectory()) throw new Error();
     } catch {
-      return `data folder not found: ${this.dataDir}`;
+      return `project folder not found: ${this.dataDir}`;
     }
     return null;
   }
@@ -697,7 +695,7 @@ export class EditManager {
     if (job.info.state !== "done" || !job.outputPath)
       throw new HttpError(409, "only a finished edit can be kept");
     const dataDir = this.dataDir;
-    if (!dataDir) throw new HttpError(409, "no data folder is set up");
+    if (!dataDir) throw new HttpError(409, "no project is open");
     const root = await realpath(dataDir);
     const created = job.info.created;
     const folderName = created ? GENERATED_FOLDER : EDITS_FOLDER;
@@ -769,13 +767,6 @@ export class EditManager {
       }),
     );
   }
-}
-
-function send(res: ServerResponse, status: number, body: unknown) {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("Cache-Control", "no-store");
-  res.end(JSON.stringify(body));
 }
 
 async function sendImage(res: ServerResponse, file: string) {
@@ -860,18 +851,27 @@ export function editOptionsFromEnv(env: EditEnv): EditOptions {
   return { openai: openaiSettingsFromEnv(env) };
 }
 
-export function editsPlugin(dataDir: string | null, env: EditEnv): Plugin {
-  return {
-    name: "tattoo-planner-edits",
-    configureServer(server) {
-      const manager = new EditManager(dataDir, editOptionsFromEnv(env));
-      server.httpServer?.on("close", () => void manager.close());
-      server.middlewares.use(EDITS_ENDPOINT, (req, res) => {
-        handleEditRequest(manager, req, res).catch((e: unknown) => {
-          const status = e instanceof HttpError ? e.status : 500;
-          send(res, status, { error: e instanceof Error ? e.message : String(e) });
-        });
-      });
-    },
+/**
+ * The Image studio API for the open project. Sessions and jobs belong to one project folder: when
+ * the project changes, the old manager stops its jobs and removes their working folders.
+ */
+export function editsHandler(dir: () => Promise<string | null>, opts: EditOptions) {
+  let current: { dir: string | null; manager: EditManager } | null = null;
+  const managerFor = (folder: string | null): EditManager => {
+    if (current && current.dir === folder) return current.manager;
+    if (current) void current.manager.close();
+    current = { dir: folder, manager: new EditManager(folder, opts) };
+    return current.manager;
   };
+  const handle: Handler = async (req, res, url) => {
+    try {
+      const manager = managerFor(await dir());
+      // handleEditRequest reads the sub-path from req.url, as Connect passed it before.
+      req.url = url;
+      await handleEditRequest(manager, req, res);
+    } catch (e) {
+      sendError(res, e, 500);
+    }
+  };
+  return { handle, close: async () => current?.manager.close() };
 }

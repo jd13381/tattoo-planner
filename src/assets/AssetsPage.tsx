@@ -60,9 +60,8 @@ export function AssetsPage() {
       <div className="empty">
         <h2>No images catalogued yet</h2>
         <p>
-          Copy images into the project folder (references into <code>refs/</code>, card art into{" "}
-          <code>cards/</code>, photos of existing tattoos into <code>existing/</code>), then press{" "}
-          <strong>Look for new images</strong>.
+          Copy images into the project folder (references into <code>images/</code>, body photos into{" "}
+          <code>photos/</code>), then press <strong>Look for new images</strong>.
         </p>
         <button type="button" className="primary" onClick={reload}>
           Look for new images
@@ -194,7 +193,8 @@ function FolderStatus(props: { count: number; onReload?: () => void; note: strin
   const { state, checking, check } = useDataListing();
   const listing = state.kind === "loaded" ? state.listing : null;
   const files = listing?.status === "ok" ? listing.files : null;
-  const present = files ? EXPECTED_ENTRIES.filter((e) => isPresent(e, files)).length : null;
+  const expected = EXPECTED_ENTRIES.filter((e) => !e.older);
+  const present = files ? expected.filter((e) => isPresent(e, files)).length : null;
   const [chip, text] =
     state.kind === "loading"
       ? ["muted", "Checking…"]
@@ -217,7 +217,7 @@ function FolderStatus(props: { count: number; onReload?: () => void; note: strin
       )}
       {files && (
         <span className="faint small">
-          {files.length} files · structure {present}/{EXPECTED_ENTRIES.length}
+          {files.length} files · structure {present}/{expected.length}
         </span>
       )}
       <span className="spacer" />

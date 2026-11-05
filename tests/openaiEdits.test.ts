@@ -15,7 +15,7 @@ import {
   rejectsInputFidelity,
   type OpenAISettings,
 } from "../src/edits/openai.ts";
-import { EditManager, editOptionsFromEnv } from "../src/edits/server/editsApi.ts";
+import { EditManager, editOptionsFromEnv } from "../server/editsApi.ts";
 import type { EditJob } from "../src/edits/types.ts";
 
 /** Header-only PNG: signature, IHDR with the given size and colour type, IEND. */
