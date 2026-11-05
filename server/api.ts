@@ -7,20 +7,16 @@ import { editsHandler } from "./editsApi.ts";
 import { exportsHandler } from "./exportsApi.ts";
 import { sendError, type Handler, type Middleware } from "./http.ts";
 import { layoutsHandler } from "./layoutsApi.ts";
+import { projectHandler } from "./projectApi.ts";
 import { projectionsHandler } from "./projectionsApi.ts";
+import type { ProjectStore } from "./project/store.ts";
 import type { ServerSettings } from "./settings.ts";
 
-/** Where the open project keeps its data; null where there is none. */
-export type ProjectFolders = {
-  /** The folder with manifest.yaml, images and exports. */
-  dir: string | null;
-  layoutsDir: string | null;
-  projectionsDir: string | null;
-};
-
 export type ApiContext = {
-  /** Asked on every request, so a project opened meanwhile takes effect at once. */
-  folders: () => Promise<ProjectFolders>;
+  /** The current project; asked on every request, so a project opened meanwhile takes effect at once. */
+  projects: ProjectStore;
+  /** The user's home folder: the in-browser folder picker stays inside it. */
+  home: string;
   settings: ServerSettings;
 };
 
@@ -40,15 +36,17 @@ export function route(
 }
 
 export function createApi(context: ApiContext): Api {
-  const dir = async () => (await context.folders()).dir;
+  const paths = () => context.projects.paths();
+  const dir = async () => (await paths()).dir;
   const edits = editsHandler(dir, { openai: context.settings.openai });
   const routes = new Map<string, Handler>([
     ["/api/data-files", dataFilesHandler(dir)],
     ["/api/assets", assetsHandler(dir)],
     ["/api/exports", exportsHandler(dir)],
     ["/api/edits", edits.handle],
-    ["/api/layouts", layoutsHandler(async () => (await context.folders()).layoutsDir)],
-    ["/api/projections", projectionsHandler(async () => (await context.folders()).projectionsDir)],
+    ["/api/layouts", layoutsHandler(async () => (await paths()).layoutsDir)],
+    ["/api/project", projectHandler(context.projects, context.home)],
+    ["/api/projections", projectionsHandler(async () => (await paths()).projectionsDir)],
   ]);
   const middleware: Middleware = (req, res, next) => {
     const found = route(routes, req.url ?? "/");

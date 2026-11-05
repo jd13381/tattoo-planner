@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { route } from "../server/api.ts";
+import { createContext } from "../server/context.ts";
 import type { Handler } from "../server/http.ts";
 import { isLocalHost, parsePort, startServer, staticFile } from "../server/standalone.ts";
 
@@ -42,10 +43,12 @@ describe("standalone server", () => {
     server = await startServer({
       dist,
       port: 0,
-      context: {
-        folders: async () => ({ dir: null, layoutsDir: null, projectionsDir: null }),
-        settings: { openai: null },
-      },
+      context: createContext({
+        env: {},
+        root: dir,
+        home: dir,
+        configFile: path.join(dir, "config.json"),
+      }),
     });
   });
 

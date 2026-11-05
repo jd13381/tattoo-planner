@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 // Asset script (PROJECT_BRIEF.md §12.3; ADR 0003). Run by Node's type stripping:
-//   npm run assets:scan  add manifest entries for new images in cards/, refs/, existing/, arm-photos/
+//   npm run assets:scan  add manifest entries for new images in images/, photos/ and the older folders
 // It only adds to the manifest; Jan's entries, comments and edits stay as they are. The Reload button
 // in the planner runs the same scan. (The ideas.pdf ingestion was removed, see roadmap §3.)
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { parseEnv } from "node:util";
 import { MANIFEST_FILE } from "../src/assets/manifest.ts";
 import { ManifestError } from "../src/assets/manifestDoc.ts";
-import { resolveDataDir } from "../server/dataDir.ts";
+import { SCAN_FOLDERS } from "../src/assets/scan.ts";
+import { createContext, readEnv } from "../server/context.ts";
 import { scanDataFolder } from "../server/scanFolder.ts";
 import { DATA_DIR_VAR } from "../src/data/types.ts";
 
@@ -18,20 +17,18 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 class UsageError extends Error {}
 
 async function dataDir(): Promise<string> {
-  let fromFile: Record<string, string | undefined> = {};
-  const envPath = path.join(ROOT, ".env");
-  if (existsSync(envPath)) fromFile = parseEnv(await readFile(envPath, "utf8"));
-  // Variables set in the shell win over .env, as in vite.config.ts.
-  const dir = resolveDataDir({ ...fromFile, ...process.env }, ROOT);
-  if (!dir) throw new UsageError(`${DATA_DIR_VAR} is not set (shell or .env); see README.md.`);
-  if (!existsSync(dir)) throw new UsageError(`${DATA_DIR_VAR} folder not found: ${dir}`);
+  // The same project the planner opens: TATTOO_DATA_DIR (shell or .env), else the remembered one.
+  const { projects } = createContext({ env: readEnv(ROOT), root: ROOT });
+  const dir = (await projects.paths()).dir;
+  if (!dir) throw new UsageError(`no project is open and ${DATA_DIR_VAR} is not set; see README.md.`);
+  if (!existsSync(dir)) throw new UsageError(`project folder not found: ${dir}`);
   return dir;
 }
 
 async function scan(dir: string): Promise<void> {
   const r = await scanDataFolder(dir);
   if (r.truncated) console.warn("warning: the data folder has more files than listed; some may be missed");
-  console.log(`scan: ${r.found} image(s) in cards/, refs/, existing/, arm-photos/`);
+  console.log(`scan: ${r.found} image(s) in ${Object.keys(SCAN_FOLDERS).join("/, ")}/`);
   for (const f of r.unsupported) console.warn(`  skipped (format the browser cannot show): ${f}`);
   for (const f of r.outside) console.warn(`  not catalogued (outside the scanned folders): ${f}`);
   console.log(`${MANIFEST_FILE}: ${r.added.length} added${r.added.length ? "" : " (unchanged)"}`);
