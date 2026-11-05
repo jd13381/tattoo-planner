@@ -100,7 +100,14 @@ describe("handout content", () => {
       "pegasus: no reference image (pegasus-ref-01: not in manifest); shown as a labelled box.",
       "Arm model: 2 of 13 measurements are generic placeholders (wrist, elbow).",
     ]);
-    expect(h.designQuestions).toHaveLength(9);
+    expect(h).not.toHaveProperty("designQuestions");
+  });
+
+  it("keeps the handout wording free of one person's sleeve", () => {
+    const all = JSON.stringify(t, (_k, v: unknown) => (typeof v === "function" ? String(v) : v));
+    for (const word of ["Anubis", "Jan", "bracket", "Rhonas", "Medusa"]) expect(all).not.toContain(word);
+    expect(t.legend.existing).toBe("Existing tattoo (outlined)");
+    expect(t.legend.line).toBe("Line (brush stroke)");
   });
 
   it("lists coverage per zone plus the whole arm, rows adding up to about 100 %", () => {

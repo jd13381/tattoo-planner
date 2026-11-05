@@ -44,7 +44,6 @@ export type Handout = {
   date: string;
   elementRows: string[][];
   coverageRows: string[][];
-  designQuestions: string[];
   layoutPoints: string[];
   facing: Record<ViewName, string[]>;
 };
@@ -280,7 +279,6 @@ export function buildHandout(facts: HandoutFacts, t: HandoutText): Handout {
     date: facts.date,
     elementRows: elementRows(facts, t),
     coverageRows: coverageRows(facts.coverage, t),
-    designQuestions: [...t.designQuestions],
     layoutPoints: layoutPoints(facts, t),
     facing: facingElements(facts),
   };

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { facets, filterAssets, NO_FILTER, type AssetFilter } from "./filter.ts";
+import { facets, filterAssets, NO_FILTER, pickableAssets, type AssetFilter } from "./filter.ts";
 import { assetImageUrl, type AssetInfo, type AssetListing } from "./types.ts";
 
 type Props = {
@@ -20,7 +20,11 @@ type Props = {
 export function AssetBrowser(props: Props) {
   const { listing, onReload, current, assignBlocked, onPick, heading = true, note } = props;
   const [filter, setFilter] = useState<AssetFilter>(NO_FILTER);
-  const assets = useMemo(() => (listing?.status === "ok" ? listing.assets : []), [listing]);
+  // Hidden images (Assets tab) are left out, except the one the selected figure shows.
+  const assets = useMemo(
+    () => (listing?.status === "ok" ? pickableAssets(listing.assets, current) : []),
+    [listing, current],
+  );
   const kinds = useMemo(() => facets(assets.map((a) => a.kind)), [assets]);
   const tags = useMemo(() => facets(assets.flatMap((a) => a.tags)), [assets]);
   const shown = useMemo(() => filterAssets(assets, filter), [assets, filter]);
@@ -30,18 +34,19 @@ export function AssetBrowser(props: Props) {
   else if (listing.status === "unset")
     body = (
       <p className="muted small">
-        No data folder, so no reference images. The <strong>Data folder</strong> tab explains the setup.
+        No project folder, so no reference images yet.{" "}
+        <a href="#settings/project">Set it up in Settings → Project</a>.
       </p>
     );
   else if (listing.status === "error") body = <p className="small error-text">{listing.message}</p>;
   else if (!listing.manifestFound)
     body = (
       <p className="small">
-        No <code>manifest.yaml</code> in the data folder yet. Run <code>npm run ingest</code> to catalogue the
-        images, or write the file by hand (README, “Asset manifest”).
+        No images catalogued yet. Copy images into the project folder and press <strong>Reload</strong>, or
+        see the <a href="#assets">Assets</a> tab.
       </p>
     );
-  else if (assets.length === 0) body = <p className="small muted">The manifest lists no assets.</p>;
+  else if (assets.length === 0) body = <p className="small muted">No images catalogued yet.</p>;
   else
     body = (
       <>
@@ -126,7 +131,7 @@ export function AssetBrowser(props: Props) {
       {warnings.length > 0 && (
         <details className="small warn">
           <summary>
-            {warnings.length} manifest warning{warnings.length === 1 ? "" : "s"}
+            {warnings.length} catalogue warning{warnings.length === 1 ? "" : "s"}
           </summary>
           <ul>
             {warnings.map((w) => (

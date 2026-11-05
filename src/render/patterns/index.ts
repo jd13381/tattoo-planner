@@ -23,6 +23,10 @@ export const GENERATORS: Record<string, Generator> = {
   starfield,
 };
 
+/** The pattern names offered for fillers and for bands in the editor (aliases left out). */
+export const FILLER_PATTERNS = ["snake-scales", "hatching", "starfield"] as const;
+export const BAND_PATTERNS = ["meander", "lotus"] as const;
+
 export const PATTERNS: Record<string, PatternPainter> = Object.fromEntries(
   Object.entries(GENERATORS).map(([name, g]) => [name, painterFrom(g)]),
 );

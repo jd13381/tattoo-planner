@@ -30,11 +30,13 @@ export const assetSchema = z.strictObject({
   source: z.string().optional(),
   notes: z.string().optional(),
   tags: z.array(z.string()).default([]),
-  /** Where an image extracted from ideas.pdf came from: 1-based page and bounding box in PDF points. */
+  /** Where an image extracted from ideas.pdf came from (former `npm run ingest`, ADR 0003): 1-based page and bounding box in PDF points. Kept so those entries stay valid. */
   page: z.number().int().positive().optional(),
   bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
   /** Default cut-out used when an element shows this asset without its own crop. */
   crop: rectSchema.optional(),
+  /** Left out of the image pickers (Assets tab → Hide); the file and the entry stay. */
+  hidden: z.boolean().optional(),
 });
 export type Asset = z.infer<typeof assetSchema>;
 

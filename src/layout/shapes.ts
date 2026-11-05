@@ -56,6 +56,14 @@ export function wrapDelta(du: number): number {
   return wrapU(du + 0.5) - 0.5;
 }
 
+/**
+ * The u halfway through a range that runs from u0 towards higher u to u1, wrapping round the arm
+ * (a filler from 0.9 to 0.1 has its middle at 0). A range with u0 = u1 gives u0.
+ */
+export function wrappedMidU(u0: number, u1: number): number {
+  return wrapU(u0 + wrapU(u1 - u0) / 2);
+}
+
 export function resolveElement(
   el: LayoutElement,
   profile: RegionProfile,
@@ -103,7 +111,8 @@ export function resolveElement(
       if (w === null && imageAspect !== undefined && imageAspect > 0) w = h * imageAspect;
       if (w === null) {
         w = h * DEFAULT_ASPECT;
-        flags.push("width assumed");
+        // Only worth a warning when an image could set it; a plain box is just a box.
+        if (el.asset) flags.push("width assumed");
       }
       const cy = el.position.v * L;
       return {

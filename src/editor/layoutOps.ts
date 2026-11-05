@@ -156,3 +156,29 @@ export function nextBurst(
 }
 
 export const burstKey = (b: Burst) => `${b.target}#${b.id}`;
+
+export type ValidationIssue = { path: readonly PropertyKey[]; message: string };
+
+/**
+ * Splits schema issues into id problems per element index (shown under the id field) and the rest
+ * (one line each, "elements.2.crop: …"), so the panel can show the first inline.
+ */
+export function splitIssues(
+  issues: readonly ValidationIssue[],
+  ids: readonly string[],
+): { idErrors: Map<number, string>; other: { index: number | null; text: string }[] } {
+  const idErrors = new Map<number, string>();
+  const other: { index: number | null; text: string }[] = [];
+  for (const issue of issues) {
+    const [head, index, field] = issue.path;
+    if (head === "elements" && typeof index === "number" && field === "id" && issue.path.length === 3) {
+      if (!idErrors.has(index)) idErrors.set(index, issue.message);
+      continue;
+    }
+    const at = head === "elements" && typeof index === "number" ? index : null;
+    const where =
+      at !== null ? [ids[at] ?? `element ${at + 1}`, ...issue.path.slice(2)].join(".") : issue.path.join(".");
+    other.push({ index: at, text: `${where || "layout"}: ${issue.message}` });
+  }
+  return { idErrors, other };
+}

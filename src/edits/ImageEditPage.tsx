@@ -1,17 +1,28 @@
-// "Image studio" tab. Edit: pick a reference image, start an editing session on it and say what to
-// change; `claude -p` on this Mac does it with local tools (ADR 0007) or GPT Image redraws it (ADR 0008).
-// Create: describe a new motif and let GPT Image draw it (ADR 0009). A session (ADR 0010) is a version
-// strip v0 → v1 → …: every run starts from the last version, "Continue with this" makes a result the
-// next version, "Save & close" writes the last version into edits/ (or generated/) as a new manifest
-// entry and ends the session. Originals stay untouched. UI only: the rules live in session.ts,
-// studio.ts, edit.ts, openai.ts and the server.
+// "Image studio" tab. Edit: pick a reference image and change it with a built-in operation (run here in
+// the page, ADR 0013) or let GPT Image redraw it (ADR 0008). Create: describe a new motif and let GPT
+// Image draw it (ADR 0009). The first run on an image opens its editing session (ADR 0010): a version
+// strip v0 → v1 → …; every run starts from the last version. A built-in operation becomes the next
+// version at once; for generative results "Continue with this" picks one. "Save & close" writes the
+// last version into edits/ (or generated/) as a new manifest entry and ends the session. Originals stay
+// untouched. UI only: the rules live in session.ts, studio.ts, builtin.ts, edit.ts, openai.ts and the
+// server.
 //
 // Layout (full-bleed workspace): asset browser | canvas (version strip, attempts, focus view) | inspector.
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { facets, filterAssets, NO_FILTER, type AssetFilter } from "../assets/filter.ts";
 import { announceManifestChanged, useAssetListing } from "../assets/useAssets.ts";
 import { assetImageUrl, type AssetInfo } from "../assets/types.ts";
+import { BuiltinPanel, BuiltinPreview } from "./BuiltinPanel.tsx";
+import {
+  applyBuiltin,
+  builtinOp,
+  defaultParams,
+  describeStep,
+  type BuiltinOpId,
+  type BuiltinParams,
+} from "./builtin.ts";
 import { showInStudio } from "./edit.ts";
+import { encodePng, loadPixels } from "./pixelsDom.ts";
 import {
   attemptsFrom,
   closeQuestion,
@@ -26,6 +37,7 @@ import {
 import { FocusView, JobTile, resultUrl, VersionStrip, type StripVersion } from "./StudioResults.tsx";
 import { artboardAspect, formatUsd, hasResult, runEstimate, runLabel, spentUsd, stepId } from "./studio.ts";
 import {
+  applyUrl,
   CREATE_BACKGROUNDS,
   CREATE_SIZES,
   EDIT_PRESETS,
@@ -44,8 +56,8 @@ import {
   sessionUrl,
 } from "./types.ts";
 
-/** Running limits per engine; the server enforces the same numbers. */
-const MAX_RUNNING: Record<EditEngine, number> = { claude: 2, openai: 4 };
+/** Generative requests at the same time; the server enforces the same number (MAX_RUNNING_OPENAI). */
+const MAX_RUNNING_GENERATIVE = 4;
 /** Reference images per request; the server enforces the same number (MAX_REFERENCES). */
 const MAX_REFS = 4;
 const VARIANT_CHOICES = Array.from({ length: MAX_VARIANTS_PER_RUN }, (_, i) => i + 1);
@@ -78,7 +90,7 @@ function useEditOverview(): { overview: EditOverview | null; error: string | nul
         },
         (e: unknown) =>
           !cancelled &&
-          setError(`Cannot reach the edit service (${String(e)}). It runs only under npm run dev.`),
+          setError(`Cannot reach the planner's edit service (${String(e)}). Restart the planner.`),
       );
     void load();
     const timer = running ? setInterval(() => void load(), 1500) : undefined;
@@ -124,7 +136,9 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
   const [filter, setFilter] = useState<AssetFilter>(NO_FILTER);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
-  const [engine, setEngine] = useState<EditEngine>("claude");
+  const [engine, setEngine] = useState<EditEngine>("builtin");
+  const [opId, setOpId] = useState<BuiltinOpId>("remove-background");
+  const [opParams, setOpParams] = useState<Partial<Record<BuiltinOpId, BuiltinParams>>>({});
   const [variants, setVariants] = useState(2);
   const [mode, setMode] = useState<EditMode>("edit");
   const [references, setReferences] = useState<string[]>([]);
@@ -167,21 +181,29 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
   const attempts = session ? attemptsFrom(session, allJobs, view) : [];
   const focusJob = own.find((j) => j.id === focusId) ?? null;
 
-  const creatingNew = session?.mode === "create" && last === 0;
+  // A new image has no pixels until GPT Image draws its first version.
+  const creatingNew = mode === "create" && last === 0;
   const activeEngine: EditEngine = creatingNew ? "openai" : engine;
-  const availability = activeEngine === "openai" ? overview?.generative : overview?.availability;
-  const runningCount = allJobs.filter((j) => j.state === "running" && j.engine === activeEngine).length;
+  // Checked once up front, so nothing that needs a key can be started without one.
+  const generativeOk = overview?.generative.enabled === true;
+  const availability = activeEngine === "openai" ? overview?.generative : overview?.builtin;
+  const runningCount = allJobs.filter((j) => j.state === "running" && j.engine === "openai").length;
   const count =
-    activeEngine === "openai" ? Math.max(1, Math.min(variants, MAX_RUNNING.openai - runningCount)) : 1;
-  const usesRefs = activeEngine === "openai" && !!session;
+    activeEngine === "openai" ? Math.max(1, Math.min(variants, MAX_RUNNING_GENERATIVE - runningCount)) : 1;
+  // Something to work on: the picked image (edit) or a new image (create).
+  const hasTarget = mode === "create" || !!selected;
+  const usesRefs = activeEngine === "openai" && generativeOk && hasTarget;
   const spent = spentUsd(own);
+  const params = opParams[opId] ?? defaultParams(opId);
 
   const versionSrc = (k: number): string | null => {
-    if (!session) return null;
+    if (!session) return k === 0 && mode === "edit" && selected ? assetImageUrl(selected.id) : null;
     if (k === 0) return session.mode === "edit" && session.assetId ? assetImageUrl(session.assetId) : null;
     const job = byId.get(session.versions[k - 1]!);
     return job ? resultUrl(job) : null;
   };
+  /** The image the next run works on (the last version). */
+  const lastSrc = versionSrc(last);
   const strip: StripVersion[] = session
     ? Array.from({ length: last + 1 }, (_, k) => {
         const job = k === 0 ? undefined : byId.get(session.versions[k - 1]!);
@@ -231,24 +253,25 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
     }
   };
 
-  const startSession = () =>
-    act(async () => {
-      const body: SessionRequest =
-        mode === "create"
-          ? { mode: "create", name, size, background }
-          : { mode: "edit", assetId: selected!.id };
-      const s = await call<EditSession>(`${EDITS_ENDPOINT}/sessions`, "POST", body);
-      if (s.mode === "create") setCreateSessionId(s.id);
-      setInstruction("");
-      setFlash(null);
-      resetView();
-    });
+  /** The session on screen, opened on the first run (there is no separate "Start editing" step). */
+  const ensureSession = async (): Promise<EditSession> => {
+    if (session) return session;
+    const body: SessionRequest =
+      mode === "create"
+        ? { mode: "create", name, size, background }
+        : { mode: "edit", assetId: selected!.id };
+    const s = await call<EditSession>(`${EDITS_ENDPOINT}/sessions`, "POST", body);
+    if (s.mode === "create") setCreateSessionId(s.id);
+    setFlash(null);
+    return s;
+  };
 
   const run = (text = instruction) =>
     act(async () => {
-      if (!session) return;
+      if (!hasTarget) return;
+      const s = await ensureSession();
       const body: EditRequest = {
-        session: session.id,
+        session: s.id,
         instruction: text,
         engine: activeEngine,
         ...(usesRefs && references.length > 0 ? { references } : {}),
@@ -258,6 +281,36 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
       setViewIndex(null);
       setFocusId(null);
     });
+
+  /** Runs the chosen built-in operation on the last version and adds the result as the next version. */
+  const applyOp = () =>
+    act(async () => {
+      if (!hasTarget || !lastSrc) return;
+      const src = lastSrc;
+      const s = await ensureSession();
+      const base = s.versions.length;
+      const { pixels } = await loadPixels(src);
+      const png = await encodePng(applyBuiltin(pixels, opId, params));
+      const r = await fetch(applyUrl(s.id, { step: describeStep(opId, params), base }), {
+        method: "POST",
+        headers: { "Content-Type": "image/png" },
+        body: png,
+      });
+      const data = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`);
+      setViewIndex(null);
+      setFocusId(null);
+    });
+
+  /** Drops the last version (it stays as a result of the version before, until the session closes). */
+  const undo = () => {
+    if (!session || last === 0) return;
+    void act(async () => {
+      await call(sessionUrl(session.id, "truncate"), "POST", { length: last - 1 });
+      setViewIndex(null);
+      setFocusId(null);
+    });
+  };
 
   const pick = (job: EditJob) => {
     if (!session) return;
@@ -311,7 +364,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
       saved(job);
       setInstruction("");
       resetView();
-      // Next round: the saved image is picked, one click on "Start editing" away.
+      // Next round: the saved image is picked, ready for the next run.
       if (job.kept) {
         setMode("edit");
         setSelectedId(job.kept.id);
@@ -377,9 +430,8 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
           <p>
             {listing.status === "unset" ? (
               <>
-                Reference images live in the data folder, and <code>TATTOO_DATA_DIR</code> is not set. Once it
-                is, pick an image here and describe the change; Claude Code edits it on this Mac, or GPT Image
-                redraws it.
+                Reference images live in the data folder, and none is set up yet. Once it is, pick an image
+                here and touch it up with the built-in tools, or let GPT Image redraw it.
               </>
             ) : (
               listing.message
@@ -392,14 +444,14 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
       </div>
     );
 
-  const atLimit = runningCount >= MAX_RUNNING[activeEngine];
-  const canRetry = !!session && !busy && availability?.enabled === true && !atLimit;
+  const atLimit = activeEngine === "openai" && runningCount >= MAX_RUNNING_GENERATIVE;
+  const canRetry = hasTarget && !busy && availability?.enabled === true && !atLimit;
   const canRun = canRetry && !!instruction.trim();
-  const engineLabel = availability?.enabled
-    ? "claude" in availability
-      ? availability.claude
-      : availability.model
-    : null;
+  const canApply = hasTarget && !busy && overview?.builtin.enabled === true && !!lastSrc;
+  const engineLabel =
+    activeEngine === "openai" && overview?.generative.enabled ? overview.generative.model : null;
+  /** Built-in engine on the last version: the canvas shows the live preview there. */
+  const previewing = activeEngine === "builtin" && !!lastSrc && view === last && !focusId;
   const lastAttempt = attempts.at(-1);
 
   // ── Left: asset browser ──
@@ -521,9 +573,9 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
           <section className="empty studio-hint">
             <h2>Pick an image on the left</h2>
             <p>
-              Then click <strong>Start editing</strong>. In a session every run starts from the latest
-              version; pick the result you like with <strong>Continue with this</strong>, and when it is
-              right, <strong>Save &amp; close</strong> writes it as a new image. The original stays as it is.
+              Then apply a built-in operation on the right, or describe a change for GPT Image. Every step
+              becomes a version; <strong>Save &amp; close</strong> writes the last one as a new image. The
+              original stays as it is.
             </p>
           </section>
         </div>
@@ -544,7 +596,11 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
         <div className="studio-browse">
           <figure className="studio-hero">
             <div className="checker">
-              <img src={assetImageUrl(selected!.id)} alt={selected!.id} />
+              {previewing ? (
+                <BuiltinPreview src={lastSrc!} opId={opId} params={params} />
+              ) : (
+                <img src={assetImageUrl(selected!.id)} alt={selected!.id} />
+              )}
             </div>
           </figure>
           {family.length > 1 && (
@@ -586,7 +642,11 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
           <figure className="studio-artboard" style={{ "--aspect": artboardAspect(size) } as CSSProperties}>
             <div className={`artboard-frame${background === "transparent" ? " checker" : ""}`}>
               <span className="mono">{size === "auto" ? "auto size" : size.replace("x", " × ")}</span>
-              <span className="faint">Name it on the right, then click New image</span>
+              <span className="faint">
+                {generativeOk
+                  ? "Describe it on the right, then create it"
+                  : "New images need an OpenAI API key"}
+              </span>
             </div>
           </figure>
         </div>
@@ -608,7 +668,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
     const head = (
       <div className="studio-round-head">
         <span className="tile-label">
-          {attempts.length === 0 ? versionLabel(view) : `Results from ${versionLabel(view)}`}
+          {attempts.length === 0 || previewing ? versionLabel(view) : `Results from ${versionLabel(view)}`}
         </span>
         {view < last ? (
           <>
@@ -622,9 +682,13 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
           </>
         ) : (
           <>
-            <span className="faint small">The next run starts here</span>
+            <span className="faint small">
+              {previewing
+                ? `Preview of ${builtinOp(opId)?.label ?? opId} · the next run starts here`
+                : "The next run starts here"}
+            </span>
             <span className="spacer" />
-            {lastAttempt && (
+            {lastAttempt && !previewing && lastAttempt.engine === "openai" && (
               <button
                 type="button"
                 className="ghost small-button"
@@ -657,6 +721,16 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
     let main: ReactNode;
     if (focusJob) {
       main = <FocusView job={focusJob} {...actionsFor(focusJob)} />;
+    } else if (previewing) {
+      main = (
+        <div className="studio-center">
+          <figure className="studio-hero">
+            <div className="checker">
+              <BuiltinPreview src={lastSrc!} opId={opId} params={params} />
+            </div>
+          </figure>
+        </div>
+      );
     } else if (attempts.length === 0) {
       main = (
         <div className="studio-center">
@@ -665,14 +739,6 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
               <div className="checker">
                 <img src={viewSrc} alt={versionLabel(view)} />
               </div>
-              <figcaption>
-                <span className="tile-label">{versionLabel(view)}</span>
-                <span className="faint">
-                  {view === last
-                    ? "Describe the change on the right, then run it."
-                    : "No other results from this version."}
-                </span>
-              </figcaption>
             </figure>
           ) : (
             <figure
@@ -883,7 +949,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                 <kbd className="kbd">Esc</kbd> back
               </>
             ) : session ? (
-              "Unsaved versions are lost when npm run dev stops"
+              "Unsaved versions are lost when the planner closes"
             ) : (
               ""
             )}
@@ -909,45 +975,37 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
         </div>
 
         <div className="studio-inspector-body">
-          {(serviceError || (session && availability && !availability.enabled)) && (
+          {(serviceError ||
+            (hasTarget && availability && !availability.enabled && activeEngine === "builtin")) && (
             <div className="notices">
               {serviceError && <p className="notice error">{serviceError}</p>}
-              {session && availability && !availability.enabled && (
+              {hasTarget && availability && !availability.enabled && activeEngine === "builtin" && (
                 <p className="notice warn">{availability.reason}</p>
               )}
             </div>
           )}
 
-          {!session ? (
-            <BrowseInspector
-              mode={mode}
-              selected={selected}
+          {mode === "create" && !session && (
+            <NewImageSettings
               name={name}
               size={size}
               background={background}
+              disabled={!generativeOk}
               onName={setName}
               onSize={setSize}
               onBackground={setBackground}
-              openSessions={sessions}
-              allJobs={allJobs}
-              onResume={(s) => {
-                resetView();
-                if (s.mode === "create") {
-                  setMode("create");
-                  setCreateSessionId(s.id);
-                } else {
-                  setMode("edit");
-                  setSelectedId(s.assetId ?? null);
-                }
-              }}
             />
+          )}
+
+          {mode === "edit" && !selected ? (
+            <p className="faint small studio-pick-hint">Pick an image on the left.</p>
           ) : (
             <>
               <InspectorSection
                 title="Engine"
                 note={
                   engineLabel ? (
-                    <span className="mono" title="Model or command that runs the edit">
+                    <span className="mono" title="Model that runs the edit">
                       {engineLabel}
                     </span>
                   ) : undefined
@@ -964,8 +1022,12 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                   <div className="engine-options" role="radiogroup" aria-label="Engine">
                     {(
                       [
-                        ["claude", "Local", "Claude on this Mac, keeps the pixels"],
-                        ["openai", "Generative", "GPT Image, redraws"],
+                        ["builtin", "Built-in", "Simple edits on this computer, no key"],
+                        [
+                          "openai",
+                          "Generative",
+                          generativeOk ? "GPT Image, redraws" : "GPT Image · needs an API key",
+                        ],
                       ] as const
                     ).map(([value, title, sub]) => (
                       <button
@@ -984,146 +1046,207 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                 )}
               </InspectorSection>
 
-              <InspectorSection title="Prompt">
-                {!creatingNew && (
-                  <div className="edit-presets" role="group" aria-label="Presets">
-                    {EDIT_PRESETS.map((p) => (
-                      <button
-                        key={p.label}
-                        type="button"
-                        className={`chip plain${p.engine === "openai" ? " gen" : ""}`}
-                        title={p.engine === "openai" ? "Generative: switches to GPT Image" : undefined}
-                        onClick={() => {
-                          setInstruction(p.instruction);
-                          if (p.engine) setEngine(p.engine);
-                        }}
-                      >
-                        {p.label.replace(" (generative)", "")}
-                        {p.engine === "openai" && <span className="gen-tag">GPT</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <label className="sr-only" htmlFor="edit-instruction">
-                  {creatingNew ? "What should it show?" : "What should change?"}
-                </label>
-                <textarea
-                  id="edit-instruction"
-                  rows={6}
-                  value={instruction}
-                  maxLength={2000}
-                  placeholder={
-                    creatingNew
-                      ? "What should it show? e.g. Ein rotes Dreieck als Rahmen, Linien wie im Referenzbild; or a dotwork pattern for the forearm."
-                      : activeEngine === "openai"
-                        ? "What should change? e.g. Mache ein rotes Dreieck drumherum wie im Referenzbild (German is fine)."
-                        : "What should change? e.g. Remove the background and the text at the bottom; keep the snake's tail."
-                  }
-                  onChange={(e) => setInstruction(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canRun) void run();
-                  }}
-                />
-                <span className="studio-charcount mono faint">{instruction.length} / 2000</span>
-              </InspectorSection>
-
-              {usesRefs && (
-                <InspectorSection
-                  title="References"
-                  note={
-                    <span className="mono">
-                      {references.length}/{MAX_REFS}
-                    </span>
-                  }
-                >
-                  {references.length === 0 ? (
-                    <p className="faint small">
-                      {mode === "create"
-                        ? "Optional: click images on the left to send them along."
-                        : "Optional: the + on an image on the left sends it along."}
+              {activeEngine === "openai" && !generativeOk ? (
+                <InspectorSection title="Set up GPT Image">
+                  <div className="studio-setup">
+                    <p className="small">
+                      Generative edits and new images need an OpenAI API key (from platform.openai.com).
                     </p>
-                  ) : (
-                    <ul className="studio-refs" aria-label="Reference images">
-                      {references.map((id, i) => (
-                        <li key={id}>
-                          <span className="ref-num mono">{i + 1}</span>
-                          <img src={assetImageUrl(id)} alt="" />
-                          <span className="studio-ref-id">{id}</span>
-                          <button
-                            type="button"
-                            className="ghost icon-button small-button"
-                            aria-label={`Remove reference ${id}`}
-                            onClick={() => toggleReference(id)}
-                          >
-                            ×
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                    <p className="faint small">
+                      Add it to the planner&apos;s <code>.env</code> file as{" "}
+                      <code>TATTOO_OPENAI_API_KEY</code>, then restart the planner. The built-in operations
+                      work without it.
+                    </p>
+                  </div>
                 </InspectorSection>
-              )}
-
-              {activeEngine === "openai" && (
-                <InspectorSection title="Settings">
-                  <div className="props studio-props">
-                    <div className="props-row">
-                      <span id="variants-label">Variants</span>
-                      <span className="segmented" role="group" aria-labelledby="variants-label">
-                        {VARIANT_CHOICES.map((n) => (
+              ) : activeEngine === "builtin" ? (
+                <InspectorSection title="Operation">
+                  <BuiltinPanel
+                    opId={opId}
+                    params={params}
+                    disabled={busy}
+                    onOp={setOpId}
+                    onParams={(p) => setOpParams((all) => ({ ...all, [opId]: p }))}
+                  />
+                </InspectorSection>
+              ) : (
+                <>
+                  <InspectorSection title="Prompt">
+                    {!creatingNew && (
+                      <div className="edit-presets" role="group" aria-label="Presets">
+                        {EDIT_PRESETS.map((p) => (
                           <button
-                            key={n}
+                            key={p.label}
                             type="button"
-                            className="mono"
-                            aria-pressed={variants === n}
-                            onClick={() => setVariants(n)}
+                            className="chip plain"
+                            onClick={() => setInstruction(p.instruction)}
                           >
-                            {n}
+                            {p.label}
                           </button>
                         ))}
-                      </span>
+                      </div>
+                    )}
+                    <label className="sr-only" htmlFor="edit-instruction">
+                      {creatingNew ? "What should it show?" : "What should change?"}
+                    </label>
+                    <textarea
+                      id="edit-instruction"
+                      rows={6}
+                      value={instruction}
+                      maxLength={2000}
+                      placeholder={
+                        creatingNew
+                          ? "What should it show? e.g. Ein rotes Dreieck als Rahmen, Linien wie im Referenzbild; or a dotwork pattern for the forearm."
+                          : "What should change? e.g. Mache ein rotes Dreieck drumherum wie im Referenzbild (German is fine)."
+                      }
+                      onChange={(e) => setInstruction(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canRun) void run();
+                      }}
+                    />
+                    <span className="studio-charcount mono faint">{instruction.length} / 2000</span>
+                  </InspectorSection>
+
+                  {usesRefs && (
+                    <InspectorSection
+                      title="References"
+                      note={
+                        <span className="mono">
+                          {references.length}/{MAX_REFS}
+                        </span>
+                      }
+                    >
+                      {references.length === 0 ? (
+                        <p className="faint small">
+                          {mode === "create"
+                            ? "Optional: click images on the left to send them along."
+                            : "Optional: the + on an image on the left sends it along."}
+                        </p>
+                      ) : (
+                        <ul className="studio-refs" aria-label="Reference images">
+                          {references.map((id, i) => (
+                            <li key={id}>
+                              <span className="ref-num mono">{i + 1}</span>
+                              <img src={assetImageUrl(id)} alt="" />
+                              <span className="studio-ref-id">{id}</span>
+                              <button
+                                type="button"
+                                className="ghost icon-button small-button"
+                                aria-label={`Remove reference ${id}`}
+                                onClick={() => toggleReference(id)}
+                              >
+                                ×
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </InspectorSection>
+                  )}
+
+                  <InspectorSection title="Settings">
+                    <div className="props studio-props">
+                      <div className="props-row">
+                        <span id="variants-label">Variants</span>
+                        <span className="segmented" role="group" aria-labelledby="variants-label">
+                          {VARIANT_CHOICES.map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              className="mono"
+                              aria-pressed={variants === n}
+                              onClick={() => setVariants(n)}
+                            >
+                              {n}
+                            </button>
+                          ))}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                </InspectorSection>
+                  </InspectorSection>
+                </>
               )}
             </>
+          )}
+
+          {!session && sessions.length > 0 && (
+            <OpenSessions
+              sessions={sessions}
+              allJobs={allJobs}
+              onResume={(s) => {
+                resetView();
+                if (s.mode === "create") {
+                  setMode("create");
+                  setCreateSessionId(s.id);
+                } else {
+                  setMode("edit");
+                  setSelectedId(s.assetId ?? null);
+                }
+              }}
+            />
           )}
         </div>
 
         <div className="studio-run">
-          {session ? (
+          {activeEngine === "builtin" ? (
             <>
               <p className="studio-estimate faint">
-                <span>
-                  {atLimit
-                    ? `${MAX_RUNNING[activeEngine]} edits are running; wait for one.`
-                    : runEstimate(activeEngine, count)}
-                </span>
-                {runningCount > 0 && (
-                  <span className="mono">
-                    {runningCount}/{MAX_RUNNING[activeEngine]} running
-                  </span>
-                )}
+                <span>{runEstimate("builtin", 1)}</span>
               </p>
+              <span className="studio-run-row">
+                {session && last > 0 && (
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={busy}
+                    title={`Drop ${versionLabel(last)} and go back to ${versionLabel(last - 1)}`}
+                    onClick={undo}
+                  >
+                    Undo
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="primary studio-run-button"
+                  disabled={!canApply}
+                  onClick={() => void applyOp()}
+                >
+                  {runLabel({
+                    creatingNew,
+                    version: last,
+                    engine: "builtin",
+                    count: 1,
+                    opLabel: builtinOp(opId)?.label ?? opId,
+                  })}
+                </button>
+              </span>
+            </>
+          ) : (
+            <>
+              {generativeOk && (
+                <p className="studio-estimate faint">
+                  <span>
+                    {atLimit
+                      ? `${MAX_RUNNING_GENERATIVE} edits are running; wait for one.`
+                      : runEstimate("openai", count)}
+                  </span>
+                  {runningCount > 0 && (
+                    <span className="mono">
+                      {runningCount}/{MAX_RUNNING_GENERATIVE} running
+                    </span>
+                  )}
+                </p>
+              )}
               <button
                 type="button"
                 className="primary studio-run-button"
                 disabled={!canRun}
                 onClick={() => void run()}
               >
-                {runLabel({ creatingNew, version: last, engine: activeEngine, count })}
+                {runLabel({ creatingNew, version: last, engine: "openai", count })}
                 <kbd className="kbd">⌘↵</kbd>
               </button>
             </>
-          ) : (
-            <button
-              type="button"
-              className="primary studio-run-button"
-              disabled={busy || (mode === "edit" && !selected)}
-              onClick={() => void startSession()}
-            >
-              {mode === "edit" ? (selected ? `Start editing ${selected.id}` : "Start editing") : "New image"}
-            </button>
           )}
           {actionError && <p className="error-text small studio-run-error">{actionError}</p>}
         </div>
@@ -1132,106 +1255,92 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
   );
 }
 
-/** Inspector without an open session: what "Start editing" works on, settings of a new image, and the
- * sessions still open elsewhere. */
-function BrowseInspector(props: {
-  mode: EditMode;
-  selected: AssetInfo | null;
+/** Name, format and background of a new image, fixed once its session opens. */
+function NewImageSettings(props: {
   name: string;
   size: CreateSize;
   background: CreateBackground;
+  disabled: boolean;
   onName: (v: string) => void;
   onSize: (v: CreateSize) => void;
   onBackground: (v: CreateBackground) => void;
-  openSessions: readonly EditSession[];
+}) {
+  return (
+    <InspectorSection title="New image">
+      <div className="props studio-props">
+        <label>
+          Name
+          <input
+            type="text"
+            value={props.name}
+            maxLength={60}
+            placeholder="e.g. red triangle"
+            disabled={props.disabled}
+            onChange={(e) => props.onName(e.target.value)}
+          />
+        </label>
+        <label>
+          Format
+          <select
+            value={props.size}
+            disabled={props.disabled}
+            onChange={(e) => props.onSize(e.target.value as CreateSize)}
+          >
+            {CREATE_SIZES.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Background
+          <select
+            value={props.background}
+            disabled={props.disabled}
+            onChange={(e) => props.onBackground(e.target.value as CreateBackground)}
+          >
+            {CREATE_BACKGROUNDS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </InspectorSection>
+  );
+}
+
+/** Sessions still open on other images (or new images), to pick up again. */
+function OpenSessions({
+  sessions,
+  allJobs,
+  onResume,
+}: {
+  sessions: readonly EditSession[];
   allJobs: readonly EditJob[];
   onResume: (s: EditSession) => void;
 }) {
-  const { mode, selected, openSessions, allJobs, onResume } = props;
   return (
-    <>
-      {mode === "edit" ? (
-        <InspectorSection title="Source">
-          {selected ? (
-            <div className="studio-source">
-              <div className="checker">
-                <img src={assetImageUrl(selected.id)} alt="" />
-              </div>
-              <div className="studio-source-text">
-                <strong>{selected.id}</strong>
-                <span className="faint">
-                  {selected.derived_from ? `edit of ${selected.derived_from}` : selected.file}
+    <InspectorSection title="Open sessions" note={<span className="mono">{sessions.length}</span>}>
+      <ul className="studio-open-sessions">
+        {sessions.map((s) => {
+          const n = s.versions.length;
+          const results = sessionJobs(allJobs, s.id).length;
+          return (
+            <li key={s.id}>
+              <button type="button" className="ghost small-button" onClick={() => onResume(s)}>
+                <span>{s.mode === "edit" ? s.assetId : `new: ${s.create?.name || "image"}`}</span>
+                <span className="faint mono">
+                  {n} version{n === 1 ? "" : "s"} · {results} result{results === 1 ? "" : "s"}
                 </span>
-              </div>
-            </div>
-          ) : (
-            <p className="faint small">Pick an image on the left.</p>
-          )}
-          <p className="faint small">
-            Start editing opens a session on this image. Results stay previews; Save &amp; close writes the
-            version you chose as a new image next to it.
-          </p>
-        </InspectorSection>
-      ) : (
-        <InspectorSection title="New image">
-          <div className="props studio-props">
-            <label>
-              Name
-              <input
-                type="text"
-                value={props.name}
-                maxLength={60}
-                placeholder="e.g. red triangle"
-                onChange={(e) => props.onName(e.target.value)}
-              />
-            </label>
-            <label>
-              Format
-              <select value={props.size} onChange={(e) => props.onSize(e.target.value as CreateSize)}>
-                {CREATE_SIZES.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Background
-              <select
-                value={props.background}
-                onChange={(e) => props.onBackground(e.target.value as CreateBackground)}
-              >
-                {CREATE_BACKGROUNDS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </InspectorSection>
-      )}
-      {openSessions.length > 0 && (
-        <InspectorSection title="Open sessions" note={<span className="mono">{openSessions.length}</span>}>
-          <ul className="studio-open-sessions">
-            {openSessions.map((s) => {
-              const n = s.versions.length;
-              const results = sessionJobs(allJobs, s.id).length;
-              return (
-                <li key={s.id}>
-                  <button type="button" className="ghost small-button" onClick={() => onResume(s)}>
-                    <span>{s.mode === "edit" ? s.assetId : `new: ${s.create?.name || "image"}`}</span>
-                    <span className="faint mono">
-                      {n} version{n === 1 ? "" : "s"} · {results} result{results === 1 ? "" : "s"}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </InspectorSection>
-      )}
-    </>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </InspectorSection>
   );
 }
 

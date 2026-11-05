@@ -149,6 +149,16 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
           })}
         </tbody>
       </table>
+      {float && (
+        // The column heads are swatches only (no room for words): one line says which is which.
+        <p className="metrics-legend" aria-hidden="true">
+          {CATEGORIES.filter((c) => c !== "open").map((c) => (
+            <span key={c} className={`cat-${c}`}>
+              {TITLES[c]}
+            </span>
+          ))}
+        </p>
+      )}
       {noteOpen && <p className="muted small metrics-note">{note}</p>}
       {compareTo && !float && (
         <p className="muted small">

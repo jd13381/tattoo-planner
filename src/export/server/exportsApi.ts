@@ -4,8 +4,10 @@
 //                              export (`-2`, `-3`, … when one exists); creates its PNG folder
 //   PUT  /api/exports/<path>   raw bytes, Content-Type application/pdf or image/png → WrittenFile
 //                              <path> = `<base>.pdf` or `<base>/<name>.png` of a reserved base
+//   GET  /api/exports/<path>   the bytes of a written export file (read-only, same path rules)
 // Files are never overwritten, never leave exports/ (also not through symlinks) and are checked for
 // type (extension, Content-Type and magic bytes) and size. Local dev server only.
+import { createReadStream } from "node:fs";
 import { lstat, mkdir, realpath, stat, unlink, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
@@ -35,8 +37,7 @@ export class HttpError extends Error {
   }
 }
 
-const UNSET_REASON =
-  "TATTOO_DATA_DIR is not set: exports go only into <data folder>/exports, never into the repo. Set it in .env and restart npm run dev.";
+const UNSET_REASON = "No project folder: open one in Settings → Project to export.";
 
 export async function exportStatus(dataDir: string | null): Promise<ExportStatus> {
   if (!dataDir) return { enabled: false, reason: UNSET_REASON };
@@ -164,6 +165,30 @@ export async function writeExportFile(
   return { path: `${EXPORTS_FOLDER}/${rel}`, absolute: file.path, bytes: bytes.length };
 }
 
+/**
+ * The real path and type of an existing export file, for reading it back. Same name rules as
+ * writing (`<base>.pdf` or `<base>/<name>.png`), and the resolved file must stay inside exports/.
+ */
+export async function findExportFile(
+  dataDir: string | null,
+  rel: string,
+): Promise<{ path: string; type: string; size: number }> {
+  if (!dataDir) throw new HttpError(409, UNSET_REASON);
+  const target = parseExportPath(rel);
+  if (!target) throw new HttpError(400, `invalid export path ${JSON.stringify(rel)}`);
+  const root = await exportsDir(dataDir);
+  let real: string;
+  try {
+    real = await realpath(path.resolve(root, ...rel.split("/")));
+  } catch {
+    throw new HttpError(404, "export not found");
+  }
+  if (!isInside(root, real)) throw new HttpError(403, "path leaves exports/");
+  const s = await stat(real);
+  if (!s.isFile()) throw new HttpError(404, "export not found");
+  return { path: real, type: CONTENT_TYPES[target.kind], size: s.size };
+}
+
 export function readRawBody(req: IncomingMessage, limit: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const declared = Number(req.headers["content-length"]);
@@ -212,6 +237,22 @@ export function exportsPlugin(dataDir: string | null): Plugin {
         const sub = ((req.url ?? "/").split("?")[0] ?? "/").replace(/^\//, "");
         const run = async () => {
           if (req.method === "GET" && sub === "") return send(res, 200, await exportStatus(dataDir));
+          if (req.method === "GET") {
+            let rel: string;
+            try {
+              rel = decodeURIComponent(sub);
+            } catch {
+              throw new HttpError(400, "invalid path");
+            }
+            const file = await findExportFile(dataDir, rel);
+            res.statusCode = 200;
+            res.setHeader("Content-Type", file.type);
+            res.setHeader("Content-Length", String(file.size));
+            res.setHeader("Cache-Control", "private, no-cache");
+            res.setHeader("X-Content-Type-Options", "nosniff");
+            createReadStream(file.path).pipe(res);
+            return;
+          }
           if (isCrossSite(req.headers)) throw new HttpError(403, "cross-site request refused");
           if (req.method === "POST" && sub === "") {
             if (req.headers["content-type"] !== "application/json") throw new HttpError(415, "JSON only");

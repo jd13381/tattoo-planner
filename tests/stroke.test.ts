@@ -195,3 +195,17 @@ describe("YAML of a new element", () => {
     );
   });
 });
+
+describe("stroke colour", () => {
+  it("draws new strokes in the chosen colour", () => {
+    const l: Layout = { name: "t", elements: [] };
+    const pts = [
+      { u: 0.3, v: 0.5 },
+      { u: 0.3, v: 0.6 },
+    ];
+    const red = applyStroke(profile, l, pts, null)!;
+    expect(red.layout.elements[0]).toMatchObject({ id: "red-stroke-1", color: "red" });
+    const blue = applyStroke(profile, l, pts, null, "#2f5fb3")!;
+    expect(blue.layout.elements[0]).toMatchObject({ id: "stroke-1", color: "#2f5fb3" });
+  });
+});

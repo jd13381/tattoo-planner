@@ -178,10 +178,10 @@ describe("handout wording per region", () => {
   it("keeps the left arm's text and names other regions their own way", () => {
     expect(handoutText("arm-left")).toBe(HANDOUT_EN);
     const t = handoutText("torso");
-    expect(t.title).toBe("Torso piece");
+    expect(t.subjectFallback).toContain("torso, from the waist");
     expect(t.views.medial.title).toBe("Left");
     expect(t.sides.lateral).toBe("front line");
-    expect(t.designQuestions).toEqual([]);
+    expect(t).not.toHaveProperty("designQuestions");
     expect(t.cell.aboveWrist("12")).toBe("12 cm above the waist");
     expect(handoutText("leg-right").sideShort.outer).toBe("front");
   });

@@ -2,10 +2,18 @@ import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { exportBase, isExportBase, isIsoDate, localIsoDate, parseExportPath } from "../src/export/names.ts";
+import {
+  exportBase,
+  exportFileUrl,
+  isExportBase,
+  isIsoDate,
+  localIsoDate,
+  parseExportPath,
+} from "../src/export/names.ts";
 import {
   checkExportFile,
   exportStatus,
+  findExportFile,
   isCrossSite,
   reserveExport,
   writeExportFile,
@@ -71,7 +79,7 @@ describe("export endpoint logic", () => {
   it("is disabled without a data folder and explains why", async () => {
     const s = await exportStatus(null);
     expect(s.enabled).toBe(false);
-    if (!s.enabled) expect(s.reason).toContain("TATTOO_DATA_DIR");
+    if (!s.enabled) expect(s.reason).toContain("Settings → Project");
     expect((await exportStatus(path.join(dir, "missing"))).enabled).toBe(false);
     expect(await exportStatus(dir)).toEqual({ enabled: true });
     await expect(reserveExport(null, "v1", "2026-11-03")).rejects.toMatchObject({ status: 409 });
@@ -162,5 +170,37 @@ describe("export endpoint logic", () => {
     expect(isCrossSite({ "sec-fetch-site": "same-origin" })).toBe(false);
     expect(isCrossSite({ "sec-fetch-site": "cross-site" })).toBe(true);
     expect(isCrossSite({ "sec-fetch-site": "same-site" })).toBe(true);
+  });
+});
+
+describe("reading exports back", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "tattoo-exports-read-"));
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("finds a written PDF and refuses anything else", async () => {
+    const r = await reserveExport(dir, "v1", "2026-11-05");
+    await writeExportFile(dir, `${r.base}.pdf`, "application/pdf", PDF);
+    const found = await findExportFile(dir, `${r.base}.pdf`);
+    expect(found).toMatchObject({ type: "application/pdf", size: PDF.length });
+    await expect(findExportFile(dir, "v1-2026-11-05-2.pdf")).rejects.toMatchObject({ status: 404 });
+    await expect(findExportFile(dir, "../manifest.yaml")).rejects.toMatchObject({ status: 400 });
+    await expect(findExportFile(dir, "v1-2026-11-05/../../x.png")).rejects.toMatchObject({ status: 400 });
+    await expect(findExportFile(null, `${r.base}.pdf`)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("refuses a symlink that leads out of exports/", async () => {
+    await mkdir(path.join(dir, "exports"));
+    await writeFile(path.join(dir, "secret.pdf"), PDF);
+    await symlink(path.join(dir, "secret.pdf"), path.join(dir, "exports", "v1-2026-11-05.pdf"));
+    await expect(findExportFile(dir, "v1-2026-11-05.pdf")).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("builds the URL to open a file", () => {
+    expect(exportFileUrl("v1-2026-11-05.pdf")).toBe("/api/exports/v1-2026-11-05.pdf");
   });
 });

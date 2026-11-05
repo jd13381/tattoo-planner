@@ -22,8 +22,7 @@ export type MergeResult = {
 };
 
 export const NEW_MANIFEST_TEXT = `# Asset catalogue (PROJECT_BRIEF.md §12.4). Layouts reference assets by id.
-# \`npm run ingest\` and \`npm run assets:scan\` add entries for new files; hand edits are welcome and kept.
-# On re-runs the scripts only refresh page and bbox of images extracted from ideas.pdf.
+# \`npm run assets:scan\` and the Reload button add entries for new files; hand edits are welcome and kept.
 version: 1
 assets: []
 `;
@@ -40,6 +39,7 @@ const KEY_ORDER: (keyof Asset)[] = [
   "page",
   "bbox",
   "crop",
+  "hidden",
 ];
 const FLOW_KEYS = new Set<string>(["tags", "bbox", "crop"]);
 
@@ -155,4 +155,54 @@ export function mergeManifest(
   const check = manifestSchema.safeParse(parseDocument(text).toJS());
   if (!check.success) throw new ManifestError(`merge produced an invalid manifest: ${issues(check.error)}`);
   return { text, changed: text !== original, added, updated };
+}
+
+/** Fields of one entry that the Assets tab edits. `null` / empty removes the field. */
+export type EntryPatch = { tags?: string[]; notes?: string | null; hidden?: boolean };
+
+/**
+ * Changes the tags, notes or hidden flag of the entry with `id`, keeping comments, key order and
+ * every other field. A field the entry does not have yet goes where KEY_ORDER puts it.
+ */
+export function updateManifestEntry(original: string, id: string, patch: EntryPatch): string {
+  const doc = parseManifestText(original);
+  const seq = doc.get("assets", true);
+  const entry = isSeq(seq) ? seq.items.find((item) => isMap(item) && item.get("id") === id) : undefined;
+  if (!isMap(entry)) throw new ManifestError(`no asset with id ${id}`);
+  const set = (key: keyof Asset, value: unknown) => {
+    if (value === undefined) return;
+    const remove =
+      value === null || value === false || value === "" || (Array.isArray(value) && value.length === 0);
+    if (remove) {
+      // Tags default to []; keep an existing empty list rather than dropping the key.
+      if (key === "tags" && entry.has(key)) entry.set(key, valueNode(doc, key, []));
+      else entry.delete(key);
+      return;
+    }
+    const current = entry.get(key, true);
+    if (entry.has(key)) {
+      const next = valueNode(doc, key, value);
+      if (current && typeof current === "object" && "comment" in current)
+        next.comment = (current as { comment?: string | null }).comment;
+      entry.set(key, next);
+      return;
+    }
+    // Insert after the last present key that comes before it in KEY_ORDER.
+    const at = KEY_ORDER.indexOf(key);
+    let index = 0;
+    entry.items.forEach((pair, i) => {
+      const k = KEY_ORDER.indexOf(
+        String((pair.key as { value?: unknown })?.value ?? pair.key) as keyof Asset,
+      );
+      if (k !== -1 && k < at) index = i + 1;
+    });
+    entry.items.splice(index, 0, doc.createPair(key, valueNode(doc, key, value)));
+  };
+  if (patch.tags !== undefined) set("tags", [...new Set(patch.tags.map((t) => t.trim()).filter(Boolean))]);
+  if (patch.notes !== undefined) set("notes", patch.notes?.trim() ? patch.notes.trim() : null);
+  if (patch.hidden !== undefined) set("hidden", patch.hidden || null);
+  const text = doc.toString({ lineWidth: 0, flowCollectionPadding: false });
+  const check = manifestSchema.safeParse(parseDocument(text).toJS());
+  if (!check.success) throw new ManifestError(`update produced an invalid manifest: ${issues(check.error)}`);
+  return text;
 }

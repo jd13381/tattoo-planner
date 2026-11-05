@@ -56,12 +56,12 @@ describe("run button", () => {
     expect(runLabel({ ...c, creatingNew: true, version: 0, count: 3 })).toBe("Create 3 variants");
     expect(runLabel({ ...c, count: 2 })).toBe("Make 2 variants of v2");
     expect(runLabel(c)).toBe("Edit v2 with GPT Image");
-    expect(runLabel({ ...c, engine: "claude", version: 0 })).toBe("Edit v0 with Claude");
+    expect(runLabel({ ...c, engine: "builtin", version: 0, opLabel: "Mirror" })).toBe("Apply Mirror to v0");
   });
 
   it("estimates per engine", () => {
     expect(runEstimate("openai", 2)).toMatch(/^2 × GPT Image/);
-    expect(runEstimate("claude", 1)).toMatch(/no API cost/);
+    expect(runEstimate("builtin", 1)).toMatch(/no key, no cost/);
   });
 });
 

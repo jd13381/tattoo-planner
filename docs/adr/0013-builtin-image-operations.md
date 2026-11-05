@@ -1,0 +1,44 @@
+# ADR 0013: Built-in image operations in the Image studio
+
+- Status: accepted (2026-11-05; the cut was approved by Jan, the details decided by Claude under Jan's autonomy rule, see docs/claude-decisions.md)
+- Context: `docs/product/roadmap.md` §3 and §4.4. The local engine of the Image studio ran `claude -p` with Python tools on Jan's Mac (ADR 0007). A published app cannot assume Claude Code is installed and logged in, it sent the image to Anthropic, and an edit took minutes. Most of what Jan used it for (remove a plain background, more contrast, black and grey, mirror) are simple pixel operations.
+
+## Decision
+
+**A "Built-in" engine next to "Generative (GPT Image)": a short list of local pixel operations that run in the page, need no key and no network, and add their result to the editing session as a new version, like a picked generative result (ADR 0010).**
+
+Operations (`src/render/builtinOps.ts`, framework-free on ImageData-like `{ width, height, data }` RGBA buffers, unit-tested; catalogue, controls and step names in `src/edits/builtin.ts`), at most two controls each:
+
+| Operation         | Controls (default)                          | What it does                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove background | tolerance 0–128 (32), soft edge 0–20 px (2) | Background colour = per-channel median of the opaque border pixels. A 4-connected flood fill from the border takes every pixel within the tolerance (largest channel difference) or already transparent, and clears its alpha. Enclosed areas of the background colour stay. The soft edge scales the alpha of kept pixels by a blurred keep mask, so the edge fades inward and no background comes back. |
+| Line art          | level 1–254 (128), smoothing 0–8 px (1)     | Luminance (transparent parts count as white paper), optionally blurred, then black below the level and white above; alpha kept.                                                                                                                                                                                                                                                                           |
+| Levels / contrast | black point (20), white point (235)         | Stretches [black, white] to [0, 255] on each colour channel (gamma is in the function, not in the panel).                                                                                                                                                                                                                                                                                                 |
+| Black and grey    | none                                        | Rec. 709 luminance.                                                                                                                                                                                                                                                                                                                                                                                       |
+| Invert            | none                                        | Negative, alpha kept.                                                                                                                                                                                                                                                                                                                                                                                     |
+| Rotate            | 90° left, 90° right, 180°                   | Quarter turns; width and height swap for 90°.                                                                                                                                                                                                                                                                                                                                                             |
+| Mirror            | none                                        | Left to right.                                                                                                                                                                                                                                                                                                                                                                                            |
+
+Blurs are three box passes per axis (about Gaussian), so they stay linear in the image size.
+
+**Flow.** The page decodes the session's last version (an `<img>` drawn into a canvas), previews the chosen operation live on a copy of at most 640 px (pixel-sized controls scaled to match), and on **Apply** runs it on the full image, encodes a PNG (`canvas.toBlob`) and sends it as the body of `POST /api/edits/sessions/<id>/apply?step=<name>&base=<N>` (`Content-Type: image/png`). The dev server (`src/edits/server/editsApi.ts`):
+
+- refuses cross-site requests (as every POST of the studio), anything that is not `image/png`, bodies over 50 MB, bytes that are not a complete PNG (signature, IHDR, ends with IEND) and images over 100 megapixels;
+- refuses the result with 409 when the session no longer has `base` versions (another tab applied or picked meanwhile), checked before and after copying, so a result never lands on the wrong version;
+- creates a finished job (engine `builtin`, tool `built-in`, the step name as its instruction, a copy of the source as its input for the before/after view) and appends it to the session's versions. Save, Save & close, Continue from vK and Close work unchanged; a saved image's notes name each step with its tool (`Edited: "Weniger Schlangen" (gpt-image-2.5-sunburst), then "Remove background (tolerance 32, soft edge 2 px)" (built-in)`).
+
+A new image (Create mode) needs a first version from GPT Image; after that the built-in operations work on it too. **Undo** in the panel drops the last version (it stays visible as a result of the version before until the session closes).
+
+## Alternatives
+
+- **Running the operations in the dev server:** needs an image decoder and PNG encoder in Node (a new dependency such as `sharp`, with native binaries) or hand-written codecs; the browser already has both. The server only checks and stores the PNG.
+- **A local segmentation model for photos** (e.g. onnxruntime-web with a small matting model): roadmap §4.4 leaves it optional, only with weights under an MIT-compatible licence. Not done now: a large dependency and weights to ship, and most of Jan's references are scans and drawings on plain backgrounds. Generative edits cover the hard cases.
+- **Results that have to be picked** ("Continue with this") as for generative variants: an operation is deterministic, so there is nothing to choose between; adding the version at once saves a click per step.
+- **Crop and an eraser brush** (listed in roadmap §4.4): crop already exists per layout element and per asset (`crop`), so it is left out of the studio for now; a brush needs a canvas editor and is a separate step.
+
+## Consequences and limits
+
+- No key, no network, no cost; the preview redraws instantly; Apply on a 12-megapixel image takes up to about two seconds for the operations with a blur (measured in Node on the cloud machine), during which the page waits. Very large images may hit the browser's canvas size limit (Safari: about 16.7 megapixels per canvas); the page then shows the browser's error.
+- The canvas round trip works in 8-bit sRGB: 16-bit PNGs lose depth, embedded colour profiles are converted by the browser, and EXIF orientation is applied by the browser when decoding.
+- Background removal suits plain, even backgrounds. A gradient, a shadow or a background colour that also appears at the motif's edge needs a lower tolerance, several passes, or a generative edit.
+- Applying an operation to a GIF, AVIF or other format writes a PNG version, which GPT Image can then take.

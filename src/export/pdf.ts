@@ -182,12 +182,9 @@ function drawCover(w: Writer, h: Handout, images: HandoutImages, box: Rect): voi
   let y = box.y + 6;
   w.text(t.kicker.toUpperCase(), box.x, y, { size: 8.5, font: "bold", color: RED });
   y += 7;
-  w.text(t.title, box.x, y, { size: 28, font: "bold" });
-  y += 13;
-  y = w.para(t.subject, box.x, y, leftW, { size: 11, color: MUTED }) + 6;
-  w.text(t.layout(h.layoutName), box.x, y, { size: 12.5, font: "bold" });
-  y += 6.5;
-  if (h.description) y = w.para(h.description, box.x, y, leftW, { size: 10, font: "italic" }) + 1;
+  // Title and subtitle come from the layout: its name and its description.
+  y = w.para(h.layoutName, box.x, y, leftW, { size: 28, font: "bold", leading: 1.15 }) + 3;
+  y = w.para(h.description ?? t.subjectFallback, box.x, y, leftW, { size: 11, color: MUTED }) + 3;
   y = w.para(t.dateLine(h.date), box.x, y + 1, leftW, { size: 9, color: MUTED }) + 7;
 
   // The note: the most important text of the handout (PROJECT_BRIEF.md §1.2).
@@ -377,13 +374,13 @@ function drawTables(w: Writer, h: Handout, box: Rect, o: Orientation): void {
   );
 
   // Keep the open questions together on one page when they fit on one.
-  const itemsHeight = [...h.layoutPoints, ...h.designQuestions].reduce(
+  const itemsHeight = h.layoutPoints.reduce(
     (a, item) => a + wrapText(item, box.w - 7, 9, w.measure("normal")).length * lineHeight(9, 1.35) + 1.5,
     0,
   );
-  needs(Math.min(box.h, 9 + 2 * 10 + 8 + itemsHeight));
+  needs(Math.min(box.h, 9 + 10 + 8 + itemsHeight));
   y = w.heading(t.questionsTitle, { ...box, y });
-  const list = (title: string, items: string[], numbered: boolean) => {
+  const list = (title: string, items: string[]) => {
     needs(14);
     w.text(title, box.x, y, { size: 10, font: "bold" });
     y += 6;
@@ -391,19 +388,15 @@ function drawTables(w: Writer, h: Handout, box: Rect, o: Orientation): void {
       y = w.para(t.layoutPointsNone, box.x, y, box.w, { size: 9 }) + 2;
       return;
     }
-    items.forEach((item, i) => {
+    items.forEach((item) => {
       const lines = wrapText(item, box.w - 7, 9, w.measure("normal"));
       needs(lines.length * lineHeight(9, 1.35) + 1.5);
-      w.text(numbered ? `${i + 1}.` : "•", box.x + (numbered ? 0 : 1), y, {
-        size: 9,
-        color: numbered ? MUTED : RED,
-      });
+      w.text("•", box.x + 1, y, { size: 9, color: RED });
       y = w.para(item, box.x + 7, y, box.w - 7, { size: 9 }) + 1.5;
     });
     y += 4;
   };
-  list(t.layoutPointsTitle, h.layoutPoints, false);
-  list(t.designQuestionsTitle, h.designQuestions, true);
+  list(t.layoutPointsTitle, h.layoutPoints);
 }
 
 function drawFooters(w: Writer, h: Handout): void {
@@ -430,7 +423,7 @@ export async function writeHandoutPdf(
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
   doc.setProperties({
-    title: toPdfText(`${t.title} – ${h.layoutName} – ${h.date}`),
+    title: toPdfText(`${t.docTitle(h.layoutName)} – ${h.date}`),
     subject: toPdfText(t.noteTitle),
     creator: "Tattoo Planner",
   });
