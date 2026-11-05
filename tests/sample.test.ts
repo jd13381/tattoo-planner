@@ -81,10 +81,12 @@ describe("placeholder motifs", () => {
       const a = renderMotif(m, 64);
       const b = renderMotif(m, 64);
       expect(Buffer.from(a).equals(Buffer.from(b))).toBe(true);
-      // Some ink, some transparent background.
+      // Opaque paper with some dark ink on it.
       const alpha = a.filter((_, i) => i % 4 === 3);
-      expect(alpha.some((x) => x > 200)).toBe(true);
-      expect(alpha.some((x) => x === 0)).toBe(true);
+      expect(alpha.every((x) => x === 255)).toBe(true);
+      const red = a.filter((_, i) => i % 4 === 0);
+      expect(red.some((x) => x > 240)).toBe(true);
+      expect(red.some((x) => x < 80)).toBe(true);
       hashes.add(createHash("sha256").update(a).digest("hex"));
     }
     expect(hashes.size).toBe(MOTIFS.length);

@@ -20,6 +20,8 @@ export const PLACEHOLDER_SIZE = 512;
 
 const INK: readonly [number, number, number] = [28, 26, 32];
 const ACCENT: readonly [number, number, number] = [178, 58, 46];
+/** Off-white paper, as on a scanned drawing: reference mode multiplies it away on the skin. */
+const PAPER: readonly [number, number, number] = [252, 251, 247];
 
 // --- Signed distance primitives ---
 
@@ -291,8 +293,9 @@ const BUILDERS: Record<MotifId, () => Motif> = {
 };
 
 /**
- * Renders a motif as RGBA pixels (row-major, `size × size`), transparent background, dark ink over a
- * muted red accent. Edges are anti-aliased from the distance field (one sample per pixel).
+ * Renders a motif as RGBA pixels (row-major, `size × size`): dark ink over a muted red accent on
+ * opaque paper, so it reads on the dark UI and behaves like a scanned drawing. Edges are anti-aliased
+ * from the distance field (one sample per pixel).
  */
 export function renderMotif(id: MotifId, size = PLACEHOLDER_SIZE): Uint8Array {
   const motif = BUILDERS[id]();
@@ -305,13 +308,12 @@ export function renderMotif(id: MotifId, size = PLACEHOLDER_SIZE): Uint8Array {
       const x = pxi / size + half;
       const ink = coverage(motif.ink(x, y));
       const accent = motif.accent ? coverage(motif.accent(x, y)) * 0.85 : 0;
-      // Ink over accent ("source over"), premultiplied, then back to straight alpha.
-      const a = ink + accent * (1 - ink);
-      if (a <= 0) continue;
+      // Ink over accent over paper ("source over").
       const i = (py * size + pxi) * 4;
+      const paper = (1 - ink) * (1 - accent);
       for (let k = 0; k < 3; k++)
-        px[i + k] = Math.round((INK[k]! * ink + ACCENT[k]! * accent * (1 - ink)) / a);
-      px[i + 3] = Math.round(a * 255);
+        px[i + k] = Math.round(INK[k]! * ink + ACCENT[k]! * accent * (1 - ink) + PAPER[k]! * paper);
+      px[i + 3] = 255;
     }
   }
   return px;
