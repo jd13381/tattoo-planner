@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import type { ArmProfile } from "../arm/profile.ts";
 import type { ElementAspects } from "../layout/imageFit.ts";
@@ -15,6 +16,7 @@ import {
   pickAllElements,
   resolveElement,
   wrapDelta,
+  wrappedMidU,
   type ElementPatches,
   type ExistingSize,
   type Shape,
@@ -62,6 +64,8 @@ type Props = {
   fitRequest?: number;
   /** false leaves out the usage hint under the editor (the page shows EDITOR_HINT elsewhere). */
   hint?: boolean;
+  /** Floats next to the selected figure or existing tattoo (e.g. "Change image"); hidden while dragging. */
+  selectionAction?: ReactNode;
 };
 
 /** How to use the editor, shown under it or as a tooltip. */
@@ -111,6 +115,7 @@ export function UnwrapEditor(props: Props) {
     onZoom,
     fitRequest,
     hint = true,
+    selectionAction,
   } = props;
   const L = profile.length;
   const half = profile.maxCircumference / 2;
@@ -190,6 +195,36 @@ export function UnwrapEditor(props: Props) {
     x: -wrapDelta(u - centerU) * profile.circumferenceAt(y),
     y: L - y,
   });
+
+  // Where the selection action floats: right of the selected box's top-right corner, in pixels
+  // of the editor element (measured after layout, since it depends on the SVG's on-screen box).
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [actionAt, setActionAt] = useState<{ left: number; top: number } | null>(null);
+  const selShape = selected !== null ? resolved[selected]?.shape : undefined;
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    const root = rootRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!selectionAction || !svg || !root || !ctm || selShape?.kind !== "box") {
+      setActionAt(null);
+      return;
+    }
+    const c = {
+      x: -wrapDelta(selShape.uc - centerU) * profile.circumferenceAt(selShape.cy),
+      y: L - selShape.cy,
+    };
+    const cos = Math.abs(Math.cos(selShape.rot));
+    const sin = Math.abs(Math.sin(selShape.rot));
+    const ex = (cos * selShape.w + sin * selShape.h) / 2;
+    const ey = (sin * selShape.w + cos * selShape.h) / 2;
+    const p = new DOMPoint(c.x + ex, c.y - ey).matrixTransform(ctm);
+    const r = root.getBoundingClientRect();
+    const s = svg.getBoundingClientRect();
+    // Kept inside the visible sheet.
+    const left = Math.min(Math.max(p.x, s.left + 4), s.right - 120) - r.left + 8;
+    const top = Math.min(Math.max(p.y, s.top + 4), s.bottom - 32) - r.top;
+    setActionAt({ left, top });
+  }, [selectionAction, selShape, view, svgSize, centerU, profile, L]);
 
   const pointer = (e: { clientX: number; clientY: number }) => {
     const svg = svgRef.current;
@@ -328,7 +363,7 @@ export function UnwrapEditor(props: Props) {
   };
 
   return (
-    <div className="unwrap-editor">
+    <div className="unwrap-editor" ref={rootRef}>
       <div className="unwrap-image-layer" aria-hidden="true">
         <div ref={hostRef} className="unwrap-image-host" />
       </div>
@@ -426,6 +461,11 @@ export function UnwrapEditor(props: Props) {
           )}
         {drag?.kind === "resize" && <ResizeFeedback drag={drag} px={px} view={view} />}
       </svg>
+      {actionAt && !drag && selectionAction && (
+        <div className="selection-action" style={{ left: actionAt.left, top: actionAt.top }}>
+          {selectionAction}
+        </div>
+      )}
       {hint && <p className="muted small">{EDITOR_HINT}</p>}
     </div>
   );
@@ -476,7 +516,7 @@ function ShapeOverlay(props: {
       const left = ys.map((y) => toSvg(shape.u0, y));
       const right = ys.map((y) => toSvg(shape.u1, y)).reverse();
       body = <polygon points={[...left, ...right].map((p) => `${p.x},${p.y}`).join(" ")} />;
-      labelAt = toSvg((shape.u0 + shape.u1) / 2, shape.y1);
+      labelAt = toSvg(wrappedMidU(shape.u0, shape.u1), shape.y1);
       labelAt = { x: labelAt.x, y: labelAt.y - 0.4 };
       break;
     }

@@ -8,7 +8,7 @@ import { buildProfile } from "../src/arm/profile.ts";
 import { listLayouts, saveLayout } from "../src/data/server/layoutsApi.ts";
 import { moveElement, newElement, reorder, uniqueId } from "../src/editor/edit.ts";
 import type { Layout, LayoutElement } from "../src/layout/schema.ts";
-import { classify, hits, OUTSIDE, resolveElement, wrapDelta } from "../src/layout/shapes.ts";
+import { classify, hits, OUTSIDE, resolveElement, wrapDelta, wrappedMidU } from "../src/layout/shapes.ts";
 import { parseLayout, updateLayoutText } from "../src/layout/yamlDoc.ts";
 import { coverage, zoneOf } from "../src/metrics/coverage.ts";
 
@@ -143,7 +143,12 @@ describe("shapes", () => {
       position: { u: 0.5, v: 0.12 },
       size_cm: { h: null, w: null },
     };
-    expect(resolveElement(anubis, profile).flags).toEqual(["height not set", "width assumed"]);
+    // No image, so no "width assumed" warning: a plain box keeps the default proportions.
+    expect(resolveElement(anubis, profile).flags).toEqual(["height not set"]);
+    expect(resolveElement({ ...anubis, asset: "photo" }, profile).flags).toEqual([
+      "height not set",
+      "width assumed",
+    ]);
     const r = resolveElement(anubis, profile, { height: 16, width: 9 });
     expect(r.flags).toEqual([]);
     expect(r.shape).toMatchObject({ w: 9, h: 16 });
@@ -244,5 +249,13 @@ describe("lines near the seam", () => {
     const c = profile.circumferenceAt(y);
     expect(hits(shape, 0.125, y, c)).toBe(true);
     for (let u = 0.3; u < 0.95; u += 0.01) expect(hits(shape, u, y, c), `u=${u}`).toBe(false);
+  });
+});
+
+describe("wrappedMidU", () => {
+  it("finds the middle of a range, also across the seam", () => {
+    expect(wrappedMidU(0.2, 0.4)).toBeCloseTo(0.3);
+    expect(wrappedMidU(0.9, 0.1)).toBeCloseTo(0);
+    expect(wrappedMidU(0.8, 0.0)).toBeCloseTo(0.9);
   });
 });

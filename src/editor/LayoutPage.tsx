@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AssetBrowser } from "../assets/AssetBrowser.tsx";
+import { stepAsset } from "../assets/filter.ts";
+import { ImagePicker } from "../assets/ImagePicker.tsx";
 import type { AssetInfo } from "../assets/types.ts";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { useLayoutSources } from "../assets/useLayoutSources.ts";
@@ -26,7 +28,6 @@ import {
   HelpIcon,
   ImageIcon,
   LayersIcon,
-  LineIcon,
   RedLineIcon,
   RedoIcon,
   SelectIcon,
@@ -35,9 +36,9 @@ import {
 } from "../ui/icons.tsx";
 import { createValueStore, useValue, type ValueStore } from "../ui/valueStore.ts";
 import { ToastRegion, useToast } from "../ui/Toast.tsx";
-import { newElement, suggestVariantName } from "./edit.ts";
+import { freeSpot, newElement, suggestVariantName } from "./edit.ts";
 import { ElementList } from "./ElementList.tsx";
-import { ElementPanel } from "./ElementPanel.tsx";
+import { ColorField, ElementPanel } from "./ElementPanel.tsx";
 import { canRedo, canUndo, createHistory, push, redo, reset, seal, undo, type History } from "./history.ts";
 import {
   burstKey,
@@ -48,6 +49,7 @@ import {
   moveLayer,
   moveLayerTo,
   nextBurst,
+  splitIssues,
   type Burst,
   type LayoutEdit,
 } from "./layoutOps.ts";
@@ -65,16 +67,19 @@ import { applyStroke, type UV } from "./stroke.ts";
 import { EDITOR_HINT, UnwrapEditor } from "./UnwrapEditor.tsx";
 import { currentPlatform, useLayoutShortcuts } from "./useLayoutShortcuts.ts";
 
+// "cm grid" is gone from the switch: Blockout with Grid on shows the same grid with the layout.
 const MODES: { id: RenderMode; label: string }[] = [
-  { id: "blockout", label: "Blockout" },
   { id: "reference", label: "Reference" },
-  { id: "grid", label: "cm grid" },
+  { id: "blockout", label: "Blockout" },
 ];
+
+/** `?debug` in the URL shows developer readouts (the texture render time). */
+const DEBUG = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug");
 
 const HINTS: Record<RenderMode, string | undefined> = {
   blockout: "Dark grey: figures, light grey: fillers, striped: bands, red: lines, outlined: existing tattoo.",
   reference:
-    "Reference images cut to their boxes (grayscale on the forearm by default), patterns for fillers and bands, red lines on top.",
+    "Reference images cut to their boxes (grayscale on the forearm by default), patterns for fillers and bands, lines on top.",
   grid: undefined,
 };
 
@@ -83,13 +88,12 @@ const PX_PER_CM = 12;
 /** Metrics resolution: 6 px per cm gives areas within a fraction of a percent. */
 const METRICS_PX_PER_CM = 6;
 
-/** The tool rail's add buttons, in rail order. */
+/** The tool rail's add buttons, in rail order. Lines are drawn with the Line tool (brush). */
 const ADD_TOOLS: { type: ElementType; label: string; icon: ReactNode }[] = [
   { type: "figure", label: "Figure", icon: <FigureIcon /> },
   { type: "existing", label: "Existing tattoo", icon: <ExistingIcon /> },
   { type: "filler", label: "Filler", icon: <FillerIcon /> },
   { type: "band", label: "Band", icon: <BandIcon /> },
-  { type: "line", label: "Line", icon: <LineIcon /> },
 ];
 
 /** Where the page puts its controls in the app's top bar (App.tsx). */
@@ -116,11 +120,16 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const [saveError, setSaveError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [viewerToolbar, setViewerToolbar] = useState<HTMLDivElement | null>(null);
-  const [mode, setMode] = useState<RenderMode>("blockout");
+  const [mode, setMode] = useState<RenderMode>("reference");
   const [grid, setGrid] = useState(true);
   const [centerU, setCenterU] = useState(0);
-  // Brush tool (Phase 6): draw red lines on the 3D arm.
+  // Line tool (brush): draw lines on the 3D arm, in the chosen colour.
   const [drawing, setDrawing] = useState(false);
+  const [lineColor, setLineColor] = useState("red");
+  // The image picker and the button it opened from (element panel or the floating button).
+  const [pickerAnchor, setPickerAnchor] = useState<HTMLElement | null>(null);
+  // Switching variants with unsaved edits asks first (Save / Discard / Cancel).
+  const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
   const [appendStrokes, setAppendStrokes] = useState(false);
   const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -131,6 +140,8 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const [cursor] = useState(() => createValueStore<SkinUV | null>(null));
   const [zoom] = useState(() => createValueStore(100));
   const toast = useToast();
+  // Export progress and results sit with the toasts at the bottom, not in the top bar.
+  const [statusSlot, setStatusSlot] = useState<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const [platform] = useState(currentPlatform);
   const keyHint = (keys: string) => formatKeys(keys, platform);
@@ -185,6 +196,17 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
     validation && !validation.success
       ? validation.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
       : null;
+  // Id problems show under the id field of the selected element; the rest in a floating notice.
+  const issueSplit = useMemo(
+    () =>
+      validation && !validation.success && layout
+        ? splitIssues(
+            validation.error.issues,
+            layout.elements.map((e) => e.id),
+          )
+        : null,
+    [validation, layout],
+  );
 
   // 3D texture: always centred on the outer line. The render time is shown next to the mode switch.
   const { canvas: texture, ms: renderMs } = useMemo(() => {
@@ -269,11 +291,9 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   );
   const exportBlocked = validationError
     ? "Fix the layout errors first."
-    : dirty
-      ? "Save first, so the handout matches the YAML."
-      : loadingImages
-        ? "Waiting for the reference images to load."
-        : null;
+    : loadingImages
+      ? "Waiting for the reference images to load."
+      : null;
 
   // Every edit goes through the history. `key` coalesces a run of changes (one drag, one typing
   // burst in a field) into one undo step.
@@ -300,10 +320,12 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
 
   const addElement = (type: ElementType) => {
     if (!layout) return;
+    // Each new element lands a little beside the previous one instead of on top of it.
+    const at = freeSpot(layout.elements.map(elementAnchor), centerU, 0.5);
     const el = newElement(
       type,
-      centerU,
-      0.5,
+      at.u,
+      at.v,
       layout.elements.map((e) => e.id),
     );
     commit((l) => ({ ...l, elements: [...l.elements, el] }));
@@ -323,17 +345,19 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
     setSelected(followSelection(history.present, h.present, selected));
   };
 
-  const doSave = async (target: Layout, from?: string) => {
+  const doSave = async (target: Layout, from?: string): Promise<boolean> => {
     setSaveError(null);
     try {
       await save(target, from);
       setName(target.name);
       setHistory((h) => (h ? reset(h, target) : createHistory(target)));
       setSavedJson(JSON.stringify(target));
-      toast.show(target.name === name ? `Saved ${target.name}` : `Saved as ${target.name}`);
+      toast.show(target.name === name ? `Saved ${target.name}` : `Saved as a new variant: ${target.name}`);
+      return true;
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : String(e));
       toast.show("Save failed", "error");
+      return false;
     }
   };
 
@@ -345,7 +369,18 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   };
 
   const switchTo = (next: string) => {
-    if (dirty && !window.confirm("Discard unsaved changes?")) return;
+    if (next === name) return;
+    if (dirty) {
+      setPendingSwitch(next);
+      return;
+    }
+    open(next, files);
+  };
+  const resolveSwitch = async (choice: "save" | "discard" | "cancel") => {
+    const next = pendingSwitch;
+    setPendingSwitch(null);
+    if (!next || choice === "cancel") return;
+    if (choice === "save" && (!layout || !(await doSave(layout)))) return;
     open(next, files);
   };
 
@@ -353,7 +388,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const appendTarget = appendStrokes && sel?.type === "line" && !sel.locked ? selected : null;
   const onStroke = (samples: UV[]) => {
     if (!layout) return;
-    const r = applyStroke(profile, layout, samples, appendTarget);
+    const r = applyStroke(profile, layout, samples, appendTarget, lineColor);
     if (!r) return;
     commit(() => r.layout);
     setSelected(r.index);
@@ -369,8 +404,30 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
         : null;
   const pickAsset = (a: AssetInfo) => {
     if (selected === null || !sel || !isFigureLike(sel) || sel.locked) return;
-    // A new image gets its own cut-out: drop a crop that belonged to the old one.
-    setElement(selected, { ...sel, asset: a.id, crop: sel.asset === a.id ? sel.crop : undefined });
+    if (sel.asset === a.id) return;
+    // A new image gets its own cut-out: drop a crop that belonged to the old one. One undo step.
+    setElement(selected, { ...sel, asset: a.id, crop: undefined });
+  };
+  const allAssets = listing?.status === "ok" ? listing.assets : null;
+  const canChangeImage = !!sel && isFigureLike(sel) && !sel.locked;
+  const stepImage =
+    canChangeImage && allAssets && sel && isFigureLike(sel)
+      ? (dir: 1 | -1) => {
+          const next = stepAsset(allAssets, sel.asset, dir, sel.type === "existing" ? "existing" : undefined);
+          if (next) pickAsset(next);
+        }
+      : null;
+  const canStep =
+    !!stepImage && !!sel && isFigureLike(sel) && stepAsset(allAssets ?? [], sel.asset, 1) !== null;
+  // The picker belongs to the selection: it closes when the selection changes.
+  const [pickerFor, setPickerFor] = useState<number | null>(null);
+  if (pickerAnchor && pickerFor !== selected) {
+    setPickerAnchor(null);
+    setPickerFor(null);
+  }
+  const openPicker = (anchor: HTMLElement) => {
+    setPickerFor(selected);
+    setPickerAnchor((a) => (a === anchor ? null : anchor));
   };
 
   const deleteSelected = () => {
@@ -396,7 +453,8 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
       case "tool":
         return setDrawing(a.tool === "draw" ? (d) => !d : false);
       case "deselect":
-        if (drawing) setDrawing(false);
+        if (pickerAnchor) setPickerAnchor(null);
+        else if (drawing) setDrawing(false);
         else if (helpOpen) setHelpOpen(false);
         else setSelected(null);
         return;
@@ -441,8 +499,9 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
             key: "placeholder",
             text: (
               <>
-                Placeholder arm: {arm.placeholders.length} of {INPUT_COUNT} values not measured yet;
-                proportions are generic until <code>config/measurements.yaml</code> is filled in.
+                Placeholder body: {arm.placeholders.length} of {INPUT_COUNT} values not measured yet;
+                proportions are generic until the measurements are filled in (Settings → Body &amp;
+                measurements).
               </>
             ),
           },
@@ -461,7 +520,16 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
       ? [{ key: "height", text: <>Height not set, shown at 10 cm: {flagged.join(", ")}.</> }]
       : []),
   ];
-  const errors = [loadError, parseError, validationError, saveError].some(Boolean);
+  // Id errors of the selected element show under its id field; everything else floats as a notice.
+  const otherIssues = issueSplit
+    ? [
+        ...[...issueSplit.idErrors]
+          .filter(([i]) => i !== selected)
+          .map(([i, msg]) => `${layout?.elements[i]?.id ?? `element ${i + 1}`}: ${msg}`),
+        ...issueSplit.other.map((o) => o.text),
+      ]
+    : [];
+  const errors = !!(loadError || parseError || saveError || otherIssues.length > 0);
 
   const kbdSave = keyHint("Mod+S");
   const assetCount = listing?.status === "ok" ? listing.assets.length : null;
@@ -501,21 +569,50 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const headerActions = (
     <>
       <span className="header-sep" aria-hidden="true" />
-      <span className="select-wrap" title={dirty ? "Unsaved edits" : undefined}>
-        <select
-          className="variant-select"
-          aria-label="Variant"
-          value={name ?? ""}
-          onChange={(e) => switchTo(e.target.value)}
-          disabled={!files}
+      <span className="popover-anchor">
+        <span className="select-wrap" title={dirty ? "Unsaved edits" : undefined}>
+          <select
+            className="variant-select"
+            aria-label="Variant"
+            value={name ?? ""}
+            onChange={(e) => switchTo(e.target.value)}
+            disabled={!files}
+          >
+            {(files ?? []).map((f) => (
+              <option key={f.name} value={f.name}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+          {dirty && <span className="dirty-dot" role="img" aria-label="unsaved changes" />}
+        </span>
+        <Popover
+          open={pendingSwitch !== null}
+          onClose={() => void resolveSwitch("cancel")}
+          label="Unsaved changes"
+          className="switch-popover"
         >
-          {(files ?? []).map((f) => (
-            <option key={f.name} value={f.name}>
-              {f.name}
-            </option>
-          ))}
-        </select>
-        {dirty && <span className="dirty-dot" role="img" aria-label="unsaved changes" />}
+          <p className="popover-title">Unsaved changes in {name}</p>
+          <p className="muted small">Save them before opening {pendingSwitch}?</p>
+          <div className="toolbar">
+            <button
+              type="button"
+              className="primary"
+              data-autofocus
+              disabled={!canSave}
+              title={canSave ? undefined : "Fix the layout errors first"}
+              onClick={() => void resolveSwitch("save")}
+            >
+              Save
+            </button>
+            <button type="button" className="danger" onClick={() => void resolveSwitch("discard")}>
+              Discard
+            </button>
+            <button type="button" className="ghost" onClick={() => void resolveSwitch("cancel")}>
+              Cancel
+            </button>
+          </div>
+        </Popover>
       </span>
       <button
         type="button"
@@ -579,7 +676,12 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
       >
         Save <kbd className="kbd">{kbdSave}</kbd>
       </button>
-      <ExportButton input={exportInput} blocked={exportBlocked} />
+      <ExportButton
+        input={exportInput}
+        blocked={exportBlocked}
+        saveFirst={dirty && canSave && layout ? () => doSave(layout) : null}
+        statusTarget={statusSlot}
+      />
     </>
   );
 
@@ -594,15 +696,18 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
         </div>
       )}
 
+      {/* Floats over the workspace instead of pushing it down. */}
       {errors && (
         <div className="notices layout-errors">
           {loadError && <p className="notice error">{loadError}</p>}
           {parseError && (
             <p className="notice error" role="alert">
-              <strong>{name}.yaml is invalid:</strong> {parseError}
+              <strong>Variant {name} cannot be opened:</strong> {parseError}
             </p>
           )}
-          {validationError && <p className="notice error">Not saved: {validationError}</p>}
+          {otherIssues.length > 0 && (
+            <p className="notice error">Cannot save yet: {otherIssues.join("; ")}</p>
+          )}
           {saveError && <p className="notice error">Save failed: {saveError}</p>}
         </div>
       )}
@@ -644,12 +749,11 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                 </span>
               </button>
             ))}
-            <span className="rail-sep" aria-hidden="true" />
             <button
               type="button"
               className="tool draw-tool"
               aria-pressed={drawing}
-              aria-label="Draw red line"
+              aria-label="Line: draw on the 3D arm"
               aria-keyshortcuts="R"
               onClick={() => setDrawing((d) => !d)}
             >
@@ -658,7 +762,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                 R
               </span>
               <span className="tip" aria-hidden="true">
-                Draw red line on the 3D arm <kbd className="kbd">R</kbd>
+                Line: draw on the 3D arm <kbd className="kbd">R</kbd>
               </span>
             </button>
             <span className="spacer" />
@@ -727,6 +831,20 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
               onZoom={zoom.set}
               fitRequest={fitRequest}
               hint={false}
+              selectionAction={
+                canChangeImage ? (
+                  <button
+                    type="button"
+                    className="change-image-float"
+                    onClick={(e) => openPicker(e.currentTarget)}
+                    aria-expanded={!!pickerAnchor}
+                    title="Pick another image for this figure"
+                  >
+                    <ImageIcon />
+                    Change image
+                  </button>
+                ) : undefined
+              }
             />
             <div className="float float-bar ws-2d-bar">
               <span className="segmented" role="group" aria-label="Mode" title={HINTS[mode]}>
@@ -742,13 +860,15 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                   </button>
                 ))}
               </span>
-              <span
-                className="render-ms mono"
-                data-render-ms={renderMs.toFixed(1)}
-                title="Texture render time"
-              >
-                {Math.round(renderMs)} ms
-              </span>
+              {DEBUG && (
+                <span
+                  className="render-ms mono"
+                  data-render-ms={renderMs.toFixed(1)}
+                  title="Texture render time"
+                >
+                  {Math.round(renderMs)} ms
+                </span>
+              )}
               <span className="toolbar-sep" aria-hidden="true" />
               <label className="inline switch-label" title="1 cm grid over the skin, bold every 5 cm">
                 <input
@@ -757,7 +877,6 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                   className="switch"
                   checked={grid}
                   onChange={(e) => setGrid(e.target.checked)}
-                  disabled={mode === "grid"}
                 />
                 Grid
               </label>
@@ -811,6 +930,9 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
               overlay={
                 drawing && (
                   <div className="canvas-toolbar top">
+                    <span className="draw-color">
+                      Colour <ColorField value={lineColor} onChange={setLineColor} />
+                    </span>
                     {sel?.type === "line" && !sel.locked && (
                       <label className="inline check">
                         <input
@@ -824,7 +946,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                     <span>
                       {appendTarget !== null
                         ? `Strokes extend ${sel?.id} at its nearer end.`
-                        : "Each stroke becomes a new red line."}{" "}
+                        : "Each stroke becomes a new line."}{" "}
                       <span className="muted">Rotation is off (right-drag pans, scroll zooms).</span>
                     </span>
                   </div>
@@ -832,18 +954,6 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
               }
             />
             <div className="float float-bar ws-3d-bar" title={`${ORBIT_HINT} ${HINTS[mode] ?? ""}`}>
-              <button
-                type="button"
-                className={`ghost draw-button${drawing ? " active" : ""}`}
-                aria-pressed={drawing}
-                aria-keyshortcuts="R"
-                onClick={() => setDrawing((d) => !d)}
-                title="Drag on the 3D arm to draw a red line; it becomes a line element you can edit in the 2D editor (R)"
-              >
-                <RedLineIcon />
-                Draw red line <kbd className="kbd">R</kbd>
-              </button>
-              <span className="toolbar-sep" aria-hidden="true" />
               <div ref={setViewerToolbar} className="viewer-tools" />
             </div>
             <div className="float pose-panel">
@@ -943,6 +1053,9 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                     onLayer={(dir) => apply((l) => moveLayer(l, selected, dir))}
                     onDelete={deleteSelected}
                     onDuplicate={() => apply((l) => duplicateAt(l, selected))}
+                    onChangeImage={canChangeImage ? openPicker : undefined}
+                    onStepImage={canStep ? stepImage : null}
+                    idError={issueSplit?.idErrors.get(selected) ?? null}
                     keys={{
                       duplicate: keyHint("Mod+D"),
                       delete: "Delete",
@@ -981,7 +1094,23 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
           </section>
         </div>
       )}
-      <ToastRegion toast={toast} />
+      {pickerAnchor && sel && isFigureLike(sel) && (
+        <ImagePicker
+          listing={listing}
+          current={sel.asset}
+          elementId={sel.id}
+          anchor={pickerAnchor}
+          onPick={(a) => {
+            pickAsset(a);
+            setPickerAnchor(null);
+          }}
+          onClose={() => setPickerAnchor(null)}
+        />
+      )}
+      <div className="status-stack">
+        <div ref={setStatusSlot} className="export-status-slot" />
+        <ToastRegion toast={toast} />
+      </div>
     </div>
   );
 }
