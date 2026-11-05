@@ -184,3 +184,15 @@ Jan approved the session flow (proposal "Image studio: iteration flow review and
 - **Dark checkerboard and thumbnail background by default** (Jan: white backgrounds look odd); the Light switch stays for black line work on transparent backgrounds and is remembered per browser (`localStorage`).
 - **Reload runs the scan** (`POST /api/assets/scan`) before re-reading the manifest (Jan: new files did not show up). It only adds entries, like `npm run assets:scan`, and reports images outside `cards/`, `refs/`, `existing/`, `arm-photos/` instead of cataloguing them (`ideas/`, `edits/`, `generated/`, `exports/` are filled by the planner and not reported). _Alternative:_ catalogue any folder, or watch the folder.
 - **Tab order Layout, Image studio, Compare, Projection, …** (Jan, 2026-11-04: the two tabs he uses most side by side). The Image studio now stays mounted like the Layout tab, so switching back and forth keeps the picked image, the prompt text and the version on view; the session itself was already kept by the dev server.
+
+## 2026-11-05: product rework (roadmap phases B and C)
+
+Jan asked Claude (2026-11-05) to run Phase B and then work through Phase C on its own, deciding open points and logging them here.
+
+### Architecture
+
+- **Bodies are built from lofted regions** (`docs/adr/0011-bodies-and-regions.md`): arms, legs and torso are lofts like today's arm; head, neck, hands, feet and joints are neutral, non-editable shapes. Sample bodies `female` and `male` are parameter sets, not meshes. _Alternative:_ a CC0 MakeHuman mesh with a UV atlas (realistic, but not cm-true and much more work). _Change:_ a mesh can be added later as another geometry source per region.
+- **Torso seam on the left flank**, so chest and back pieces stay whole in the unwrap. _Change:_ `seam` of the torso region.
+- **A-pose with palms forward**, so the arm keeps today's conventions.
+- **One project folder per person** (`docs/adr/0012-project-folder.md`) with `project.yaml`; current project remembered in `~/.config/tattoo-planner/config.json`, `TATTOO_DATA_DIR` still wins. Jan's Seafile folder opens as a legacy project and keeps using the repo's `config/` until "Move into project" (or `npm run migrate`) copies it over.
+- **Server code moves out of the Vite plugins** into `server/`, mounted by Vite in dev and by the desktop app.
