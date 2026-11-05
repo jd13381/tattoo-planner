@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import type { ArmProfile } from "../body/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import { requestImage, useAssetImages, useAssetListing } from "../assets/useAssets.ts";
 import type { HeaderSlots } from "../editor/LayoutPage.tsx";
 import { formatKeys } from "../editor/shortcuts.ts";
@@ -25,7 +25,7 @@ import { Popover } from "../ui/Popover.tsx";
 import { ToastRegion, useToast } from "../ui/Toast.tsx";
 import { ArmViewer, ORBIT_HINT, PoseControl } from "../viewer/ArmViewer.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
-import { modelGrid, photoFrame, turnedSize, type GridLine } from "./model.ts";
+import { modelGrid, photoFrame, turnedSize, twistReach, type GridLine } from "./model.ts";
 import type { ProjectedPatch } from "./patch.ts";
 import { photoStatus, type ListingState, type PhotoStatus } from "./photoStatus.ts";
 import type { PhotoCalibration, ProjectionCalibration } from "./schema.ts";
@@ -166,7 +166,7 @@ type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "failed"; messa
 function ProjectionEditor(props: {
   saved: ProjectionCalibration;
   picker: (dirty: boolean) => ReactNode;
-  profile: ArmProfile;
+  profile: RegionProfile;
   pose: Pose;
   onDirty?: (dirty: boolean) => void;
   header?: HeaderSlots;
@@ -672,7 +672,7 @@ const GRID_COLORS: Record<GridLine["kind"], string> = {
 function PhotoEditor(props: {
   photo: PhotoCalibration;
   image: Extract<AssetImage, { status: "ready" }>;
-  profile: ArmProfile;
+  profile: RegionProfile;
   onChange: (p: PhotoCalibration) => void;
 }) {
   const { photo, image: ready, profile, onChange } = props;
@@ -688,11 +688,11 @@ function PhotoEditor(props: {
     return c.toDataURL("image/jpeg", 0.85);
   }, [ready, photo.turn, size.width, size.height]);
   const frame = useMemo(
-    () => photoFrame(photo, size.width, size.height, profile.elbowAt),
-    [photo, size.width, size.height, profile.elbowAt],
+    () => photoFrame(photo, size.width, size.height, twistReach(profile)),
+    [photo, size.width, size.height, profile],
   );
   const grid = useMemo(
-    () => (frame ? modelGrid(frame, profile, { sMax: profile.elbowAt + 2 }) : []),
+    () => (frame ? modelGrid(frame, profile, { sMax: twistReach(profile) + 2 }) : []),
     [frame, profile],
   );
   const svgRef = useRef<SVGSVGElement>(null);

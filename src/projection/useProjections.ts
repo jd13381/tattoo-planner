@@ -3,7 +3,7 @@
 // browser from the photos the asset server already serves, so nothing is written to the data folder
 // and a saved calibration shows at once.
 import { useCallback, useSyncExternalStore } from "react";
-import type { ArmProfile } from "../body/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import { fileKey } from "../assets/manifestDoc.ts";
 import type { AssetInfo } from "../assets/types.ts";
 import type { AssetImage } from "../render/reference.ts";
@@ -123,7 +123,7 @@ export type PatchStatus =
   | { status: "loading" }
   | { status: "unavailable"; reason: string };
 
-const patchCache = new WeakMap<ArmProfile, Map<string, ProjectedPatch | null>>();
+const patchCache = new WeakMap<RegionProfile, Map<string, ProjectedPatch | null>>();
 
 /**
  * The patch of a calibration from the photos that are available. Photos still loading make it
@@ -131,7 +131,7 @@ const patchCache = new WeakMap<ArmProfile, Map<string, ProjectedPatch | null>>()
  */
 export function patchFor(
   cal: ProjectionCalibration,
-  profile: ArmProfile,
+  profile: RegionProfile,
   assets: ReadonlyMap<string, AssetInfo> | null,
   images: ReadonlyMap<string, AssetImage>,
 ): PatchStatus {
