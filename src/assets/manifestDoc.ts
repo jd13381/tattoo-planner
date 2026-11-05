@@ -22,8 +22,7 @@ export type MergeResult = {
 };
 
 export const NEW_MANIFEST_TEXT = `# Asset catalogue (PROJECT_BRIEF.md §12.4). Layouts reference assets by id.
-# \`npm run ingest\` and \`npm run assets:scan\` add entries for new files; hand edits are welcome and kept.
-# On re-runs the scripts only refresh page and bbox of images extracted from ideas.pdf.
+# \`npm run assets:scan\` and the Reload button add entries for new files; hand edits are welcome and kept.
 version: 1
 assets: []
 `;

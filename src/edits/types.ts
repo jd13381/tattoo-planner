@@ -1,6 +1,6 @@
-// Contract between the image-edit endpoint (dev server) and the browser. Two engines: `claude -p`
-// with local tools (docs/adr/0007-image-edits.md) and the OpenAI Images API for generative edits
-// (docs/adr/0008-generative-edits.md).
+// Contract between the image-edit endpoint (dev server) and the browser. Two engines: built-in image
+// operations that the page runs itself and uploads as a new version (docs/adr/0013-builtin-image-
+// operations.md), and the OpenAI Images API for generative edits (docs/adr/0008-generative-edits.md).
 
 /** GET → EditOverview; POST body EditRequest → EditJob. */
 export const EDITS_ENDPOINT = "/api/edits";
@@ -35,10 +35,10 @@ export const CREATE_BACKGROUNDS: readonly { value: CreateBackground; label: stri
   { value: "auto", label: "Let the model choose" },
 ];
 
-/** "claude": local tools driven by `claude -p`; "openai": generative edit with GPT Image. */
-export type EditEngine = "claude" | "openai";
+/** "builtin": a local operation run in the page (no key, no network); "openai": generative edit with GPT Image. */
+export type EditEngine = "builtin" | "openai";
 
-export type EditAvailability = { enabled: true; claude: string } | { enabled: false; reason: string };
+export type BuiltinAvailability = { enabled: true } | { enabled: false; reason: string };
 export type GenerativeAvailability = { enabled: true; model: string } | { enabled: false; reason: string };
 
 export type EditJobState = "running" | "done" | "failed" | "cancelled" | "kept" | "discarded";
@@ -58,10 +58,8 @@ export type EditJob = {
   state: EditJobState;
   startedAt: string;
   finishedAt?: string;
-  /** Progress lines: Claude's remarks and the commands it ran. */
+  /** Progress lines of a generative request. */
   log: string[];
-  /** Claude's closing summary. */
-  summary?: string;
   error?: string;
   /** Set for a new image (mode "create"): the name its kept file and id are built from. */
   created?: { name: string };
@@ -100,8 +98,8 @@ export type SessionRequest =
   | { mode: "create"; name?: string; size?: CreateSize; background?: CreateBackground };
 
 export type EditOverview = {
-  /** Local edits with `claude -p`. */
-  availability: EditAvailability;
+  /** Built-in operations (they need only the data folder). */
+  builtin: BuiltinAvailability;
   /** Generative edits with the OpenAI Images API. */
   generative: GenerativeAvailability;
   jobs: EditJob[];
@@ -116,8 +114,9 @@ export type EditRequest = {
   assetId?: string;
   instruction: string;
   fromJob?: string;
+  /** Only "openai" (the default); built-in operations go to sessionUrl(id, "apply"). */
   engine?: EditEngine;
-  /** Default "edit". "create" makes a new image and needs engine "openai". */
+  /** Default "edit". "create" makes a new image. */
   mode?: EditMode;
   /** Asset ids to send as reference images (GPT Image only). */
   references?: string[];
@@ -131,7 +130,22 @@ export type EditRequest = {
 /** Generative variants one click may ask for (each one is its own job). */
 export const MAX_VARIANTS_PER_RUN = 3;
 
-export function sessionUrl(id: string, action?: "pick" | "truncate" | "save" | "close"): string {
+/**
+ * Built-in operation result: POST sessionUrl(id, "apply") with the PNG as the body (Content-Type
+ * image/png) and these query parameters. The server adds it to the session as its next version.
+ */
+export type ApplyQuery = {
+  /** How the step is named in the version strip and the notes, e.g. "Mirror". */
+  step: string;
+  /** Number of versions the page saw when it ran the operation; a changed session refuses the result. */
+  base: number;
+};
+
+export function applyUrl(sessionId: string, q: ApplyQuery): string {
+  return `${sessionUrl(sessionId, "apply")}?${new URLSearchParams({ step: q.step, base: String(q.base) })}`;
+}
+
+export function sessionUrl(id: string, action?: "pick" | "truncate" | "save" | "close" | "apply"): string {
   return `${EDITS_ENDPOINT}/sessions/${encodeURIComponent(id)}${action ? `/${action}` : ""}`;
 }
 
@@ -139,48 +153,21 @@ export function jobUrl(id: string, action?: "keep" | "discard" | "cancel" | "inp
   return `${EDITS_ENDPOINT}/jobs/${encodeURIComponent(id)}${action ? `/${action}` : ""}`;
 }
 
-/** One-click instructions; Jan can edit the text before running it. `engine` picks the engine too. */
-export const EDIT_PRESETS: readonly { label: string; instruction: string; engine?: EditEngine }[] = [
+/** One-click instructions for GPT Image; Jan can edit the text before running it. */
+export const EDIT_PRESETS: readonly { label: string; instruction: string }[] = [
   {
-    label: "Remove background",
+    label: "Simplify",
     instruction:
-      "Remove the background completely and make it transparent. Keep the motif itself unchanged, with clean, slightly soft edges.",
+      "Simplify the motif for a tattoo: fewer small details, clearer and bolder shapes, same style and composition.",
   },
   {
-    label: "Keep main figure only",
+    label: "Remove an object",
     instruction:
-      "Keep only the main figure. Remove the background and every other object, text, frame or watermark; make all of that transparent.",
+      "Remove the … and fill the area behind it so it matches the rest of the image. Change nothing else.",
   },
   {
     label: "Remove text / watermark",
     instruction:
       "Remove any text, logos, watermarks and UI elements and fill those areas so they match their surroundings. Change nothing else.",
-  },
-  {
-    label: "Stronger contrast",
-    instruction:
-      "Increase contrast and clarity a little so the line work reads well, without changing colours or the motif.",
-  },
-  {
-    label: "Black and grey",
-    instruction:
-      "Convert to black and grey (no colour), as a tattoo would be shaded, with deep blacks and a clean white background.",
-  },
-  {
-    label: "Trim to motif",
-    instruction: "Crop tightly to the motif with a small margin, and straighten it if it is tilted.",
-  },
-  { label: "Mirror", instruction: "Mirror the image left to right. Change nothing else." },
-  {
-    label: "Simplify (generative)",
-    engine: "openai",
-    instruction:
-      "Simplify the motif for a tattoo: fewer small details, clearer and bolder shapes, same style and composition.",
-  },
-  {
-    label: "Remove an object (generative)",
-    engine: "openai",
-    instruction:
-      "Remove the … and fill the area behind it so it matches the rest of the image. Change nothing else.",
   },
 ];

@@ -6,7 +6,11 @@ export type ExpectedEntry = { name: string; kind: "file" | "folder"; purpose: st
 export const EXPECTED_ENTRIES: ExpectedEntry[] = [
   { name: "ideas.pdf", kind: "file", purpose: "Jan's collected ideas" },
   { name: "manifest.yaml", kind: "file", purpose: "asset catalogue (Phase 4)" },
-  { name: "ideas", kind: "folder", purpose: "images extracted from ideas.pdf (Phase 4)" },
+  {
+    name: "ideas",
+    kind: "folder",
+    purpose: "images extracted from ideas.pdf earlier (no longer re-extracted)",
+  },
   { name: "refs", kind: "folder", purpose: "Instagram / Pinterest references" },
   { name: "cards", kind: "folder", purpose: "MTG card art" },
   { name: "existing", kind: "folder", purpose: "photos of existing tattoos" },

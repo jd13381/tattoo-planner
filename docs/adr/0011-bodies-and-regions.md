@@ -9,13 +9,13 @@
 
 Regions for v1:
 
-| id          | from → to (v = 0 → 1)        | u = 0 (texture centre)     | seam (u = 0.5)   |
-| ----------- | ---------------------------- | -------------------------- | ---------------- |
-| `arm-left`  | wrist crease → shoulder point | outer centre line          | inner centre line |
-| `arm-right` | wrist crease → shoulder point | outer centre line          | inner centre line |
-| `leg-left`  | ankle → hip crease            | front centre line (shin)   | back centre line (calf) |
-| `leg-right` | ankle → hip crease            | front centre line (shin)   | back centre line (calf) |
-| `torso`     | waist (navel height) → base of the neck | right flank       | left flank       |
+| id          | from → to (v = 0 → 1)                   | u = 0 (texture centre)   | seam (u = 0.5)          |
+| ----------- | --------------------------------------- | ------------------------ | ----------------------- |
+| `arm-left`  | wrist crease → shoulder point           | outer centre line        | inner centre line       |
+| `arm-right` | wrist crease → shoulder point           | outer centre line        | inner centre line       |
+| `leg-left`  | ankle → hip crease                      | front centre line (shin) | back centre line (calf) |
+| `leg-right` | ankle → hip crease                      | front centre line (shin) | back centre line (calf) |
+| `torso`     | waist (navel height) → base of the neck | right flank              | left flank              |
 
 - u keeps its meaning as a fraction of the local circumference; for arms 0.25 stays lateral (thumb side) and 0.75 medial on both sides, so the right arm is the mirror of the left one (geometry mirrored in X, unwrap seen from outside as before).
 - On the torso u runs 0 right flank → 0.25 front centre (sternum) → 0.5 left flank (seam) → 0.75 back centre (spine). The seam sits on the left flank so that chest and back pieces both stay whole in the unwrap.

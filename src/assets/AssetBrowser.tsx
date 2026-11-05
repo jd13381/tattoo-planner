@@ -37,8 +37,9 @@ export function AssetBrowser(props: Props) {
   else if (!listing.manifestFound)
     body = (
       <p className="small">
-        No <code>manifest.yaml</code> in the data folder yet. Run <code>npm run ingest</code> to catalogue the
-        images, or write the file by hand (README, “Asset manifest”).
+        No <code>manifest.yaml</code> in the data folder yet. Click Reload (or run{" "}
+        <code>npm run assets:scan</code>) to catalogue the images, or write the file by hand (README, “Asset
+        manifest”).
       </p>
     );
   else if (assets.length === 0) body = <p className="small muted">The manifest lists no assets.</p>;

@@ -1,8 +1,8 @@
-// Dev-server endpoint that edits reference images, either with `claude -p` and local tools on Jan's
-// Mac (ADR 0007) or generatively with the OpenAI Images API (ADR 0008).
+// Dev-server endpoint of the Image studio. Generative edits run here with the OpenAI Images API
+// (ADR 0008, 0009); built-in operations run in the page and arrive as finished PNGs (ADR 0013).
 //   GET  /api/edits                     → EditOverview: can edits run, and every job of this server run
-//   POST /api/edits                     body EditRequest → EditJob (starts it; engine claude | openai;
-//                                       mode edit | create, optional reference assets for GPT Image)
+//   POST /api/edits                     body EditRequest → EditJob (starts a GPT Image request;
+//                                       mode edit | create, optional reference assets)
 //   GET  /api/edits/jobs/<id>           → EditJob
 //   GET  /api/edits/jobs/<id>/input     the image the job edits
 //   GET  /api/edits/jobs/<id>/output    the result (when done)
@@ -14,11 +14,12 @@
 //   POST /api/edits/sessions/<id>/truncate  body { length } → EditSession ("continue from vK")
 //   POST /api/edits/sessions/<id>/save  body { job? } → EditJob (keeps a version, default the last)
 //   POST /api/edits/sessions/<id>/close discards every unsaved job of the session and ends it
+//   POST /api/edits/sessions/<id>/apply?step=…&base=N  body image/png → EditJob: a built-in operation's
+//                                       result, added as the session's next version
 // Sessions (ADR 0010) hold the version stack; a POST /api/edits with `session` runs on its last version.
 // Each job works on a copy of the image in its own temp folder; originals are never touched. The data
 // folder only changes on "keep", and then only by a new file in edits/ (or generated/ for new images)
 // plus one appended manifest entry.
-import { execFile, spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
 import {
   copyFile,
@@ -35,26 +36,23 @@ import {
 import type { IncomingMessage, ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { createInterface } from "node:readline";
 import type { Plugin } from "vite";
 import { MANIFEST_FILE, type Asset } from "../../assets/manifest.ts";
 import { mergeManifest } from "../../assets/manifestDoc.ts";
 import { imageContentType, isInside, listAssets, resolveInside } from "../../data/server/assetsApi.ts";
 import { HttpError, isCrossSite, readRawBody } from "../../export/server/exportsApi.ts";
+import { BUILTIN_TOOL } from "../builtin.ts";
 import {
-  buildEditPrompt,
   checkInstruction,
-  CLAUDE_TOOL,
-  claudeArgs,
   createdAsset,
   EDIT_TIMEOUT_MS,
+  endsWithIend,
   INPUT_BASENAME,
   keptAsset,
   MAX_OUTPUT_BYTES,
-  MAX_RUNNING,
+  MAX_OUTPUT_PIXELS,
   nextVariant,
   OUTPUT_FILE,
-  parseStreamLine,
   readPngInfo,
   slugName,
 } from "../edit.ts";
@@ -86,10 +84,9 @@ import {
   GENERATED_FOLDER,
   GENERATED_KIND,
   GENERATED_TAG,
+  type BuiltinAvailability,
   type CreateBackground,
   type CreateSize,
-  type EditAvailability,
-  type EditEngine,
   type EditJob,
   type EditOverview,
   type EditRequest,
@@ -99,34 +96,6 @@ import {
 } from "../types.ts";
 
 const MAX_LOG_LINES = 400;
-
-export type RunOptions = {
-  cwd: string;
-  args: string[];
-  stdin: string;
-  signal: AbortSignal;
-  onLine: (line: string) => void;
-};
-/** Runs Claude; resolves with the exit code and the end of stderr. Replaceable in tests. */
-export type Runner = (opts: RunOptions) => Promise<{ code: number | null; stderr: string }>;
-
-export function spawnRunner(bin: string): Runner {
-  return ({ cwd, args, stdin, signal, onLine }) =>
-    new Promise((resolve, reject) => {
-      const child = spawn(bin, args, { cwd, signal, stdio: ["pipe", "pipe", "pipe"], env: process.env });
-      let stderr = "";
-      child.stderr.on("data", (d: Buffer) => {
-        stderr = (stderr + d.toString("utf8")).slice(-4000);
-      });
-      createInterface({ input: child.stdout }).on("line", onLine);
-      child.on("error", (e: NodeJS.ErrnoException) => {
-        if (e.name === "AbortError") return;
-        reject(e.code === "ENOENT" ? new Error(`${bin} not found on PATH`) : e);
-      });
-      child.on("close", (code) => resolve({ code, stderr }));
-      child.stdin.end(stdin);
-    });
-}
 
 type Reference = { path: string; fileName: string; mimeType: string; prompt: PromptReference };
 
@@ -146,42 +115,29 @@ type Job = {
 };
 
 export type EditOptions = {
-  bin: string;
-  cacheDir: string;
-  model?: string;
-  runner?: Runner;
   timeoutMs?: number;
-  /** Override for the availability check (tests). */
-  checkClaude?: () => Promise<EditAvailability>;
   /** Generative edits; null or missing when no OpenAI key is set. */
   openai?: OpenAISettings | null;
   /** Replaceable in tests. */
   fetchImpl?: typeof fetch;
 };
 
-function checkClaudeBinary(bin: string): Promise<EditAvailability> {
-  return new Promise((resolve) => {
-    execFile(bin, ["--version"], { timeout: 15_000 }, (err, stdout) => {
-      if (err)
-        resolve({
-          enabled: false,
-          reason:
-            (err as NodeJS.ErrnoException).code === "ENOENT"
-              ? `Claude Code (${bin}) is not on the PATH of npm run dev. Install it or set TATTOO_CLAUDE_BIN in .env.`
-              : `${bin} --version failed: ${err.message}`,
-        });
-      else resolve({ enabled: true, claude: stdout.trim() || bin });
-    });
-  });
-}
+/** What a job starts from: the image, its file and the steps that led to it. */
+type Source = {
+  asset: Asset;
+  /** Path of the source image; null for a new image without a first version. */
+  path: string | null;
+  earlier: string[];
+  earlierTools: string[];
+  earlierRefs: string[];
+  created?: { name: string };
+};
 
 export class EditManager {
   private readonly jobs = new Map<string, Job>();
   private readonly sessions = new Map<string, EditSession>();
   private sessionCounter = 0;
-  private readonly runner: Runner;
   private counter = 0;
-  private claudeCheck: { at: number; result: Promise<EditAvailability> } | null = null;
   private manifestLock: Promise<unknown> = Promise.resolve();
 
   private readonly dataDir: string | null;
@@ -190,12 +146,11 @@ export class EditManager {
   constructor(dataDir: string | null, opts: EditOptions) {
     this.dataDir = dataDir;
     this.opts = opts;
-    this.runner = opts.runner ?? spawnRunner(opts.bin);
   }
 
   /** Null when the data folder is usable, else why not. */
   private async dataFolderProblem(): Promise<string | null> {
-    if (!this.dataDir) return "TATTOO_DATA_DIR is not set, so there are no images to edit.";
+    if (!this.dataDir) return "No data folder is set up, so there are no images to edit.";
     try {
       if (!(await stat(this.dataDir)).isDirectory()) throw new Error();
     } catch {
@@ -210,35 +165,28 @@ export class EditManager {
     if (!this.opts.openai)
       return {
         enabled: false,
-        reason: "No OpenAI API key: set TATTOO_OPENAI_API_KEY in .env and restart npm run dev.",
+        reason: "Generative edits need an OpenAI API key, and none is set up.",
       };
     return { enabled: true, model: this.opts.openai.model };
   }
 
-  async availability(): Promise<EditAvailability> {
+  /** Built-in operations run in the page; the server only needs the data folder to keep results. */
+  async builtinAvailability(): Promise<BuiltinAvailability> {
     const problem = await this.dataFolderProblem();
-    if (problem) return { enabled: false, reason: problem };
-    // `claude --version` takes a moment; check at most once a minute.
-    const now = Date.now();
-    if (!this.claudeCheck || now - this.claudeCheck.at > 60_000)
-      this.claudeCheck = {
-        at: now,
-        result: (this.opts.checkClaude ?? (() => checkClaudeBinary(this.opts.bin)))(),
-      };
-    return this.claudeCheck.result;
+    return problem ? { enabled: false, reason: problem } : { enabled: true };
   }
 
   async overview(): Promise<EditOverview> {
-    const [availability, generative] = await Promise.all([
-      this.availability(),
+    const [builtin, generative] = await Promise.all([
+      this.builtinAvailability(),
       this.generativeAvailability(),
     ]);
-    return { availability, generative, jobs: this.list(), sessions: [...this.sessions.values()] };
+    return { builtin, generative, jobs: this.list(), sessions: [...this.sessions.values()] };
   }
 
   private session(id: string): EditSession {
     const s = this.sessions.get(id);
-    if (!s) throw new HttpError(404, `no open session ${id} (sessions end when npm run dev stops)`);
+    if (!s) throw new HttpError(404, `no open session ${id} (sessions end when the planner closes)`);
     return s;
   }
 
@@ -359,20 +307,20 @@ export class EditManager {
       else if (from.kind === "asset") req.assetId = from.assetId;
       else Object.assign(req, from.create);
     }
-    if (req.engine !== undefined && req.engine !== "claude" && req.engine !== "openai")
+    if (req.engine === "builtin")
+      throw new HttpError(
+        400,
+        "built-in operations run in the page; send the result to /api/edits/sessions/<id>/apply",
+      );
+    if (req.engine !== undefined && req.engine !== "openai")
       throw new HttpError(400, `unknown engine ${String(req.engine)}`);
     if (req.mode !== undefined && req.mode !== "edit" && req.mode !== "create")
       throw new HttpError(400, `unknown mode ${String(req.mode)}`);
-    // A new image needs GPT Image; with fromJob, "create" means editing the created result further.
+    // With fromJob, "create" means editing the created result further.
     const creating = req.mode === "create" && req.fromJob === undefined;
-    if (creating && req.engine === "claude")
-      throw new HttpError(400, "new images are made with GPT Image, not with claude -p");
-    const engine: EditEngine = req.engine ?? (creating ? "openai" : "claude");
     const refIds = req.references ?? [];
     if (!Array.isArray(refIds) || refIds.some((r) => typeof r !== "string"))
       throw new HttpError(400, "references must be a list of asset ids");
-    if (refIds.length > 0 && engine !== "openai")
-      throw new HttpError(400, "reference images only work with GPT Image");
     if (refIds.length > MAX_REFERENCES)
       throw new HttpError(400, `at most ${MAX_REFERENCES} reference images`);
     const size = req.size ?? "1024x1024";
@@ -380,62 +328,36 @@ export class EditManager {
     if (!CREATE_SIZES.some((o) => o.value === size)) throw new HttpError(400, `unknown size ${String(size)}`);
     if (!CREATE_BACKGROUNDS.some((o) => o.value === background))
       throw new HttpError(400, `unknown background ${String(background)}`);
-    const availability =
-      engine === "openai" ? await this.generativeAvailability() : await this.availability();
+    const availability = await this.generativeAvailability();
     if (!availability.enabled) throw new HttpError(409, availability.reason);
     const instruction = checkInstruction(req.instruction);
     if (!instruction.ok) throw new HttpError(400, instruction.message);
-    const limit = engine === "openai" ? MAX_RUNNING_OPENAI : MAX_RUNNING;
-    const running = [...this.jobs.values()].filter(
-      (j) => j.info.state === "running" && j.info.engine === engine,
-    );
-    if (running.length >= limit)
-      throw new HttpError(429, `${limit} edits of this kind are running already; wait for one to finish`);
+    const running = [...this.jobs.values()].filter((j) => j.info.state === "running");
+    if (running.length >= MAX_RUNNING_OPENAI)
+      throw new HttpError(429, `${MAX_RUNNING_OPENAI} edits are running already; wait for one to finish`);
 
-    let asset: Asset;
-    let source: string | null;
-    let earlier: string[] = [];
-    let earlierTools: string[] = [];
-    let earlierRefs: string[] = [];
-    let created: { name: string } | undefined;
-    if (creating) {
-      const name = slugName(req.name);
-      created = { name };
-      asset = { id: name, file: "", kind: GENERATED_KIND, tags: [GENERATED_TAG] };
-      source = null;
-    } else if (req.fromJob !== undefined) {
-      const prev = this.job(String(req.fromJob));
-      if (!prev.outputPath || (prev.info.state !== "done" && prev.info.state !== "kept"))
-        throw new HttpError(409, "that edit has no result to work on");
-      asset = prev.asset;
-      source = prev.outputPath;
-      earlier = prev.info.instructions;
-      earlierTools = prev.info.tools;
-      earlierRefs = prev.info.references ?? [];
-      created = prev.info.created;
-    } else {
-      if (typeof req.assetId !== "string") throw new HttpError(400, "assetId missing");
-      const listing = await listAssets(this.dataDir);
-      if (listing.status !== "ok") throw new HttpError(409, "cannot read the manifest");
-      const found = listing.assets.find((a) => a.id === req.assetId);
-      if (!found) throw new HttpError(404, `unknown asset ${req.assetId}`);
-      const { exists, ...plain } = found;
-      void exists;
-      asset = plain;
-      if (!imageContentType(asset.file).ok)
-        throw new HttpError(415, `${asset.file} is not an image the planner reads`);
-      const resolved = await resolveInside(this.dataDir!, asset.file);
-      if (!resolved.ok) throw new HttpError(404, `${asset.file}: ${resolved.message}`);
-      source = resolved.path;
-    }
+    const from: Source = creating
+      ? (() => {
+          const name = slugName(req.name);
+          return {
+            asset: { id: name, file: "", kind: GENERATED_KIND, tags: [GENERATED_TAG] },
+            path: null,
+            earlier: [],
+            earlierTools: [],
+            earlierRefs: [],
+            created: { name },
+          };
+        })()
+      : await this.sourceOf(req.fromJob, req.assetId);
+    const { asset, path: source } = from;
 
     const references = await this.resolveReferences(refIds);
     const ext = source ? path.extname(source).toLowerCase() || ".png" : ".png";
-    if (engine === "openai" && source) {
+    if (source) {
       if (!openaiInputType(`x${ext}`))
         throw new HttpError(
           415,
-          `GPT Image takes PNG, JPEG or WebP, not ${ext}; convert it with a local edit first`,
+          `GPT Image takes PNG, JPEG or WebP, not ${ext}; apply a built-in operation first (it saves a PNG)`,
         );
       if ((await stat(source)).size > MAX_OPENAI_INPUT_BYTES)
         throw new HttpError(413, "the image is larger than 50 MB, which GPT Image does not take");
@@ -451,28 +373,16 @@ export class EditManager {
       await copyFile(r.path, path.join(dir, fileName));
       refs.push({ ...r, path: path.join(dir, fileName), fileName });
     }
-    await mkdir(this.opts.cacheDir, { recursive: true });
 
-    const id = `e${++this.counter}-${Date.now().toString(36)}`;
-    const info: EditJob = {
-      id,
-      assetId: asset.derived_from ?? asset.id,
-      ...(req.fromJob !== undefined ? { fromJob: String(req.fromJob) } : {}),
-      ...(session ? { session: session.id } : {}),
-      ...(created ? { created } : {}),
-      ...(earlierRefs.length + refIds.length > 0
-        ? { references: [...new Set([...earlierRefs, ...refIds])] }
-        : {}),
-      engine,
-      instructions: [...earlier, instruction.text],
-      tools: [
-        ...earlier.map((_, i) => earlierTools[i] ?? CLAUDE_TOOL),
-        engine === "openai" ? this.opts.openai!.model : CLAUDE_TOOL,
-      ],
-      state: "running",
-      startedAt: new Date().toISOString(),
-      log: [],
-    };
+    const info = this.newInfo({
+      from,
+      fromJob: req.fromJob,
+      session,
+      refIds,
+      instruction: instruction.text,
+      engine: "openai",
+      tool: this.opts.openai!.model,
+    });
     const job: Job = {
       info,
       asset,
@@ -482,19 +392,138 @@ export class EditManager {
       ...(creating ? { create: { size, background } } : {}),
       abort: new AbortController(),
     };
-    this.jobs.set(id, job);
-    if (engine === "openai") {
-      void this.runOpenAI(job, inputFile);
-      return info;
-    }
-    const prompt = buildEditPrompt({
-      inputFile,
-      instructions: info.instructions,
-      asset,
-      cacheDir: this.opts.cacheDir,
-    });
-    void this.run(job, prompt);
+    this.jobs.set(info.id, job);
+    void this.runOpenAI(job, inputFile);
     return info;
+  }
+
+  private newInfo(p: {
+    from: Source;
+    fromJob: string | undefined;
+    session: EditSession | null;
+    refIds: readonly string[];
+    instruction: string;
+    engine: EditJob["engine"];
+    tool: string;
+  }): EditJob {
+    const { from } = p;
+    return {
+      id: `e${++this.counter}-${Date.now().toString(36)}`,
+      assetId: from.asset.derived_from ?? from.asset.id,
+      ...(p.fromJob !== undefined ? { fromJob: String(p.fromJob) } : {}),
+      ...(p.session ? { session: p.session.id } : {}),
+      ...(from.created ? { created: from.created } : {}),
+      ...(from.earlierRefs.length + p.refIds.length > 0
+        ? { references: [...new Set([...from.earlierRefs, ...p.refIds])] }
+        : {}),
+      engine: p.engine,
+      instructions: [...from.earlier, p.instruction],
+      tools: [...from.earlier.map((_, i) => from.earlierTools[i] ?? "unknown tool"), p.tool],
+      state: "running",
+      startedAt: new Date().toISOString(),
+      log: [],
+    };
+  }
+
+  /** The image a job works on: a finished job's result (fromJob) or a manifest image (assetId). */
+  private async sourceOf(fromJob: unknown, assetId: unknown): Promise<Source> {
+    if (fromJob !== undefined) {
+      const prev = this.job(String(fromJob));
+      if (!prev.outputPath || (prev.info.state !== "done" && prev.info.state !== "kept"))
+        throw new HttpError(409, "that edit has no result to work on");
+      return {
+        asset: prev.asset,
+        path: prev.outputPath,
+        earlier: prev.info.instructions,
+        earlierTools: prev.info.tools,
+        earlierRefs: prev.info.references ?? [],
+        ...(prev.info.created ? { created: prev.info.created } : {}),
+      };
+    }
+    if (typeof assetId !== "string") throw new HttpError(400, "assetId missing");
+    const problem = await this.dataFolderProblem();
+    if (problem) throw new HttpError(409, problem);
+    const listing = await listAssets(this.dataDir);
+    if (listing.status !== "ok") throw new HttpError(409, "cannot read the manifest");
+    const found = listing.assets.find((a) => a.id === assetId);
+    if (!found) throw new HttpError(404, `unknown asset ${assetId}`);
+    const { exists, ...asset } = found;
+    void exists;
+    if (!imageContentType(asset.file).ok)
+      throw new HttpError(415, `${asset.file} is not an image the planner reads`);
+    const resolved = await resolveInside(this.dataDir!, asset.file);
+    if (!resolved.ok) throw new HttpError(404, `${asset.file}: ${resolved.message}`);
+    return { asset, path: resolved.path, earlier: [], earlierTools: [], earlierRefs: [] };
+  }
+
+  /**
+   * Adds the result of a built-in operation, run in the page on the session's last version, as the
+   * session's next version. `base` is the number of versions the page saw; when the session has moved
+   * on meanwhile, the result is refused so it cannot land on the wrong version.
+   */
+  async apply(sessionId: string, png: Buffer, query: { step?: unknown; base?: unknown }): Promise<EditJob> {
+    const session = this.session(sessionId);
+    const problem = await this.dataFolderProblem();
+    if (problem) throw new HttpError(409, problem);
+    const step = checkInstruction(query.step);
+    if (!step.ok) throw new HttpError(400, step.message);
+    const base = Number(query.base);
+    const stale = () => !this.sessions.has(session.id) || session.versions.length !== base;
+    if (query.base === undefined || query.base === "" || !Number.isInteger(base) || base < 0)
+      throw new HttpError(400, "base must be the number of versions the operation started from");
+    if (stale()) throw new HttpError(409, "the session changed meanwhile; apply the operation again");
+    if (png.length > MAX_OUTPUT_BYTES)
+      throw new HttpError(413, `the result is larger than ${MAX_OUTPUT_BYTES / 1024 / 1024} MB`);
+    const info = readPngInfo(png);
+    if (!info || !endsWithIend(png)) throw new HttpError(415, "the result is not a complete PNG");
+    if (info.width * info.height > MAX_OUTPUT_PIXELS)
+      throw new HttpError(413, "the result has too many pixels");
+    const run = runSource(session);
+    if (run.kind === "blank")
+      throw new HttpError(409, "a new image needs a first version from GPT Image before built-in operations");
+    const from =
+      run.kind === "job"
+        ? await this.sourceOf(run.jobId, undefined)
+        : await this.sourceOf(undefined, run.assetId);
+
+    const dir = await mkdtemp(path.join(os.tmpdir(), "tattoo-edit-"));
+    const inputPath = path.join(dir, `${INPUT_BASENAME}${path.extname(from.path!).toLowerCase() || ".png"}`);
+    const outputPath = path.join(dir, OUTPUT_FILE);
+    try {
+      await copyFile(from.path!, inputPath);
+      await writeFile(outputPath, png);
+    } catch (e) {
+      await rm(dir, { recursive: true, force: true });
+      throw e;
+    }
+    // Checked again: the copies took a moment, and another apply or a pick may have come in.
+    if (stale()) {
+      await rm(dir, { recursive: true, force: true });
+      throw new HttpError(409, "the session changed meanwhile; apply the operation again");
+    }
+    const job: Job = {
+      info: this.newInfo({
+        from,
+        fromJob: run.kind === "job" ? run.jobId : undefined,
+        session,
+        refIds: [],
+        instruction: step.text,
+        engine: "builtin",
+        tool: BUILTIN_TOOL,
+      }),
+      asset: from.asset,
+      dir,
+      inputPath,
+      refs: [],
+      outputPath,
+      abort: new AbortController(),
+    };
+    job.info.state = "done";
+    job.info.finishedAt = job.info.startedAt;
+    job.info.output = { width: info.width, height: info.height, bytes: png.length, alpha: info.alpha };
+    this.jobs.set(job.info.id, job);
+    session.versions = [...session.versions, job.info.id];
+    return job.info;
   }
 
   /** Manifest assets to send as reference images: their file, type and notes. */
@@ -524,74 +553,6 @@ export class EditManager {
   private log(job: Job, lines: string[]) {
     job.info.log.push(...lines);
     if (job.info.log.length > MAX_LOG_LINES) job.info.log.splice(0, job.info.log.length - MAX_LOG_LINES);
-  }
-
-  private async run(job: Job, prompt: string) {
-    const timer = setTimeout(() => {
-      this.log(job, ["Stopped: the edit took too long."]);
-      job.abort.abort();
-    }, this.opts.timeoutMs ?? EDIT_TIMEOUT_MS);
-    let result: { ok: boolean; text: string } | null = null;
-    let exit: { code: number | null; stderr: string } | null = null;
-    let failure: string | null = null;
-    try {
-      exit = await this.runner({
-        cwd: job.dir,
-        args: claudeArgs(this.opts.cacheDir, this.opts.model),
-        stdin: prompt,
-        signal: job.abort.signal,
-        onLine: (line) => {
-          const ev = parseStreamLine(line);
-          if (ev.kind === "log") this.log(job, ev.lines);
-          else if (ev.kind === "result") result = { ok: ev.ok, text: ev.text };
-        },
-      });
-    } catch (e) {
-      failure = e instanceof Error ? e.message : String(e);
-    } finally {
-      clearTimeout(timer);
-    }
-    const info = job.info;
-    info.finishedAt = new Date().toISOString();
-    const final = result as { ok: boolean; text: string } | null;
-    if (final?.text) info.summary = final.text;
-    if (info.state === "discarded") return;
-    if (job.abort.signal.aborted) {
-      info.state = "cancelled";
-      return;
-    }
-    if (failure) {
-      info.state = "failed";
-      info.error = failure;
-      return;
-    }
-    const outputPath = path.join(job.dir, OUTPUT_FILE);
-    let bytes: Buffer | null = null;
-    try {
-      bytes = await readFile(outputPath);
-    } catch {
-      // handled below
-    }
-    const png = bytes ? readPngInfo(bytes) : null;
-    if (!bytes || !png || bytes.length > MAX_OUTPUT_BYTES) {
-      info.state = "failed";
-      const why = !bytes
-        ? `Claude wrote no ${OUTPUT_FILE}`
-        : !png
-          ? `${OUTPUT_FILE} is not a PNG`
-          : `${OUTPUT_FILE} is larger than ${MAX_OUTPUT_BYTES / 1024 / 1024} MB`;
-      const detail =
-        final && !final.ok
-          ? final.text
-          : exit && exit.code !== 0
-            ? exit.stderr.trim().split("\n").at(-1)
-            : "";
-      info.error = detail ? `${why}: ${detail}` : `${why}.`;
-      return;
-    }
-    job.outputPath = outputPath;
-    info.output = { width: png.width, height: png.height, bytes: bytes.length, alpha: png.alpha };
-    info.state = "done";
   }
 
   /** One generative edit: send the image and the instruction, write the answer as output.png. */
@@ -736,7 +697,7 @@ export class EditManager {
     if (job.info.state !== "done" || !job.outputPath)
       throw new HttpError(409, "only a finished edit can be kept");
     const dataDir = this.dataDir;
-    if (!dataDir) throw new HttpError(409, "TATTOO_DATA_DIR is not set");
+    if (!dataDir) throw new HttpError(409, "no data folder is set up");
     const root = await realpath(dataDir);
     const created = job.info.created;
     const folderName = created ? GENERATED_FOLDER : EDITS_FOLDER;
@@ -838,7 +799,7 @@ export async function handleEditRequest(
   const sub = ((req.url ?? "/").split("?")[0] ?? "/").replace(/^\/+/, "");
   if (req.method === "GET" && sub === "") return send(res, 200, await manager.overview());
   const m = /^jobs\/([a-z0-9-]+)(?:\/(input|output|keep|discard|cancel))?$/.exec(sub);
-  const sm = /^sessions(?:\/([a-z0-9-]+)\/(pick|truncate|save|close))?$/.exec(sub);
+  const sm = /^sessions(?:\/([a-z0-9-]+)\/(pick|truncate|save|close|apply))?$/.exec(sub);
   if (req.method === "GET" && m) {
     const [, id, action] = m;
     if (!action) return send(res, 200, manager.get(id!));
@@ -862,6 +823,20 @@ export async function handleEditRequest(
     const [, id, action] = sm;
     if (!id) return send(res, 200, await manager.startSession(await readJson()));
     if (action === "close") return send(res, 200, await manager.closeSession(id));
+    if (action === "apply") {
+      if ((req.headers["content-type"] ?? "").split(";")[0] !== "image/png")
+        throw new HttpError(415, "PNG only");
+      const query = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+      const png = await readRawBody(req, MAX_OUTPUT_BYTES);
+      return send(
+        res,
+        200,
+        await manager.apply(id, png, {
+          step: query.get("step") ?? undefined,
+          base: query.get("base") ?? undefined,
+        }),
+      );
+    }
     const body = await readJson();
     if (action === "pick") return send(res, 200, manager.pick(id, body));
     if (action === "truncate") return send(res, 200, manager.truncate(id, body));
@@ -878,20 +853,11 @@ export async function handleEditRequest(
 export type EditEnv = Record<string, string | undefined>;
 
 /**
- * Options from the environment: TATTOO_CLAUDE_BIN, TATTOO_EDIT_MODEL, TATTOO_EDIT_CACHE, and for
- * generative edits TATTOO_OPENAI_API_KEY (or OPENAI_API_KEY), TATTOO_OPENAI_MODEL,
+ * Options from the environment: TATTOO_OPENAI_API_KEY (or OPENAI_API_KEY), TATTOO_OPENAI_MODEL,
  * TATTOO_OPENAI_FIDELITY, TATTOO_OPENAI_QUALITY.
  */
 export function editOptionsFromEnv(env: EditEnv): EditOptions {
-  const cache = env.TATTOO_EDIT_CACHE?.trim();
-  return {
-    bin: env.TATTOO_CLAUDE_BIN?.trim() || "claude",
-    cacheDir: cache
-      ? path.resolve(cache.replace(/^~(?=\/|$)/, os.homedir()))
-      : path.join(os.homedir(), ".cache", "tattoo-planner"),
-    ...(env.TATTOO_EDIT_MODEL?.trim() ? { model: env.TATTOO_EDIT_MODEL.trim() } : {}),
-    openai: openaiSettingsFromEnv(env),
-  };
+  return { openai: openaiSettingsFromEnv(env) };
 }
 
 export function editsPlugin(dataDir: string | null, env: EditEnv): Plugin {

@@ -1,6 +1,6 @@
 # ADR 0003: Ideas PDF ingestion and asset scan
 
-- Status: proposed (2026-11-03)
+- Status: superseded in part (2026-11-05): the ideas.pdf ingestion (`npm run ingest`, mupdf, `ideasLayout.ts`) was removed, because it was specific to one PDF and mupdf's AGPL licence does not fit the open-source product (`docs/product/roadmap.md` §3). The asset scan (`npm run assets:scan`, the Reload button) and the manifest merge stay as described; entries already extracted into `ideas/` stay valid. Originally proposed 2026-11-03.
 - Context: PROJECT_BRIEF.md §10.1 F11, §11.1, §12.3–§12.5, §14 Phase 4
 
 ## Decision

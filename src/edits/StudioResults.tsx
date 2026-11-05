@@ -88,12 +88,7 @@ function JobLog({ job }: { job: EditJob }) {
 }
 
 function JobNotes({ job }: { job: EditJob }) {
-  return (
-    <>
-      {job.summary && job.state !== "running" && <p className="tile-text">{job.summary}</p>}
-      {job.error && <p className="tile-text error-text">{job.error}</p>}
-    </>
-  );
+  return <>{job.error && <p className="tile-text error-text">{job.error}</p>}</>;
 }
 
 export function JobTile({
@@ -126,7 +121,7 @@ export function JobTile({
           {job.state === "running" ? (
             <>
               <span className="spinner" aria-hidden="true" />
-              <span>{job.engine === "openai" ? "GPT Image is working…" : "Claude is working…"}</span>
+              <span>GPT Image is working…</span>
               <span className="mono">{elapsedLabel(job)}</span>
               {job.log.at(-1) && <span className="faint tile-last-log">{job.log.at(-1)}</span>}
             </>
@@ -204,7 +199,7 @@ export type StripVersion = {
   title: string;
 };
 
-/** The session's versions v0 … vN; the last one is where the next run starts. */
+/** The session's versions v0 … vN; the last one (outlined) is where the next run starts. */
 export function VersionStrip({
   versions,
   viewing,
@@ -244,7 +239,6 @@ export function VersionStrip({
                 <span className="faint">source</span>
               ) : null}
             </span>
-            {v.index === last && <span className="strip-next">Next run starts here</span>}
           </button>
         </li>
       ))}

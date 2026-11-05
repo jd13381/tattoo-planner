@@ -1,22 +1,20 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import type { IncomingMessage } from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseManifestText } from "../src/assets/manifestDoc.ts";
 import {
-  buildEditPrompt,
   checkInstruction,
-  claudeArgs,
+  endsWithIend,
   keptAsset,
   nextVariant,
-  OUTPUT_FILE,
-  parseStreamLine,
   readPngInfo,
   rootAssetId,
   showInStudio,
 } from "../src/edits/edit.ts";
-import { EditManager, editOptionsFromEnv, type Runner } from "../src/edits/server/editsApi.ts";
-import type { EditJob } from "../src/edits/types.ts";
+import { EditManager, handleEditRequest } from "../src/edits/server/editsApi.ts";
 
 /** Header-only PNG: signature, IHDR with the given size and colour type, IEND. Enough for readPngInfo. */
 function png(width: number, height: number, colourType = 6): Buffer {
@@ -47,95 +45,16 @@ describe("readPngInfo", () => {
   });
 });
 
-describe("prompt and command line", () => {
-  const asset = { id: "pegasus-ref-01", kind: "reference", notes: "Pegasus, side view" };
-  it("names the files, the rules and the instruction", () => {
-    const p = buildEditPrompt({
-      inputFile: "input.jpg",
-      instructions: ["Remove the background"],
-      asset,
-      cacheDir: "/cache/tp",
-    });
-    expect(p).toContain("./input.jpg");
-    expect(p).toContain(`./${OUTPUT_FILE}`);
-    expect(p).toContain("Remove the background");
-    expect(p).toContain("/cache/tp/venv");
-    expect(p).toMatch(/Never upload/);
-    expect(p).not.toContain("already been edited");
-    expect(p).not.toMatch(/\n\n\n/);
-  });
-  it("mentions earlier steps of a chain", () => {
-    const p = buildEditPrompt({
-      inputFile: "input.png",
-      instructions: ["Remove the background", "Mirror it"],
-      asset,
-      cacheDir: "/c",
-    });
-    expect(p).toContain('already been edited with these instructions, in order: "Remove the background"');
-    expect(p.split("<<<")[1]).toContain("Mirror it");
-  });
-  it("allows local tools and no web tools", () => {
-    const args = claudeArgs("/c", "opus");
-    expect(args[0]).toBe("-p");
-    expect(args).toContain("stream-json");
-    expect(args.slice(args.indexOf("--add-dir"), args.indexOf("--add-dir") + 2)).toEqual(["--add-dir", "/c"]);
-    expect(args.slice(args.indexOf("--model"), args.indexOf("--model") + 2)).toEqual(["--model", "opus"]);
-    expect(args.slice(args.indexOf("--disallowedTools") + 1)).toEqual(["WebFetch", "WebSearch"]);
-    expect(claudeArgs("/c")).not.toContain("--model");
-  });
+describe("instructions and PNG checks", () => {
   it("checks the instruction", () => {
     expect(checkInstruction("  mirror  ")).toEqual({ ok: true, text: "mirror" });
     expect(checkInstruction("   ").ok).toBe(false);
     expect(checkInstruction(42).ok).toBe(false);
     expect(checkInstruction("x".repeat(2001)).ok).toBe(false);
   });
-  it("reads options from the environment", () => {
-    const o = editOptionsFromEnv({ TATTOO_CLAUDE_BIN: "/opt/claude", TATTOO_EDIT_MODEL: "sonnet" });
-    expect(o.bin).toBe("/opt/claude");
-    expect(o.model).toBe("sonnet");
-    expect(o.cacheDir).toBe(path.join(os.homedir(), ".cache", "tattoo-planner"));
-    expect(editOptionsFromEnv({ TATTOO_EDIT_CACHE: "~/x" }).cacheDir).toBe(path.join(os.homedir(), "x"));
-    expect(editOptionsFromEnv({}).bin).toBe("claude");
-  });
-});
-
-describe("parseStreamLine", () => {
-  it("turns assistant text and tool calls into log lines", () => {
-    const line = JSON.stringify({
-      type: "assistant",
-      message: {
-        content: [
-          { type: "text", text: "Looking at the\nimage." },
-          {
-            type: "tool_use",
-            name: "Bash",
-            input: { command: "python3 cut.py", description: "Remove background" },
-          },
-          { type: "tool_use", name: "Read", input: { file_path: "/tmp/x/output.png" } },
-        ],
-      },
-    });
-    expect(parseStreamLine(line)).toEqual({
-      kind: "log",
-      lines: ["Looking at the image.", "→ Bash: Remove background", "→ Read: output.png"],
-    });
-  });
-  it("reads the result and ignores the rest", () => {
-    expect(
-      parseStreamLine(
-        JSON.stringify({ type: "result", subtype: "success", is_error: false, result: " Done. " }),
-      ),
-    ).toEqual({ kind: "result", ok: true, text: "Done." });
-    expect(
-      parseStreamLine(JSON.stringify({ type: "result", subtype: "error_max_turns", is_error: true })),
-    ).toEqual({
-      kind: "result",
-      ok: false,
-      text: "error_max_turns",
-    });
-    expect(parseStreamLine(JSON.stringify({ type: "system", subtype: "init" }))).toEqual({ kind: "none" });
-    expect(parseStreamLine("")).toEqual({ kind: "none" });
-    expect(parseStreamLine("plain text")).toEqual({ kind: "log", lines: ["plain text"] });
+  it("detects a PNG that was cut off", () => {
+    expect(endsWithIend(png(4, 4))).toBe(true);
+    expect(endsWithIend(png(4, 4).subarray(0, 40))).toBe(false);
   });
 });
 
@@ -164,23 +83,22 @@ describe("kept edits", () => {
   });
   it("inherits kind, source and tags, and the crop only at the same size", () => {
     const v = { id: "pegasus-ref-01-edit-1", file: "edits/pegasus-ref-01-edit-1.png" };
-    const a = keptAsset(original, v, ["Remove the background", "Mirror"], true);
+    const a = keptAsset(original, v, ["Remove background", "Mirror"], true, ["built-in", "built-in"]);
     expect(a).toEqual({
       ...v,
       kind: "reference",
       derived_from: "pegasus-ref-01",
       source: "Pinterest",
-      notes: 'Edited with claude -p: "Remove the background", then "Mirror"',
+      notes: 'Edited with built-in: "Remove background", then "Mirror"',
       tags: ["pegasus", "edited"],
       crop: original.crop,
     });
-    expect(keptAsset(original, v, ["x"], false).crop).toBeUndefined();
+    expect(keptAsset(original, v, ["x"], false, ["built-in"]).crop).toBeUndefined();
   });
 });
 
-describe("EditManager", () => {
+describe("EditManager with built-in operations", () => {
   let dir: string;
-  let cache: string;
   const MANIFEST = `# my catalogue
 version: 1
 assets:
@@ -192,68 +110,59 @@ assets:
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "tp-edits-"));
-    cache = await mkdtemp(path.join(os.tmpdir(), "tp-cache-"));
     await mkdir(path.join(dir, "refs"));
     await writeFile(path.join(dir, "refs", "pegasus.png"), png(100, 50, 2));
     await writeFile(path.join(dir, "manifest.yaml"), MANIFEST);
   });
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
-    await rm(cache, { recursive: true, force: true });
   });
-
-  const enabled = async () => ({ enabled: true as const, claude: "test" });
-
-  /** A runner that behaves like Claude: logs, writes output.png, reports a result. */
-  const fakeClaude =
-    (write: Buffer | null, seen: { stdin?: string; files?: string[] } = {}): Runner =>
-    async ({ cwd, stdin, onLine }) => {
-      seen.stdin = stdin;
-      seen.files = await readdir(cwd);
-      onLine(
-        JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Working" }] } }),
-      );
-      if (write) await writeFile(path.join(cwd, OUTPUT_FILE), write);
-      onLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "Removed it." }));
-      return { code: 0, stderr: "" };
-    };
-
-  async function finished(m: EditManager, id: string): Promise<EditJob> {
-    for (let i = 0; i < 100; i++) {
-      const j = m.get(id);
-      if (j.state !== "running") return j;
-      await new Promise((r) => setTimeout(r, 5));
-    }
-    throw new Error("job did not finish");
-  }
 
   it("is disabled without a data folder", async () => {
-    const m = new EditManager(null, { bin: "claude", cacheDir: cache, checkClaude: enabled });
-    expect((await m.availability()).enabled).toBe(false);
-    await expect(m.start({ assetId: "x", instruction: "y" })).rejects.toMatchObject({ status: 409 });
+    const m = new EditManager(null, {});
+    expect((await m.builtinAvailability()).enabled).toBe(false);
+    await expect(m.startSession({ mode: "edit", assetId: "x" })).rejects.toMatchObject({ status: 409 });
   });
 
-  it("edits a copy, keeps the result as a new asset and leaves the original alone", async () => {
-    const seen: { stdin?: string; files?: string[] } = {};
-    const m = new EditManager(dir, {
-      bin: "claude",
-      cacheDir: cache,
-      checkClaude: enabled,
-      runner: fakeClaude(png(100, 50), seen),
-    });
-    const started = await m.start({ assetId: "pegasus-ref-01", instruction: "Remove the background" });
-    const job = await finished(m, started.id);
-    expect(job.state).toBe("done");
-    expect(job.summary).toBe("Removed it.");
-    expect(job.log).toEqual(["Working"]);
-    expect(job.output).toEqual({ width: 100, height: 50, bytes: expect.any(Number), alpha: true });
-    expect(seen.files).toEqual(["input.png"]);
-    expect(seen.stdin).toContain("Remove the background");
+  it("adds each result as the next version, saves it and leaves the original alone", async () => {
+    const m = new EditManager(dir, {});
+    expect((await m.overview()).builtin).toEqual({ enabled: true });
+    const s = await m.startSession({ mode: "edit", assetId: "pegasus-ref-01" });
+    expect(await m.startSession({ mode: "edit", assetId: "pegasus-ref-01" })).toBe(s);
 
-    const kept = await m.keep(job.id);
-    expect(kept.state).toBe("kept");
-    expect(kept.kept).toEqual({ id: "pegasus-ref-01-edit-1", file: "edits/pegasus-ref-01-edit-1.png" });
+    const a = await m.apply(s.id, png(100, 50), { step: "Remove background", base: "0" });
+    expect(a).toMatchObject({
+      state: "done",
+      engine: "builtin",
+      session: s.id,
+      assetId: "pegasus-ref-01",
+      instructions: ["Remove background"],
+      tools: ["built-in"],
+      output: { width: 100, height: 50, alpha: true },
+    });
+    expect(a.fromJob).toBeUndefined();
+    expect(s.versions).toEqual([a.id]);
+    expect(await readFile(m.file(a.id, "input"))).toEqual(png(100, 50, 2));
+
+    // The next one starts from v1 and carries the chain.
+    const b = await m.apply(s.id, png(50, 100), { step: "Rotate 90° right", base: "1" });
+    expect(b.fromJob).toBe(a.id);
+    expect(b.instructions).toEqual(["Remove background", "Rotate 90° right"]);
+    expect(s.versions).toEqual([a.id, b.id]);
+
+    // A result computed on an older version is refused.
+    await expect(m.apply(s.id, png(1, 1), { step: "Mirror", base: "1" })).rejects.toMatchObject({
+      status: 409,
+    });
+    // Undo: continue from v1, then apply again.
+    m.truncate(s.id, { length: 1 });
+    const c = await m.apply(s.id, png(100, 50), { step: "Mirror", base: "1" });
+    expect(s.versions).toEqual([a.id, c.id]);
+
+    const saved = await m.save(s.id, {});
+    expect(saved.kept).toEqual({ id: "pegasus-ref-01-edit-1", file: "edits/pegasus-ref-01-edit-1.png" });
     expect(await readdir(path.join(dir, "edits"))).toEqual(["pegasus-ref-01-edit-1.png"]);
+    expect(await readFile(path.join(dir, "edits", "pegasus-ref-01-edit-1.png"))).toEqual(png(100, 50));
     expect(await readFile(path.join(dir, "refs", "pegasus.png"))).toEqual(png(100, 50, 2));
     const text = await readFile(path.join(dir, "manifest.yaml"), "utf8");
     expect(text.startsWith(MANIFEST.trimEnd())).toBe(true);
@@ -261,115 +170,88 @@ assets:
     const entries = parseManifestText(text).toJS().assets as {
       id: string;
       derived_from?: string;
+      notes?: string;
       tags: string[];
     }[];
     expect(entries[1]).toMatchObject({
       id: "pegasus-ref-01-edit-1",
       derived_from: "pegasus-ref-01",
+      notes: 'Edited with built-in: "Remove background", then "Mirror"',
       tags: ["pegasus", "edited"],
     });
 
-    // A second edit, chained on the first result, gets the next number and both instructions.
-    const next = await m.start({ fromJob: job.id, instruction: "Mirror" });
-    expect(next.instructions).toEqual(["Remove the background", "Mirror"]);
-    expect((await finished(m, next.id)).state).toBe("done");
-    expect((await m.keep(next.id)).kept?.id).toBe("pegasus-ref-01-edit-2");
-    await expect(m.discard(job.id)).rejects.toMatchObject({ status: 409 });
-    await m.close();
-  });
-
-  it("runs a session on its last version, saves the edit of an edit and closes cleanly", async () => {
-    const m = new EditManager(dir, {
-      bin: "claude",
-      cacheDir: cache,
-      checkClaude: enabled,
-      runner: fakeClaude(png(100, 50)),
-    });
-    const s = await m.startSession({ mode: "edit", assetId: "pegasus-ref-01" });
-    expect(await m.startSession({ mode: "edit", assetId: "pegasus-ref-01" })).toBe(s);
-    expect((await m.overview()).sessions.map((x) => x.id)).toEqual([s.id]);
-
-    // v0 → two attempts; the session ignores a stray assetId / fromJob.
-    const a = await finished(m, (await m.start({ session: s.id, instruction: "One" })).id);
-    const b = await finished(m, (await m.start({ session: s.id, assetId: "nope", instruction: "Two" })).id);
-    expect(a.session).toBe(s.id);
-    expect(b.fromJob).toBeUndefined();
-    await expect(m.save(s.id, {})).rejects.toMatchObject({ status: 409 });
-    expect(m.pick(s.id, { job: b.id }).versions).toEqual([b.id]);
-
-    // The next run starts from v1 without naming it.
-    const c = await finished(m, (await m.start({ session: s.id, instruction: "Three" })).id);
-    expect(c.fromJob).toBe(b.id);
-    expect(c.instructions).toEqual(["Two", "Three"]);
-    expect(m.pick(s.id, { job: c.id }).versions).toEqual([b.id, c.id]);
-    // Picking the other v0 attempt drops v1 and v2.
-    expect(m.pick(s.id, { job: a.id }).versions).toEqual([a.id]);
-    expect(m.truncate(s.id, { length: 0 }).versions).toEqual([]);
-    m.pick(s.id, { job: b.id });
-    m.pick(s.id, { job: c.id });
-
-    const saved = await m.save(s.id, {});
-    expect(saved.kept?.id).toBe("pegasus-ref-01-edit-1");
     expect(await m.closeSession(s.id)).toEqual({ closed: s.id });
-    expect((await m.overview()).sessions).toEqual([]);
     expect(m.list().map((j) => j.id)).toEqual([c.id]);
-    expect(() => m.file(a.id, "input")).toThrow();
+    expect(() => m.file(b.id, "input")).toThrow();
 
-    // A new session on the saved edit: its own source, entry built from it, derived_from the original.
+    // A session on the saved edit: entry built from it, derived_from still the original.
     const s2 = await m.startSession({ mode: "edit", assetId: "pegasus-ref-01-edit-1" });
-    expect(s2.id).not.toBe(s.id);
-    const d = await finished(m, (await m.start({ session: s2.id, instruction: "Four" })).id);
-    expect(d.instructions).toEqual(["Four"]);
-    m.pick(s2.id, { job: d.id });
+    await m.apply(s2.id, png(100, 50), { step: "Invert", base: "0" });
     expect((await m.save(s2.id, {})).kept?.id).toBe("pegasus-ref-01-edit-2");
-    const entries = parseManifestText(await readFile(path.join(dir, "manifest.yaml"), "utf8")).toJS()
-      .assets as { id: string; derived_from?: string; notes?: string; tags: string[] }[];
-    expect(entries[2]).toMatchObject({
-      id: "pegasus-ref-01-edit-2",
+    const after = parseManifestText(await readFile(path.join(dir, "manifest.yaml"), "utf8")).toJS()
+      .assets as { notes?: string; derived_from?: string }[];
+    expect(after[2]).toMatchObject({
       derived_from: "pegasus-ref-01",
-      tags: ["pegasus", "edited"],
+      notes: 'From pegasus-ref-01-edit-1. Edited with built-in: "Invert"',
     });
-    expect(entries[2]!.notes).toMatch(/^From pegasus-ref-01-edit-1\. Edited with claude -p: "Four"$/);
-    expect(() => m.pick("s999-x", { job: d.id })).toThrow(/no open session/);
     await m.close();
   });
 
-  it("fails when Claude writes no PNG, and discards cleanly", async () => {
-    const m = new EditManager(dir, {
-      bin: "claude",
-      cacheDir: cache,
-      checkClaude: enabled,
-      runner: fakeClaude(Buffer.from("not a png at all, but long enough to be read")),
+  it("refuses what is not a complete PNG, a missing step and blank new images", async () => {
+    const m = new EditManager(dir, {});
+    const s = await m.startSession({ mode: "edit", assetId: "pegasus-ref-01" });
+    const notPng = Buffer.from("not a png at all, but long enough to be read");
+    await expect(m.apply(s.id, notPng, { step: "x", base: "0" })).rejects.toMatchObject({ status: 415 });
+    await expect(m.apply(s.id, png(4, 4).subarray(0, 40), { step: "x", base: "0" })).rejects.toMatchObject({
+      status: 415,
     });
-    const job = await finished(m, (await m.start({ assetId: "pegasus-ref-01", instruction: "x" })).id);
-    expect(job.state).toBe("failed");
-    expect(job.error).toContain("not a PNG");
-    await expect(m.keep(job.id)).rejects.toMatchObject({ status: 409 });
-    expect((await m.discard(job.id)).state).toBe("discarded");
-    expect(m.list()).toEqual([]);
-    expect(() => m.file(job.id, "input")).toThrow();
-  });
-
-  it("stops a running job", async () => {
-    const runner: Runner = ({ signal }) =>
-      new Promise((resolve) => signal.addEventListener("abort", () => resolve({ code: null, stderr: "" })));
-    const m = new EditManager(dir, { bin: "claude", cacheDir: cache, checkClaude: enabled, runner });
-    const job = await m.start({ assetId: "pegasus-ref-01", instruction: "x" });
-    m.cancel(job.id);
-    expect((await finished(m, job.id)).state).toBe("cancelled");
-  });
-
-  it("refuses unknown assets and empty instructions", async () => {
-    const m = new EditManager(dir, {
-      bin: "claude",
-      cacheDir: cache,
-      checkClaude: enabled,
-      runner: fakeClaude(null),
+    await expect(m.apply(s.id, png(4, 4), { step: " ", base: "0" })).rejects.toMatchObject({ status: 400 });
+    await expect(m.apply(s.id, png(4, 4), { step: "x" })).rejects.toMatchObject({ status: 400 });
+    await expect(m.apply("s999-x", png(4, 4), { step: "x", base: "0" })).rejects.toMatchObject({
+      status: 404,
     });
-    await expect(m.start({ assetId: "nope", instruction: "x" })).rejects.toMatchObject({ status: 404 });
-    await expect(m.start({ assetId: "pegasus-ref-01", instruction: " " })).rejects.toMatchObject({
+    expect(s.versions).toEqual([]);
+    const blank = await m.startSession({ mode: "create", name: "Neu" });
+    await expect(m.apply(blank.id, png(4, 4), { step: "x", base: "0" })).rejects.toMatchObject({
+      status: 409,
+    });
+    // Built-in is not an engine the server runs.
+    await expect(m.start({ session: s.id, engine: "builtin", instruction: "x" })).rejects.toMatchObject({
       status: 400,
     });
+    await expect(m.startSession({ mode: "edit", assetId: "nope" })).rejects.toMatchObject({ status: 404 });
+    await m.close();
+  });
+
+  it("takes the PNG over HTTP, and only from the planner itself", async () => {
+    const m = new EditManager(dir, {});
+    const s = await m.startSession({ mode: "edit", assetId: "pegasus-ref-01" });
+    const request = (body: Buffer, headers: Record<string, string>) =>
+      Object.assign(Readable.from([body]), {
+        method: "POST",
+        url: `/sessions/${s.id}/apply?step=${encodeURIComponent("Line art (level 128)")}&base=0`,
+        headers: { "content-length": String(body.length), ...headers },
+      }) as unknown as IncomingMessage;
+    const response = () => {
+      const r = { statusCode: 0, body: "", setHeader: () => undefined, end: (t: string) => (r.body = t) };
+      return r;
+    };
+    const res = response();
+    await handleEditRequest(m, request(png(100, 50), { "content-type": "image/png" }), res as never);
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toMatchObject({ instructions: ["Line art (level 128)"] });
+    expect(s.versions).toHaveLength(1);
+    await expect(
+      handleEditRequest(m, request(png(1, 1), { "content-type": "application/json" }), response() as never),
+    ).rejects.toMatchObject({ status: 415 });
+    await expect(
+      handleEditRequest(
+        m,
+        request(png(1, 1), { "content-type": "image/png", "sec-fetch-site": "cross-site" }),
+        response() as never,
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    await m.close();
   });
 });
 
