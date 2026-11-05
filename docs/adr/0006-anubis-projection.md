@@ -1,6 +1,6 @@
 # ADR 0006: Anubis from all photos (photo projection)
 
-- Status: accepted (2026-11-04)
+- Status: accepted (2026-11-04); generalised to every body region and given a guided setup in ADR 0014 (2026-11-05). The page described under "Calibration UI" is now Settings → Projection → Advanced.
 - Context: PROJECT_BRIEF.md §2.1, §10.1 F9; ADR 0002 (unwrap conventions)
 
 ## Problem
