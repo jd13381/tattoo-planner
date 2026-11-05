@@ -4,17 +4,17 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CameraIcon } from "../ui/icons.tsx";
 import { createPortal } from "react-dom";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import type { ArmProfile } from "../arm/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import { ArmModel } from "./ArmModel.tsx";
 import type { CameraSync } from "./cameraSync.ts";
-import { MAX_FLEXION_DEG } from "../arm/bend.ts";
+import { MAX_FLEXION_DEG } from "../body/bend.ts";
 import { addSample, textureToLayout, type UV } from "../editor/stroke.ts";
 import { armGeometry, LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
 import { useViewState, type ViewState } from "./useViewState.ts";
-import { CAMERA_FOV, VIEWS, viewCamera, type Bounds } from "./views.ts";
+import { CAMERA_FOV, viewCamera, viewsFor, type Bounds } from "./views.ts";
 
 type Props = {
-  profile: ArmProfile;
+  profile: RegionProfile;
   canvas: HTMLCanvasElement;
   version: number;
   hint?: string;
@@ -91,7 +91,7 @@ export function ArmViewer(props: Props) {
   const screenshotTitle = "Save this view as a PNG in the browser's download folder";
   const toolbarEl = toolbar && (
     <div className="toolbar viewer-toolbar" role="toolbar" aria-label="3D view">
-      <ViewButtons state={vs} sides={props.viewSides} />
+      <ViewButtons state={vs} sides={props.viewSides} profile={profile} />
       {props.screenshotInToolbar && (
         <>
           <span className="toolbar-sep" aria-hidden="true" />
@@ -162,14 +162,20 @@ export function ArmViewer(props: Props) {
   );
 }
 
-/** Skin side seen from the front and back views (front = inner, back = outer). */
-const VIEW_SIDE: Partial<Record<string, string>> = { front: "inner", back: "outer" };
-
 /** The four fixed view buttons; `sides` adds the skin side: "Front (inner)", "Back (outer)". */
-export function ViewButtons({ state, sides = false }: { state: ViewState; sides?: boolean }) {
+export function ViewButtons({
+  state,
+  sides = false,
+  profile,
+}: {
+  state: ViewState;
+  sides?: boolean;
+  /** The region whose views to offer; default the left arm's. */
+  profile?: Pick<RegionProfile, "kind" | "mirrored">;
+}) {
   return (
     <span className="segmented" role="group" aria-label="View">
-      {VIEWS.map((v) => {
+      {viewsFor(profile ?? { kind: "arm", mirrored: false }).map((v) => {
         const on = !state.free && state.view === v.name;
         return (
           <button
@@ -181,7 +187,7 @@ export function ViewButtons({ state, sides = false }: { state: ViewState; sides?
             onClick={() => state.select(v.name)}
           >
             {v.label}
-            {sides && VIEW_SIDE[v.name] && <span className="view-side">({VIEW_SIDE[v.name]})</span>}
+            {sides && v.side && <span className="view-side">({v.side})</span>}
           </button>
         );
       })}
@@ -245,7 +251,7 @@ export function PoseControl({
 }
 
 /** Records a stroke on the skin: raycast hit → texture UV → layout point, with a live preview line. */
-function useBrush(profile: ArmProfile, draw: Props["draw"]) {
+function useBrush(profile: RegionProfile, draw: Props["draw"]) {
   const samples = useRef<UV[] | null>(null);
   const [preview, setPreview] = useState<[number, number, number][]>([]);
   const onStroke = draw?.onStroke;
@@ -301,7 +307,7 @@ function useBrush(profile: ArmProfile, draw: Props["draw"]) {
 }
 
 function CameraRig(props: {
-  profile: ArmProfile;
+  profile: RegionProfile;
   bounds?: Bounds;
   state: ViewState;
   sync?: { bus: CameraSync; id: string };
@@ -310,7 +316,7 @@ function CameraRig(props: {
   const { profile, bounds, state, sync, rotate = true } = props;
   const { view, request, free, setFree } = state;
   // What the last framing was for: a new pose re-frames a fixed view, but not a hand-rotated camera.
-  const framedFor = useRef<{ key: string; profile: ArmProfile | null }>({ key: "", profile: null });
+  const framedFor = useRef<{ key: string; profile: RegionProfile | null }>({ key: "", profile: null });
   const controls = useRef<OrbitControlsImpl>(null);
   // Set while a camera from another viewer is applied, so it is not sent back.
   const applying = useRef(false);

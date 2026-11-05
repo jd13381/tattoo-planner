@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AssetBrowser } from "../assets/AssetBrowser.tsx";
 import { stepAsset } from "../assets/filter.ts";
@@ -10,14 +10,18 @@ import { defaultFilter, isFigureLike } from "../layout/imageFit.ts";
 import { layoutSchema, type ElementType, type Layout, type LayoutElement } from "../layout/schema.ts";
 import { classify, resolveElement } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
-import { parseLayout } from "../layout/yamlDoc.ts";
+import { layoutRegion, parseLayout } from "../layout/yamlDoc.ts";
 import { coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
 import { renderUnwrap, timed, type RenderMode } from "../render/unwrapCanvas.ts";
 import { ExportButton } from "../export/ExportButton.tsx";
 import type { ExportInput } from "../export/runExport.ts";
+import { inputKeys } from "../body/inputs.ts";
+import { DEFAULT_REGION, editorCentres, REGION_IDS, REGIONS, type RegionId } from "../body/regions.ts";
+import { SAMPLES } from "../body/samples.ts";
 import { ArmViewer, ORBIT_HINT, PoseControl } from "../viewer/ArmViewer.tsx";
-import { anubisSize, INPUT_COUNT, type ArmState, type Pose } from "../viewer/useArm.ts";
+import { BodyViewer, type RegionTexture } from "../viewer/BodyViewer.tsx";
+import { anubisSize, type ArmState, type Pose } from "../viewer/useArm.ts";
 import { Popover } from "../ui/Popover.tsx";
 import {
   BandIcon,
@@ -59,8 +63,10 @@ import {
   formatPositionCm,
   nudgeElement,
   nudgeStepCm,
+  regionNames,
   type UV as SkinUV,
 } from "./nudge.ts";
+import { RegionTextureSource } from "./RegionTextures.tsx";
 import { SaveAsForm } from "./SaveAsForm.tsx";
 import { formatKeys, isEditableTarget, SHORTCUTS, type ShortcutAction } from "./shortcuts.ts";
 import { applyStroke, type UV } from "./stroke.ts";
@@ -96,6 +102,11 @@ const ADD_TOOLS: { type: ElementType; label: string; icon: ReactNode }[] = [
   { type: "band", label: "Band", icon: <BandIcon /> },
 ];
 
+/** A free name for a new layout on a region: torso-1, torso-2, … */
+function draftName(region: RegionId, taken: string[]): string {
+  for (let i = 1; ; i++) if (!taken.includes(`${region}-${i}`)) return `${region}-${i}`;
+}
+
 /** Where the page puts its controls in the app's top bar (App.tsx). */
 export type HeaderSlots = { notices: HTMLElement | null; actions: HTMLElement | null };
 
@@ -110,7 +121,13 @@ type Props = {
 };
 
 export function LayoutPage({ arm, pose, onWorking, active = true, header }: Props) {
-  const { profile } = arm;
+  // The body region being edited; every layout belongs to one (docs/adr/0011).
+  const [region, setRegion] = useState<RegionId>(DEFAULT_REGION);
+  const profile = arm.region(region);
+  // The variant last opened on each region, so switching back returns to it (and the full-body view
+  // shows it on that region).
+  const [lastByRegion, setLastByRegion] = useState<Partial<Record<RegionId, string>>>({});
+  const [view3d, setView3d] = useState<"region" | "body">("region");
   const [name, setName] = useState<string | null>(null);
   // The open layout with its undo/redo stacks; `layout` is the present state.
   const [history, setHistory] = useState<History<Layout> | null>(null);
@@ -129,7 +146,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   // The image picker and the button it opened from (element panel or the floating button).
   const [pickerAnchor, setPickerAnchor] = useState<HTMLElement | null>(null);
   // Switching variants with unsaved edits asks first (Save / Discard / Cancel).
-  const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
+  const [pendingSwitch, setPendingSwitch] = useState<{ label: string; go: () => void } | null>(null);
   const [appendStrokes, setAppendStrokes] = useState(false);
   const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -146,10 +163,19 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const [platform] = useState(currentPlatform);
   const keyHint = (keys: string) => formatKeys(keys, platform);
 
+  /** Switches the region and puts the editor on its first centre line. */
+  const enterRegion = (next: RegionId) => {
+    if (next !== region) setCenterU(editorCentres(next)[0]!.u);
+    setRegion(next);
+  };
+
   const open = (fileName: string, list: StoredLayout[] | null) => {
     const file = list?.find((f) => f.name === fileName);
     if (!file) return;
     const r = parseLayout(file.text);
+    const fileReg = layoutRegion(file.text);
+    enterRegion(fileReg);
+    setLastByRegion((m) => ({ ...m, [fileReg]: fileName }));
     setName(fileName);
     setSelected(null);
     setSaveError(null);
@@ -273,6 +299,10 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const flagged =
     layout?.elements.filter((_, i) => flagsFor[i]?.includes("height not set")).map((e) => e.id) ?? [];
 
+  // Values of the open region that nobody measured (they come from the sample body).
+  const fromSample = region === "arm-left" ? arm.placeholders : arm.body.regions[region].fromSample;
+  const inputCount = inputKeys(REGIONS[region].kind).length;
+
   // Export: the saved layout exactly as shown, once every image it uses has loaded.
   const exportInput = useMemo<ExportInput | null>(
     () =>
@@ -283,11 +313,12 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
             existing: anubisSize,
             aspects,
             sources,
-            placeholderMeasurements: arm.placeholders,
-            measurementCount: INPUT_COUNT,
+            placeholderMeasurements: fromSample,
+            measurementCount: inputCount,
+            region,
           }
         : null,
-    [layout, profile, aspects, sources, arm.placeholders],
+    [layout, profile, aspects, sources, fromSample, inputCount, region],
   );
   const exportBlocked = validationError
     ? "Fix the layout errors first."
@@ -371,7 +402,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const switchTo = (next: string) => {
     if (next === name) return;
     if (dirty) {
-      setPendingSwitch(next);
+      setPendingSwitch({ label: next, go: () => open(next, files) });
       return;
     }
     open(next, files);
@@ -381,8 +412,71 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
     setPendingSwitch(null);
     if (!next || choice === "cancel") return;
     if (choice === "save" && (!layout || !(await doSave(layout)))) return;
-    open(next, files);
+    next.go();
   };
+
+  // Variants per region; the picker offers the open region's (plus an unsaved new one).
+  const regionByFile = useMemo(
+    () => new Map((files ?? []).map((f) => [f.name, layoutRegion(f.text)] as const)),
+    [files],
+  );
+  const variantNames = (files ?? []).filter((f) => regionByFile.get(f.name) === region).map((f) => f.name);
+  if (name && !variantNames.includes(name)) variantNames.push(name);
+  const countByRegion = (id: RegionId) => (files ?? []).filter((f) => regionByFile.get(f.name) === id).length;
+
+  /**
+   * Opens a region: its last or first variant, or a new empty layout that becomes a file on the first
+   * save (new layouts get the chosen region).
+   */
+  const switchRegion = (next: RegionId) => {
+    if (next === region) return;
+    if (dirty) {
+      setPendingSwitch({ label: REGIONS[next].label.toLowerCase(), go: () => openRegion(next) });
+      return;
+    }
+    openRegion(next);
+  };
+  const openRegion = (next: RegionId) => {
+    const names = (files ?? []).filter((f) => regionByFile.get(f.name) === next).map((f) => f.name);
+    const last = lastByRegion[next];
+    const target = last && names.includes(last) ? last : names[0];
+    if (target) return open(target, files);
+    const draft: Layout = {
+      name: draftName(
+        next,
+        (files ?? []).map((f) => f.name),
+      ),
+      region: next,
+      elements: [],
+    };
+    enterRegion(next);
+    setName(draft.name);
+    setSelected(null);
+    setSaveError(null);
+    setParseError(null);
+    setHistory(createHistory(draft));
+    setSavedJson(JSON.stringify(draft));
+  };
+
+  // Full-body view: the other regions show their last opened (or first) variant.
+  const [bodyTextures, setBodyTextures] = useState<Partial<Record<RegionId, RegionTexture>>>({});
+  const onRegionTexture = useCallback(
+    (id: RegionId, t: RegionTexture | null) =>
+      setBodyTextures((m) => {
+        if ((m[id] ?? null) === t) return m;
+        return { ...m, [id]: t ?? undefined };
+      }),
+    [],
+  );
+  const otherLayouts = useMemo(() => {
+    if (view3d !== "body") return [];
+    return REGION_IDS.filter((id) => id !== region).flatMap((id) => {
+      const names = (files ?? []).filter((f) => regionByFile.get(f.name) === id);
+      const file = names.find((f) => f.name === lastByRegion[id]) ?? names[0];
+      const r = file ? parseLayout(file.text) : null;
+      return r?.ok ? [{ id, layout: r.layout }] : [];
+    });
+  }, [view3d, region, files, regionByFile, lastByRegion]);
 
   const sel = selected !== null && layout ? layout.elements[selected] : undefined;
   const appendTarget = appendStrokes && sel?.type === "line" && !sel.locked ? selected : null;
@@ -451,6 +545,8 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
       case "help":
         return setHelpOpen((o) => !o);
       case "tool":
+        // The brush draws on the region view only.
+        if (a.tool === "draw") setView3d("region");
         return setDrawing(a.tool === "draw" ? (d) => !d : false);
       case "deselect":
         if (pickerAnchor) setPickerAnchor(null);
@@ -493,15 +589,16 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
 
   // Errors stay as banners; warnings fold into one compact group when there are several.
   const warnings: { key: string; text: ReactNode }[] = [
-    ...(arm.placeholders.length > 0
+    ...(fromSample.length > 0
       ? [
           {
             key: "placeholder",
             text: (
               <>
-                Placeholder body: {arm.placeholders.length} of {INPUT_COUNT} values not measured yet;
-                proportions are generic until the measurements are filled in (Settings → Body &amp;
-                measurements).
+                Placeholder {region === "arm-left" ? "body" : REGIONS[region].label.toLowerCase()}:{" "}
+                {fromSample.length} of {inputCount} values not measured yet; proportions come from the{" "}
+                {SAMPLES[arm.body.body].label.toLowerCase()} until the measurements are filled in (Settings →
+                Body &amp; measurements).
               </>
             ),
           },
@@ -569,6 +666,22 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const headerActions = (
     <>
       <span className="header-sep" aria-hidden="true" />
+      <span className="select-wrap" title="Body region: each layout belongs to one">
+        <select
+          className="region-select"
+          aria-label="Body region"
+          value={region}
+          onChange={(e) => switchRegion(e.target.value as RegionId)}
+          disabled={!files}
+        >
+          {REGION_IDS.map((id) => (
+            <option key={id} value={id}>
+              {REGIONS[id].label}
+              {files ? ` (${countByRegion(id)})` : ""}
+            </option>
+          ))}
+        </select>
+      </span>
       <span className="popover-anchor">
         <span className="select-wrap" title={dirty ? "Unsaved edits" : undefined}>
           <select
@@ -578,9 +691,10 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
             onChange={(e) => switchTo(e.target.value)}
             disabled={!files}
           >
-            {(files ?? []).map((f) => (
-              <option key={f.name} value={f.name}>
-                {f.name}
+            {variantNames.map((n) => (
+              <option key={n} value={n}>
+                {n}
+                {files && !files.some((f) => f.name === n) ? " (new)" : ""}
               </option>
             ))}
           </select>
@@ -593,7 +707,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
           className="switch-popover"
         >
           <p className="popover-title">Unsaved changes in {name}</p>
-          <p className="muted small">Save them before opening {pendingSwitch}?</p>
+          <p className="muted small">Save them before opening {pendingSwitch?.label}?</p>
           <div className="toolbar">
             <button
               type="button"
@@ -753,16 +867,19 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
               type="button"
               className="tool draw-tool"
               aria-pressed={drawing}
-              aria-label="Line: draw on the 3D arm"
+              aria-label="Line: draw on the 3D view"
               aria-keyshortcuts="R"
-              onClick={() => setDrawing((d) => !d)}
+              onClick={() => {
+                setView3d("region");
+                setDrawing((d) => !d);
+              }}
             >
               <RedLineIcon />
               <span className="tool-key" aria-hidden="true">
                 R
               </span>
               <span className="tip" aria-hidden="true">
-                Line: draw on the 3D arm <kbd className="kbd">R</kbd>
+                Line: draw on the 3D view <kbd className="kbd">R</kbd>
               </span>
             </button>
             <span className="spacer" />
@@ -814,8 +931,9 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
 
           <section className="ws-2d" aria-label="2D editor">
             <UnwrapEditor
-              key={`${profile.length}:${profile.maxCircumference}`}
+              key={`${region}:${profile.length}:${profile.maxCircumference}`}
               profile={profile}
+              lines={REGIONS[region].lines}
               layout={layout}
               existing={anubisSize}
               aspects={aspects}
@@ -887,78 +1005,130 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                 aria-label="Editor centre"
                 title="Centre of the 2D editor"
               >
-                <button
-                  type="button"
-                  className={centerU === 0 ? "active" : ""}
-                  aria-pressed={centerU === 0}
-                  onClick={() => setCenterU(0)}
-                  title="Centre the 2D editor on the outer side"
-                >
-                  Outer
-                </button>
-                <button
-                  type="button"
-                  className={centerU === 0.5 ? "active" : ""}
-                  aria-pressed={centerU === 0.5}
-                  onClick={() => setCenterU(0.5)}
-                  title="Centre the 2D editor on the inner side"
-                >
-                  Inner
-                </button>
+                {editorCentres(region).map((c) => (
+                  <button
+                    key={c.u}
+                    type="button"
+                    className={centerU === c.u ? "active" : ""}
+                    aria-pressed={centerU === c.u}
+                    onClick={() => setCenterU(c.u)}
+                    title={c.title}
+                  >
+                    {c.label}
+                  </button>
+                ))}
               </span>
             </div>
             <StatusBar
               cursor={cursor}
               zoom={zoom}
               fallback={sel ? elementAnchor(sel) : null}
-              format={(p) => formatPointCm(profile, p)}
+              format={(p) => formatPointCm(profile, p, regionNames(region))}
               onFit={() => setFitRequest((n) => n + 1)}
             />
           </section>
 
           <section className="ws-3d" aria-label="3D view">
-            <ArmViewer
-              profile={profile}
-              canvas={texture}
-              version={0}
-              hint={HINTS[mode]}
-              bendDeg={pose.bendDeg}
-              draw={{ active: drawing, onStroke }}
-              toolbarTarget={viewerToolbar}
-              screenshotInToolbar
-              footer={false}
-              overlay={
-                drawing && (
-                  <div className="canvas-toolbar top">
-                    <span className="draw-color">
-                      Colour <ColorField value={lineColor} onChange={setLineColor} />
-                    </span>
-                    {sel?.type === "line" && !sel.locked && (
-                      <label className="inline check">
-                        <input
-                          type="checkbox"
-                          checked={appendStrokes}
-                          onChange={(e) => setAppendStrokes(e.target.checked)}
-                        />
-                        continue {sel.id}
-                      </label>
-                    )}
-                    <span>
-                      {appendTarget !== null
-                        ? `Strokes extend ${sel?.id} at its nearer end.`
-                        : "Each stroke becomes a new line."}{" "}
-                      <span className="muted">Rotation is off (right-drag pans, scroll zooms).</span>
-                    </span>
-                  </div>
-                )
-              }
-            />
+            {view3d === "body" && (
+              <>
+                {otherLayouts.map((o) => (
+                  <RegionTextureSource
+                    key={o.id}
+                    id={o.id}
+                    layout={o.layout}
+                    profile={arm.region(o.id)}
+                    mode={mode}
+                    grid={grid}
+                    existing={anubisSize}
+                    assetMap={assetMap}
+                    listingLoaded={listing !== null}
+                    onTexture={onRegionTexture}
+                  />
+                ))}
+                <BodyViewer
+                  body={arm.body}
+                  textures={{
+                    ...Object.fromEntries(otherLayouts.map((o) => [o.id, bodyTextures[o.id]])),
+                    [region]: { canvas: texture, version: 0 },
+                  }}
+                  active={region}
+                  onPick={(id) => {
+                    switchRegion(id);
+                  }}
+                  toolbarTarget={viewerToolbar}
+                />
+              </>
+            )}
+            {view3d === "region" && (
+              <ArmViewer
+                profile={profile}
+                canvas={texture}
+                version={0}
+                hint={HINTS[mode]}
+                bendDeg={pose.bendDeg}
+                draw={{ active: drawing, onStroke }}
+                toolbarTarget={viewerToolbar}
+                screenshotInToolbar
+                footer={false}
+                overlay={
+                  drawing && (
+                    <div className="canvas-toolbar top">
+                      <span className="draw-color">
+                        Colour <ColorField value={lineColor} onChange={setLineColor} />
+                      </span>
+                      {sel?.type === "line" && !sel.locked && (
+                        <label className="inline check">
+                          <input
+                            type="checkbox"
+                            checked={appendStrokes}
+                            onChange={(e) => setAppendStrokes(e.target.checked)}
+                          />
+                          continue {sel.id}
+                        </label>
+                      )}
+                      <span>
+                        {appendTarget !== null
+                          ? `Strokes extend ${sel?.id} at its nearer end.`
+                          : "Each stroke becomes a new line."}{" "}
+                        <span className="muted">Rotation is off (right-drag pans, scroll zooms).</span>
+                      </span>
+                    </div>
+                  )
+                }
+              />
+            )}
             <div className="float float-bar ws-3d-bar" title={`${ORBIT_HINT} ${HINTS[mode] ?? ""}`}>
+              <span className="segmented" role="group" aria-label="3D view">
+                <button
+                  type="button"
+                  className={view3d === "region" ? "active" : ""}
+                  aria-pressed={view3d === "region"}
+                  onClick={() => setView3d("region")}
+                  title={`Only the ${REGIONS[region].label.toLowerCase()}, with the fixed views`}
+                >
+                  {REGIONS[region].label}
+                </button>
+                <button
+                  type="button"
+                  className={view3d === "body" ? "active" : ""}
+                  aria-pressed={view3d === "body"}
+                  onClick={() => {
+                    setDrawing(false);
+                    setView3d("body");
+                  }}
+                  title="The whole body with every region's layout; click a region to edit it"
+                >
+                  Full body
+                </button>
+              </span>
+              <span className="toolbar-sep" aria-hidden="true" />
               <div ref={setViewerToolbar} className="viewer-tools" />
             </div>
-            <div className="float pose-panel">
-              <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} variant="panel" />
-            </div>
+            {view3d === "region" && profile.kind === "arm" && (
+              <div className="float pose-panel">
+                <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} variant="panel" />
+              </div>
+            )}
             {metrics && <MetricsPanel coverage={metrics} variant="float" />}
 
             <div className="ws-stack">
@@ -1046,7 +1216,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                     asset={selAsset}
                     autoFilter={isFigureLike(sel) ? defaultFilter(sel, profile) : "none"}
                     flags={flagsFor[selected] ?? []}
-                    positionCm={formatPositionCm(profile, sel)}
+                    positionCm={formatPositionCm(profile, sel, regionNames(region))}
                     index={selected}
                     count={layout.elements.length}
                     onChange={(el) => setElement(selected, el, typingKey(`el${selected}`))}

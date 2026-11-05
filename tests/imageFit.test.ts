@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { measuredValues, PLACEHOLDERS, resolveInputs } from "../src/arm/inputs.ts";
+import { measuredValues, PLACEHOLDERS, resolveInputs } from "../src/body/inputs.ts";
 import { parseMeasurements } from "../src/config/loadMeasurements.ts";
-import { buildProfile } from "../src/arm/profile.ts";
+import { buildProfile } from "../src/body/profile.ts";
 import {
   croppedAspect,
   defaultFilter,
@@ -146,7 +146,7 @@ describe("Anubis in v1-baseline", () => {
     const r = parseLayout(baselineText);
     if (!r.ok) throw new Error(r.error);
     const anubis = r.layout.elements.find((e) => e.id === "anubis")!;
-    const a = m.measurements.existing.anubis;
+    const a = m.measurements.existing!.anubis;
     const { shape } = resolveElement(anubis, arm, { height: a.height, width: a.width });
     if (shape.kind !== "box") throw new Error("box expected");
     expect(shape.rot).toBe(0);

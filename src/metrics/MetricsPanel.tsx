@@ -1,11 +1,13 @@
 import { useState } from "react";
+import type { RegionKind } from "../body/profile.ts";
 import { InfoIcon } from "../ui/icons.tsx";
 import {
   CATEGORIES,
   coverageDelta,
   DIFF_THRESHOLD_PCT,
   sharePct,
-  ZONES,
+  ZONES_BY_KIND,
+  zoneCoverage,
   type Category,
   type Coverage,
   type ZoneKey,
@@ -27,8 +29,14 @@ const LABELS: Record<Category, string> = {
   open: "Open",
 };
 
-const NOTE =
-  "Share of each zone's skin, counting the topmost element only. Elbow: 4 cm below to 6 cm above the elbow tip; shoulder: the top 8 cm; inner = the half around the palm-side line.";
+const NOTE: Record<RegionKind, string> = {
+  arm: "Share of each zone's skin, counting the topmost element only. Elbow: 4 cm below to 6 cm above the elbow tip; shoulder: the top 8 cm; inner = the half around the palm-side line.",
+  leg: "Share of each zone's skin, counting the topmost element only. Knee: 5 cm below to 6 cm above the knee centre; front = the half around the shin line.",
+  torso:
+    "Share of each zone's skin, counting the topmost element only. Flanks: about 7 cm either side of each flank line; chest and upper back above the lowest ribs.",
+};
+
+const WHOLE: Record<RegionKind, string> = { arm: "Whole arm", leg: "Whole leg", torso: "Whole torso" };
 
 const TITLES: Record<Category, string> = {
   figure: "Figures",
@@ -58,11 +66,12 @@ type Props = {
 export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant = "panel" }: Props) {
   const float = variant === "float";
   const rows: { key: ZoneKey; label: string }[] = [
-    ...ZONES.map((z) => ({ key: z.id, label: z.label })),
-    { key: "total", label: "Whole arm" },
+    ...ZONES_BY_KIND[coverage.kind].map((z) => ({ key: z.id, label: z.label })),
+    { key: "total", label: WHOLE[coverage.kind] },
   ];
   const delta = compareTo ? coverageDelta(compareTo.coverage, coverage) : null;
   const [noteOpen, setNoteOpen] = useState(false);
+  const note = NOTE[coverage.kind];
   return (
     <section className={float ? "float metrics compact" : "panel metrics"} aria-label={title}>
       <div className={float ? "float-head" : "panel-head"}>
@@ -74,7 +83,7 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
           className="ghost icon-button"
           aria-label="How coverage is measured"
           aria-expanded={noteOpen}
-          title={NOTE}
+          title={note}
           onClick={() => setNoteOpen((o) => !o)}
         >
           <InfoIcon />
@@ -93,7 +102,7 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
         </thead>
         <tbody>
           {rows.map(({ key, label }) => {
-            const zone = key === "total" ? coverage.total : coverage.zones[key];
+            const zone = key === "total" ? coverage.total : zoneCoverage(coverage, key);
             return (
               <tr key={key} className={key === "total" ? "total" : ""}>
                 <td title={label}>{ZONE_SHORT[label] ?? label}</td>
@@ -150,7 +159,7 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
           ))}
         </p>
       )}
-      {noteOpen && <p className="muted small metrics-note">{NOTE}</p>}
+      {noteOpen && <p className="muted small metrics-note">{note}</p>}
       {compareTo && !float && (
         <p className="muted small">
           Tinted: at least {DIFF_THRESHOLD_PCT} points more (red) or less (blue) than {compareTo.label}.

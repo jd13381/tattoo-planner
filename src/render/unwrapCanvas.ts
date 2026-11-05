@@ -1,5 +1,5 @@
 // Renders the unwrap texture for one mode. The same canvas feeds the 2D editor and the 3D arm.
-import type { ArmProfile } from "../arm/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import type { ElementAspects } from "../layout/imageFit.ts";
 import type { Layout } from "../layout/schema.ts";
 import { classify, type Classification, type ExistingSize } from "../layout/shapes.ts";
@@ -20,7 +20,7 @@ export type UnwrapRender = { canvas: HTMLCanvasElement; classification: Classifi
 
 export function renderUnwrap(
   canvas: HTMLCanvasElement,
-  profile: ArmProfile,
+  profile: RegionProfile,
   mode: RenderMode,
   layout: Layout | null,
   opts: {
@@ -40,7 +40,7 @@ export function renderUnwrap(
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
   if (mode === "grid" || !layout) {
-    paintGrid(ctx, profile, opts.pxPerCm);
+    paintGrid(ctx, profile, opts.pxPerCm, undefined, { centerU: opts.centerU ?? 0 });
     return null;
   }
   if (mode === "reference") {
@@ -63,8 +63,10 @@ export function renderUnwrap(
     opts.sources?.patches,
   );
   ctx.putImageData(new ImageData(blockoutPixels(cls, opts.selected), cls.width, cls.height), 0, 0);
-  // The grid's centre lines are labelled for the outer-centred texture; skip it for the inner view.
-  if (opts.grid && (opts.centerU ?? 0) === 0)
-    paintGrid(ctx, profile, opts.pxPerCm, OVERLAY_GRID_STYLE, { background: false });
+  if (opts.grid)
+    paintGrid(ctx, profile, opts.pxPerCm, OVERLAY_GRID_STYLE, {
+      background: false,
+      centerU: opts.centerU ?? 0,
+    });
   return cls;
 }

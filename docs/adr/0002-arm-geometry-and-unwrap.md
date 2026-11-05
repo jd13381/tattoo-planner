@@ -25,3 +25,11 @@
 - The axis is straight: no carrying angle, no forearm twist, no bent elbow (Phase 6).
 - Lengths along the arm are axial; on the steep flank between forearm and elbow the skin is up to ~1 % longer than the grid says.
 - Wrist and shoulder ends are closed with untextured rounded caps; there is no hand or shoulder joint.
+
+## Generalised to body regions (2026-11-05)
+
+ADR 0011 makes the arm the first of five regions; everything above stays true for the left arm, and the other regions follow the same scheme (code in `src/body/`, conventions in `src/body/regions.ts`):
+
+- **Profile:** every region is the same loft (`buildLoft`: stations of circumference and position, aspect knots, length); legs run ankle → hip crease, the torso waist → base of the neck.
+- **Axes:** each region is built in a local frame whose X and Z are the body's (+Z front, +X the body's left), then placed in the body by a turn about Z and a shift (`src/body/placement.ts`). For the left arm that frame is the one above.
+- **u direction:** the line at u = 0 and the turning direction differ per region (right arm: lateral still 0.25, now towards −X; legs: 0 on the shin; torso: 0 right flank, 0.25 front). Where u grows to the right seen from outside (right arm, left leg, torso) the profile is `mirrored`, and every u ↔ screen conversion uses `screenSign` (`src/body/uv.ts`), so each unwrap is still seen from outside and pictures are never mirrored.

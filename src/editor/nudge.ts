@@ -1,11 +1,13 @@
 // Nudging elements by centimetres on the skin, and reading their position back in cm.
 // u is a fraction of the local circumference, so 1 cm around is a different du at the wrist
-// than at the shoulder; v is a fraction of the arm length (src/arm/uv.ts).
+// than at the shoulder; v is a fraction of the arm length (src/body/uv.ts).
 //
-// Directions are those of the unwrap editor (UnwrapEditor.tsx): seen from outside the arm,
-// screen right is screen x = -du * circumference, whichever side is centred; up is towards the shoulder.
-import type { ArmProfile } from "../arm/profile.ts";
-import { uToCm, wrapU } from "../arm/uv.ts";
+// Directions are those of the unwrap editor (UnwrapEditor.tsx): seen from outside the skin,
+// screen x = screenSign * du * circumference (on the left arm -du: right is medial), whichever side is
+// centred; up is towards the region's end (the shoulder on arms).
+import type { RegionProfile } from "../body/profile.ts";
+import { REGIONS, type CentreLines } from "../body/regions.ts";
+import { screenSign, uToCm, wrapU } from "../body/uv.ts";
 import type { LayoutElement } from "../layout/schema.ts";
 import { moveElement } from "./edit.ts";
 
@@ -18,17 +20,20 @@ export type UV = { u: number; v: number };
 
 /** The (du, dv) that moves a point at row v by dxCm right and dyCm up on the unwrap. */
 export function cmToDelta(
-  profile: ArmProfile,
+  profile: RegionProfile,
   v: number,
   dxCm: number,
   dyCm: number,
 ): { du: number; dv: number } {
   const c = profile.circumferenceAt(Math.min(1, Math.max(0, v)) * profile.length);
-  return { du: c > 0 ? -dxCm / c : 0, dv: profile.length > 0 ? dyCm / profile.length : 0 };
+  return {
+    du: c > 0 ? (screenSign(profile) * dxCm) / c : 0,
+    dv: profile.length > 0 ? dyCm / profile.length : 0,
+  };
 }
 
 /** A point moved by dxCm right and dyCm up; u wraps, v stays on the arm. Unrounded. */
-export function nudgeUV(profile: ArmProfile, p: UV, dxCm: number, dyCm: number): UV {
+export function nudgeUV(profile: RegionProfile, p: UV, dxCm: number, dyCm: number): UV {
   const { du, dv } = cmToDelta(profile, p.v, dxCm, dyCm);
   return { u: wrapU(p.u + du), v: Math.min(1, Math.max(0, p.v + dv)) };
 }
@@ -63,7 +68,7 @@ export function elementAnchor(el: LayoutElement): UV {
  */
 export function nudgeElement(
   el: LayoutElement,
-  profile: ArmProfile,
+  profile: RegionProfile,
   dxCm: number,
   dyCm: number,
 ): LayoutElement {
@@ -86,7 +91,7 @@ export type PositionCm = {
   fromWristCm: number;
 };
 
-export function positionCm(profile: ArmProfile, p: UV): PositionCm {
+export function positionCm(profile: RegionProfile, p: UV): PositionCm {
   const around = uToCm(profile, p.u, p.v);
   const aroundCm = Math.round(Math.abs(around) * 10) / 10;
   return {
@@ -96,24 +101,43 @@ export function positionCm(profile: ArmProfile, p: UV): PositionCm {
   };
 }
 
+/** How a region names its centre lines and its start, for the readouts (src/body/regions.ts). */
+export type RegionNames = { lines: CentreLines; start: string };
+const ARM_NAMES: RegionNames = { lines: REGIONS["arm-left"].lines, start: REGIONS["arm-left"].ends[0] };
+
+/** "lateral" on arms (the line names are directions there), "towards front" elsewhere. */
+function sideWord(side: PositionCm["side"], names: RegionNames): string {
+  const line = side === "lateral" ? names.lines[1] : names.lines[3];
+  return names.lines[1] === "lateral" ? line : `towards ${line}`;
+}
+
 /**
  * A read-only label for the element panel, e.g. "≈ 3.2 cm lateral of the outer line · 12.4 cm from the wrist".
  * Bands only get the distance from the wrist, since they run all the way round.
  */
-export function formatPositionCm(profile: ArmProfile, el: LayoutElement): string {
+export function formatPositionCm(profile: RegionProfile, el: LayoutElement, names = ARM_NAMES): string {
   const pos = positionCm(profile, elementAnchor(el));
-  const along = `${pos.fromWristCm.toFixed(1)} cm from the wrist`;
+  const along = `${pos.fromWristCm.toFixed(1)} cm from the ${names.start}`;
   if (el.type === "band") return `≈ ${along}`;
   const around =
     pos.side === "outer"
-      ? "on the outer line"
-      : `${pos.aroundCm.toFixed(1)} cm ${pos.side} of the outer line`;
+      ? `on the ${names.lines[0]} line`
+      : `${pos.aroundCm.toFixed(1)} cm ${sideWord(pos.side, names)} of the ${names.lines[0]} line`;
   return `≈ ${around} · ${along}`;
 }
 
 /** A compact cursor readout for the status bar, e.g. "3.6 cm lateral · 53.3 cm from wrist". */
-export function formatPointCm(profile: ArmProfile, p: UV): string {
+export function formatPointCm(profile: RegionProfile, p: UV, names = ARM_NAMES): string {
   const pos = positionCm(profile, p);
-  const around = pos.side === "outer" ? "on the outer line" : `${pos.aroundCm.toFixed(1)} cm ${pos.side}`;
-  return `${around} · ${pos.fromWristCm.toFixed(1)} cm from wrist`;
+  const around =
+    pos.side === "outer"
+      ? `on the ${names.lines[0]} line`
+      : `${pos.aroundCm.toFixed(1)} cm ${sideWord(pos.side, names)}`;
+  return `${around} · ${pos.fromWristCm.toFixed(1)} cm from ${names.start}`;
+}
+
+/** The readout names of a region. */
+export function regionNames(id: keyof typeof REGIONS): RegionNames {
+  const r = REGIONS[id];
+  return id === "arm-left" ? ARM_NAMES : { lines: r.lines, start: r.ends[0] };
 }

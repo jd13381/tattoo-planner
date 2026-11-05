@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { arcLengthInverse, ellipsePerimeter, semiAxes } from "../src/arm/ellipse.ts";
-import { buildArmMesh } from "../src/arm/geometry.ts";
-import { PLACEHOLDERS, resolveInputs } from "../src/arm/inputs.ts";
-import { monotoneCubic } from "../src/arm/interpolate.ts";
-import { buildProfile } from "../src/arm/profile.ts";
-import { layoutToTexture, uToCm } from "../src/arm/uv.ts";
+import { arcLengthInverse, ellipsePerimeter, semiAxes } from "../src/body/ellipse.ts";
+import { buildArmMesh } from "../src/body/geometry.ts";
+import { PLACEHOLDERS, resolveInputs } from "../src/body/inputs.ts";
+import { monotoneCubic } from "../src/body/interpolate.ts";
+import { buildProfile } from "../src/body/profile.ts";
+import { layoutToTexture, uToCm } from "../src/body/uv.ts";
 
 const profile = buildProfile(PLACEHOLDERS);
 

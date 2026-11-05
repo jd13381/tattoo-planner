@@ -1,5 +1,5 @@
 // Pure editing operations on layout elements, used by the unwrap editor.
-import { wrapU } from "../arm/uv.ts";
+import { wrapU } from "../body/uv.ts";
 import type { ElementType, LayoutElement } from "../layout/schema.ts";
 
 const round = (n: number, digits = 3) => Math.round(n * 10 ** digits) / 10 ** digits;

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { bendArmMesh, BEND_DEFAULTS, bounds, elbowBend } from "../src/arm/bend.ts";
-import { semiAxes } from "../src/arm/ellipse.ts";
-import { buildArmMesh } from "../src/arm/geometry.ts";
-import { PLACEHOLDERS } from "../src/arm/inputs.ts";
-import { buildProfile } from "../src/arm/profile.ts";
+import { bendArmMesh, BEND_DEFAULTS, bounds, elbowBend } from "../src/body/bend.ts";
+import { semiAxes } from "../src/body/ellipse.ts";
+import { buildArmMesh } from "../src/body/geometry.ts";
+import { PLACEHOLDERS } from "../src/body/inputs.ts";
+import { buildProfile } from "../src/body/profile.ts";
 
 const profile = buildProfile(PLACEHOLDERS);
 const SEGMENTS = 96;
