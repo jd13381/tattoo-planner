@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import measurementsText from "../../config/measurements.yaml?raw";
-import { measuredValues, PLACEHOLDERS, resolveInputs, type ArmInputKey } from "../arm/inputs.ts";
-import { buildProfile, type ArmProfile } from "../arm/profile.ts";
+import { measuredValues, PLACEHOLDERS, resolveInputs, type ArmInputKey } from "../body/inputs.ts";
+import { buildProfile, type ArmProfile } from "../body/profile.ts";
 import { parseMeasurements } from "../config/loadMeasurements.ts";
 import type { ExistingSize } from "../layout/shapes.ts";
 
@@ -51,5 +51,5 @@ export function useArm(): ArmState {
   };
 }
 
-/** Elbow pose shared by the 3D views (src/arm/bend.ts). */
+/** Elbow pose shared by the 3D views (src/body/bend.ts). */
 export type Pose = { bendDeg: number; setBendDeg: (deg: number) => void };

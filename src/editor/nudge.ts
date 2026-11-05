@@ -1,11 +1,11 @@
 // Nudging elements by centimetres on the skin, and reading their position back in cm.
 // u is a fraction of the local circumference, so 1 cm around is a different du at the wrist
-// than at the shoulder; v is a fraction of the arm length (src/arm/uv.ts).
+// than at the shoulder; v is a fraction of the arm length (src/body/uv.ts).
 //
 // Directions are those of the unwrap editor (UnwrapEditor.tsx): seen from outside the arm,
 // screen right is screen x = -du * circumference, whichever side is centred; up is towards the shoulder.
-import type { ArmProfile } from "../arm/profile.ts";
-import { uToCm, wrapU } from "../arm/uv.ts";
+import type { ArmProfile } from "../body/profile.ts";
+import { uToCm, wrapU } from "../body/uv.ts";
 import type { LayoutElement } from "../layout/schema.ts";
 import { moveElement } from "./edit.ts";
 

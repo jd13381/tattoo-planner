@@ -265,7 +265,7 @@ export function replaceColor(
 
 /**
  * Where the named centre lines meet the top (shoulder) edge of the unwrap, as fractions of the image
- * width: the thumb side (lateral) is drawn on the left (src/arm/uv.ts), the inner line is both edges.
+ * width: the thumb side (lateral) is drawn on the left (src/body/uv.ts), the inner line is both edges.
  */
 export function unwrapAxisMarks(
   topCircumference: number,

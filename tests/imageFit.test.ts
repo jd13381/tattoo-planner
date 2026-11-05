@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { measuredValues, PLACEHOLDERS, resolveInputs } from "../src/arm/inputs.ts";
+import { measuredValues, PLACEHOLDERS, resolveInputs } from "../src/body/inputs.ts";
 import { parseMeasurements } from "../src/config/loadMeasurements.ts";
-import { buildProfile } from "../src/arm/profile.ts";
+import { buildProfile } from "../src/body/profile.ts";
 import {
   croppedAspect,
   defaultFilter,

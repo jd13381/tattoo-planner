@@ -10,7 +10,7 @@
 //    the cut-out's edges (default 1 cm).
 // Plain TypeScript, no DOM: the canvas side lives in src/render/reference.ts.
 import type { Asset, NormRect } from "../assets/manifest.ts";
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import type { FigureLike, ImageFilter, LayoutElement } from "./schema.ts";
 
 export const DEFAULT_FEATHER_CM = 1;

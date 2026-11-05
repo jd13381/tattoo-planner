@@ -6,7 +6,7 @@
 // Elements are drawn row by row: each texture row is as wide as the local circumference, so a box
 // is copied one pixel row at a time to where that row puts it, and whatever crosses the inner seam
 // re-enters on the other edge, exactly like the blockout classification.
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import type { AssetInfo } from "../assets/types.ts";
 import {
   fitContain,

@@ -1,5 +1,5 @@
-// The four fixed views (PROJECT_BRIEF.md §10.1 F2), in the arm's axes (see src/arm/geometry.ts).
-import type { ArmProfile } from "../arm/profile.ts";
+// The four fixed views (PROJECT_BRIEF.md §10.1 F2), in the arm's axes (see src/body/geometry.ts).
+import type { ArmProfile } from "../body/profile.ts";
 
 export type ViewName = "front" | "back" | "medial" | "lateral";
 

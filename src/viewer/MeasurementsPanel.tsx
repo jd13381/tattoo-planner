@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { INPUT_GROUPS, PLACEHOLDERS, type ArmInputKey } from "../arm/inputs.ts";
-import { changedKeys, overridesYaml } from "../arm/overridesYaml.ts";
+import { INPUT_GROUPS, PLACEHOLDERS, type ArmInputKey } from "../body/inputs.ts";
+import { changedKeys, overridesYaml } from "../body/overridesYaml.ts";
 import { WarnIcon } from "../ui/icons.tsx";
 
 type Props = {

@@ -13,7 +13,7 @@ import {
   SRGBColorSpace,
   WebGLRenderer,
 } from "three";
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import { cpu2d, cpuCanvas } from "../render/cpuCanvas.ts";
 import {
   armGeometry,

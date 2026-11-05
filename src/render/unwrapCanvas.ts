@@ -1,5 +1,5 @@
 // Renders the unwrap texture for one mode. The same canvas feeds the 2D editor and the 3D arm.
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import type { ElementAspects } from "../layout/imageFit.ts";
 import type { Layout } from "../layout/schema.ts";
 import { classify, type Classification, type ExistingSize } from "../layout/shapes.ts";

@@ -1,8 +1,8 @@
 // The content of the artist handout (PROJECT_BRIEF.md §10.1 F10) as plain data: element rows,
 // coverage rows, open points, which elements face each view. No DOM, no PDF library: the PDF
 // writer (pdf.ts) only lays this out. All wording comes from strings.ts.
-import type { ArmProfile } from "../arm/profile.ts";
-import { wrapU } from "../arm/uv.ts";
+import type { ArmProfile } from "../body/profile.ts";
+import { wrapU } from "../body/uv.ts";
 import { isFigureLike } from "../layout/imageFit.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import {
@@ -51,7 +51,7 @@ export function cm(x: number): string {
 
 const two = (x: number) => x.toFixed(2);
 
-/** The u of each named centre line (src/arm/uv.ts). */
+/** The u of each named centre line (src/body/uv.ts). */
 export const SIDE_U = { outer: 0, lateral: 0.25, inner: 0.5, medial: 0.75 } as const;
 type Side = keyof typeof SIDE_U;
 const SIDE_ORDER: Side[] = ["outer", "lateral", "inner", "medial"];

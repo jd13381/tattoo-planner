@@ -1,6 +1,6 @@
 // Debug texture for checking UV distortion: a cm grid on the unwrap (PROJECT_BRIEF.md §14, Phase 2).
 // Pure line model + a thin canvas painter, so the model can be tested without a browser.
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 
 /** A polyline in unwrap cm: x from the outer centre line (lateral positive), y from the wrist. */
 export type GridLine = {
@@ -101,7 +101,7 @@ export function paintGrid(
 ): void {
   const W = profile.maxCircumference * pxPerCm;
   const H = profile.length * pxPerCm;
-  // Lateral (positive x) is drawn on the left: the unwrap is seen from outside the arm (src/arm/uv.ts).
+  // Lateral (positive x) is drawn on the left: the unwrap is seen from outside the arm (src/body/uv.ts).
   const toPx = (p: { x: number; y: number }) => [W / 2 - p.x * pxPerCm, H - p.y * pxPerCm] as const;
 
   if (opts.background !== false) {

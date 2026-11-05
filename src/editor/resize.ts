@@ -4,8 +4,8 @@
 // wrist). A box's local frame has x along its width and y along its height, pointing *up* on the
 // screen when the box is not rotated; `rot` (radians) turns the box counter-clockwise on the screen,
 // as `Shape.rot` and the editor's `rotate(-deg)` do.
-import type { ArmProfile } from "../arm/profile.ts";
-import { wrapU } from "../arm/uv.ts";
+import type { ArmProfile } from "../body/profile.ts";
+import { wrapU } from "../body/uv.ts";
 import type { LayoutElement } from "../layout/schema.ts";
 
 /** Sizes snap to this step (cm) unless snapping is off. */

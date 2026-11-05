@@ -1,9 +1,9 @@
 // The 3D arm scene shared by the live viewer (ArmViewer.tsx) and the offscreen export renderer
 // (src/export/renderViews.ts), so exported views look exactly like the screen.
 import { BufferAttribute, BufferGeometry, CanvasTexture, SRGBColorSpace } from "three";
-import { bendArmMesh } from "../arm/bend.ts";
-import { buildArmMesh } from "../arm/geometry.ts";
-import type { ArmProfile } from "../arm/profile.ts";
+import { bendArmMesh } from "../body/bend.ts";
+import { buildArmMesh } from "../body/geometry.ts";
+import type { ArmProfile } from "../body/profile.ts";
 
 /**
  * The live viewer's canvas is transparent so the workspace gradient (CSS, .canvas-wrap) shows
@@ -21,7 +21,7 @@ export const CAP_ROUGHNESS = 0.9;
 
 /**
  * Arm mesh with two material groups: 0 = textured skin, 1 = the rounded end caps. `bendDeg` flexes
- * the elbow (src/arm/bend.ts); the UVs stay the same, so the texture bends with the skin.
+ * the elbow (src/body/bend.ts); the UVs stay the same, so the texture bends with the skin.
  */
 export function armGeometry(profile: ArmProfile, bendDeg = 0): BufferGeometry {
   const mesh = bendArmMesh(buildArmMesh(profile), profile, bendDeg);

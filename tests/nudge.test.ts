@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { PLACEHOLDERS } from "../src/arm/inputs.ts";
-import { buildProfile } from "../src/arm/profile.ts";
-import { uToCm } from "../src/arm/uv.ts";
+import { PLACEHOLDERS } from "../src/body/inputs.ts";
+import { buildProfile } from "../src/body/profile.ts";
+import { uToCm } from "../src/body/uv.ts";
 import {
   cmToDelta,
   elementAnchor,

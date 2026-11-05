@@ -1,7 +1,7 @@
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { PLACEHOLDERS, type ArmInputKey } from "../src/arm/inputs.ts";
-import { changedKeys, overridesYaml } from "../src/arm/overridesYaml.ts";
+import { PLACEHOLDERS, type ArmInputKey } from "../src/body/inputs.ts";
+import { changedKeys, overridesYaml } from "../src/body/overridesYaml.ts";
 
 const file = { ...PLACEHOLDERS, shoulder: null } as Record<ArmInputKey, number | null>;
 

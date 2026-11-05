@@ -3,7 +3,7 @@
 // browser from the photos the asset server already serves, so nothing is written to the data folder
 // and a saved calibration shows at once.
 import { useCallback, useSyncExternalStore } from "react";
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import { fileKey } from "../assets/manifestDoc.ts";
 import type { AssetInfo } from "../assets/types.ts";
 import type { AssetImage } from "../render/reference.ts";

@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { PLACEHOLDERS } from "../src/arm/inputs.ts";
-import { buildProfile } from "../src/arm/profile.ts";
+import { PLACEHOLDERS } from "../src/body/inputs.ts";
+import { buildProfile } from "../src/body/profile.ts";
 import {
   buildHandout,
   cm,

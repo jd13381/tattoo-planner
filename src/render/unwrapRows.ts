@@ -1,7 +1,7 @@
 // Row geometry of the "vase" unwrap (docs/adr/0002), shared by the reference renderer.
 // Screen cm: x from the centre of the image (the `centerU` line), positive to the right (medial when
 // the outer side is centred); every texture row is as wide as the local circumference.
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import { hits, wrapDelta, type Shape } from "../layout/shapes.ts";
 
 /** Screen x (cm) of the line u in a row with circumference c, for an image centred on centerU. */

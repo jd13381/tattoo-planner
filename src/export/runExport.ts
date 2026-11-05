@@ -2,7 +2,7 @@
 // blockout and reference mode, writes them as PNGs and builds the PDF handout, then sends every
 // file to the local dev server, which stores it in <TATTOO_DATA_DIR>/exports/. Nothing is uploaded
 // anywhere else and nothing is written into the repo.
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import { isFigureLike, type ElementAspects } from "../layout/imageFit.ts";
 import type { Layout } from "../layout/schema.ts";
 import { classify, resolveElement, type ExistingSize } from "../layout/shapes.ts";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { PLACEHOLDERS } from "../src/arm/inputs.ts";
-import { buildProfile } from "../src/arm/profile.ts";
+import { PLACEHOLDERS } from "../src/body/inputs.ts";
+import { buildProfile } from "../src/body/profile.ts";
 import type { Layout } from "../src/layout/schema.ts";
 import { classify } from "../src/layout/shapes.ts";
 import { blockoutPixels } from "../src/render/blockout.ts";

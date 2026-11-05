@@ -1,7 +1,7 @@
 // Turns layout elements into shapes on the unwrap and tests which element covers a point of skin.
-// Unwrap cm: x from the outer centre line (lateral positive, as src/arm/uv.ts), y from the wrist crease.
-import type { ArmProfile } from "../arm/profile.ts";
-import { uToCm, wrapU } from "../arm/uv.ts";
+// Unwrap cm: x from the outer centre line (lateral positive, as src/body/uv.ts), y from the wrist crease.
+import type { ArmProfile } from "../body/profile.ts";
+import { uToCm, wrapU } from "../body/uv.ts";
 import { footprintBounds, patchCovers, type ProjectedPatch } from "../projection/patch.ts";
 import type { ElementAspects } from "./imageFit.ts";
 import type { Layout, LayoutElement } from "./schema.ts";

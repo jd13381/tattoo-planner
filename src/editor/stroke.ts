@@ -5,8 +5,8 @@
 // (src/layout/shapes.ts `hits`), and a segment always takes the short way round the arm. The
 // simplification measures distances the same way, so the simplified line stays within the
 // tolerance of what was drawn, also across the inner seam.
-import type { ArmProfile } from "../arm/profile.ts";
-import { wrapU } from "../arm/uv.ts";
+import type { ArmProfile } from "../body/profile.ts";
+import { wrapU } from "../body/uv.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import { wrapDelta } from "../layout/shapes.ts";
 
@@ -26,7 +26,7 @@ const round = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
  * Layout coordinates of a texture point (three.js UV: x across the unwrap, y = v, origin bottom
- * left; see src/arm/uv.ts layoutToTexture). Null outside the skin of that row.
+ * left; see src/body/uv.ts layoutToTexture). Null outside the skin of that row.
  */
 export function textureToLayout(profile: ArmProfile, x: number, y: number): UV | null {
   const v = Math.min(1, Math.max(0, y));

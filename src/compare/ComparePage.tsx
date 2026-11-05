@@ -8,7 +8,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { useLayoutSources, type LayoutSources } from "../assets/useLayoutSources.ts";
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import type { Layout } from "../layout/schema.ts";
 import { classify } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";

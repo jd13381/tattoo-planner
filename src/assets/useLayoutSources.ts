@@ -1,6 +1,6 @@
 // Reference images and image proportions for one layout, shared by the Layout and Compare tabs.
 import { useEffect, useMemo } from "react";
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import type { ElementPatches } from "../layout/shapes.ts";
 import type { ProjectedPatch } from "../projection/patch.ts";
 import { patchFor, photoAssets, useProjections } from "../projection/useProjections.ts";

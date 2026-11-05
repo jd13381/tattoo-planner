@@ -7,7 +7,7 @@
 // divided by its local skin brightness (a max filter over `white_radius_cm`, smoothed), which evens
 // out exposure differences between photos and the shading towards the silhouette: skin becomes 1,
 // ink stays dark. The photos are then averaged with their weights.
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import {
   acrossSilhouette,
   photoFrame,

@@ -1,6 +1,6 @@
 // Coverage metrics (PROJECT_BRIEF.md §10.1 F7): share of skin per element type and zone.
-import type { ArmProfile } from "../arm/profile.ts";
-import { wrapU } from "../arm/uv.ts";
+import type { ArmProfile } from "../body/profile.ts";
+import { wrapU } from "../body/uv.ts";
 import type { ElementType } from "../layout/schema.ts";
 import { OUTSIDE, type Classification } from "../layout/shapes.ts";
 
