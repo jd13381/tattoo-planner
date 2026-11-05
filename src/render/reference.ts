@@ -19,6 +19,7 @@ import type { FigureLike, Layout } from "../layout/schema.ts";
 import type { ProjectedPatch } from "../projection/patch.ts";
 import { resolveElement, type ElementPatches, type ExistingSize, type Shape } from "../layout/shapes.ts";
 import { BLOCKOUT_COLORS } from "./blockout.ts";
+import { cpu2d, cpuCanvas } from "./cpuCanvas.ts";
 import { OVERLAY_GRID_STYLE, paintGrid } from "./cmGrid.ts";
 import { lineScreen, processPixels } from "./imageOps.ts";
 import { getPattern, seedFromId } from "./patterns/index.ts";
@@ -188,7 +189,7 @@ function patchCanvas(patch: ProjectedPatch, hatching: boolean): HTMLCanvasElemen
   const hit = byLook.get(key);
   if (hit) return hit;
   const out = canvas(patch.width, patch.height);
-  const c = out.getContext("2d")!;
+  const c = cpu2d(out);
   const img = c.createImageData(patch.width, patch.height);
   for (let k = 0; k < patch.gray.length; k++) {
     img.data[k * 4] = img.data[k * 4 + 1] = img.data[k * 4 + 2] = patch.gray[k]!;
@@ -253,12 +254,8 @@ function cached(key: string, make: () => HTMLCanvasElement): HTMLCanvasElement {
   return made;
 }
 
-function canvas(w: number, h: number): HTMLCanvasElement {
-  const c = document.createElement("canvas");
-  c.width = Math.max(1, Math.round(w));
-  c.height = Math.max(1, Math.round(h));
-  return c;
-}
+// Every intermediate canvas lives in main memory (./cpuCanvas.ts): they are drawn row by row.
+const canvas = cpuCanvas;
 
 /** The upright, filtered, feathered cut-out at its final pixel size (fitted into the box). */
 function processedImage(
@@ -281,7 +278,7 @@ function processedImage(
     .join("|");
   return cached(key, () => {
     const out = canvas(tw, th);
-    const c = out.getContext("2d", { willReadFrequently: true })!;
+    const c = cpu2d(out);
     c.imageSmoothingQuality = "high";
     c.translate(tw / 2, th / 2);
     if (s.flip) c.scale(-1, 1);
@@ -315,7 +312,7 @@ function placeholder(id: string, reason: string, box: BoxShape, ppc: number): HT
   const key = ["placeholder", id, reason, box.w, box.h, ppc].join("|");
   return cached(key, () => {
     const out = canvas(box.w * ppc, box.h * ppc);
-    const c = out.getContext("2d")!;
+    const c = cpu2d(out);
     const w = out.width;
     const h = out.height;
     c.fillStyle = "rgba(120, 112, 105, 0.35)";
@@ -350,7 +347,7 @@ function rotated(src: HTMLCanvasElement, rot: number): HTMLCanvasElement {
   const cos = Math.abs(Math.cos(rot));
   const sin = Math.abs(Math.sin(rot));
   const out = canvas(src.width * cos + src.height * sin, src.width * sin + src.height * cos);
-  const c = out.getContext("2d")!;
+  const c = cpu2d(out);
   c.translate(out.width / 2, out.height / 2);
   c.rotate(-rot);
   c.drawImage(src, -src.width / 2, -src.height / 2);
@@ -361,19 +358,19 @@ let scratch: HTMLCanvasElement | null = null;
 let maskCanvas: HTMLCanvasElement | null = null;
 
 function scratchCanvas(w: number, h: number): HTMLCanvasElement {
-  scratch ??= document.createElement("canvas");
+  scratch ??= cpuCanvas(w, h);
   if (scratch.width !== w || scratch.height !== h) {
     scratch.width = w;
     scratch.height = h;
-  } else scratch.getContext("2d")!.clearRect(0, 0, w, h);
+  } else cpu2d(scratch).clearRect(0, 0, w, h);
   return scratch;
 }
 
 function maskImage(mask: ReturnType<typeof shapeMask>): HTMLCanvasElement {
-  maskCanvas ??= document.createElement("canvas");
+  maskCanvas ??= cpuCanvas(1, 1);
   maskCanvas.width = mask.width;
   maskCanvas.height = Math.max(1, mask.rows);
-  const c = maskCanvas.getContext("2d")!;
+  const c = cpu2d(maskCanvas);
   const img = c.createImageData(mask.width, Math.max(1, mask.rows));
   for (let i = 0; i < mask.alpha.length; i++) img.data[i * 4 + 3] = mask.alpha[i]!;
   c.putImageData(img, 0, 0);
@@ -395,7 +392,7 @@ function drawPattern(
   if (mask.rows === 0) return;
   const W = ctx.canvas.width;
   const layer = scratchCanvas(W, ctx.canvas.height);
-  const lc = layer.getContext("2d")!;
+  const lc = cpu2d(layer);
   let x = 0;
   let w = W;
   let ringCm: number | undefined;
@@ -434,7 +431,7 @@ function fillMask(
 ) {
   if (mask.rows === 0) return;
   const layer = scratchCanvas(ctx.canvas.width, ctx.canvas.height);
-  const lc = layer.getContext("2d")!;
+  const lc = cpu2d(layer);
   lc.fillStyle = color;
   lc.fillRect(0, mask.rowStart, mask.width, mask.rows);
   lc.globalCompositeOperation = "destination-in";

@@ -114,7 +114,7 @@ Requirements: the five photos in `arm-photos/` with entries in `manifest.yaml` (
 └── v1-baseline-2026-11-03/         PNGs: {front,back,medial,lateral,unwrap}-{blockout,reference}.png
 ```
 
-A second export of the same layout on the same day gets `-2`, then `-3`; nothing is ever overwritten. The top bar shows the progress and, when done, the paths written (about 15–20 s).
+A second export of the same layout on the same day gets `-2`, then `-3`; nothing is ever overwritten. The top bar shows the progress and, when done, the paths written (about 15–20 s). If it fails, the message names the step that failed.
 
 The PDF (A4, English): a cover with the note that this is a sketch and the artist has creative freedom, the layout's name, description and date, and a legend; all four views (front = inner, back = outer, medial, lateral) at a glance with blockout and reference side by side; one page per view with the elements facing that side; the unwrap with cm grid in both modes; a table of every element (type, reference image, size in cm, position, style or pattern, `notes:` from the YAML); coverage per zone; open questions (unset heights, missing images, placeholder measurements, and the design questions of PROJECT_BRIEF.md §9, listed in `src/export/strings.ts`). All handout wording lives in `src/export/strings.ts`, ready for a German version. Give an element a `notes: "…"` line in the YAML to pass a remark to the artist.
 
