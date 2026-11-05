@@ -20,6 +20,10 @@ export const BLOCKED_EXTENSIONS = [
   "bmp",
   "psd",
   "pdf",
+  // Desktop app build output (docs/adr/0014-desktop-app.md).
+  "dmg",
+  "icns",
+  "asar",
 ];
 
 /**
@@ -28,11 +32,16 @@ export const BLOCKED_EXTENSIONS = [
  */
 export const ALLOW_PREFIXES = ["public/icons/"];
 
+/** Build output folders at the repo root that never go into git (the web build, the desktop app's). */
+export const BUILD_DIRS = ["dist", "dist-desktop", "release"];
+
 /** Returns the reason a path is rejected, or null when it may be committed. */
 export function rejectReason(file) {
   const p = file.replaceAll("\\", "/");
   if (ALLOW_PREFIXES.some((prefix) => p.startsWith(prefix))) return null;
   if (p === "exports" || p.startsWith("exports/") || p.includes("/exports/")) return "export";
+  const top = p.split("/")[0];
+  if (BUILD_DIRS.includes(top)) return "build output";
   const ext = p.split("/").pop().split(".").slice(1).pop()?.toLowerCase();
   if (ext && BLOCKED_EXTENSIONS.includes(ext)) return `.${ext} file`;
   return null;

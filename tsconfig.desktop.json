@@ -1,0 +1,19 @@
+{
+  // The Electron main process and preload (desktop/), compiled with tsc into dist-desktop/ together
+  // with the server modules they import (docs/adr/0014-desktop-app.md). `npm run typecheck` checks it
+  // without emitting; `npm run desktop:build` emits.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.desktop.tsbuildinfo",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "allowImportingTsExtensions": false,
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": ".",
+    "outDir": "./dist-desktop",
+    "sourceMap": false
+  },
+  "include": ["desktop/**/*.ts", "desktop/**/*.cts"]
+}
