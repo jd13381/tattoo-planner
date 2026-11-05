@@ -100,7 +100,9 @@ describe("projects on disk", () => {
     expect(r.project).toMatchObject({ status: "project", path: dir, name: "My sleeve", body: "female" });
     expect(await inspectFolder(dir)).toBe("project");
     expect(await readFile(path.join(dir, "manifest.yaml"), "utf8")).toContain("assets: []");
-    expect(await inspectFolder(path.join(dir, "layouts"))).toBe("empty");
+    expect(await readFile(path.join(dir, "layouts", "first-sketch.yaml"), "utf8")).toContain(
+      "region: arm-left",
+    );
     expect((await readUserConfig(configFile)).project).toBe(dir);
     const paths = await store().paths();
     expect(paths.layoutsDir).toBe(path.join(dir, "layouts"));

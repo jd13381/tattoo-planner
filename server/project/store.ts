@@ -15,6 +15,7 @@ import {
   type ProjectStatus,
   type RecentProject,
 } from "../../src/project/schema.ts";
+import { newLayoutText } from "../../src/layout/yamlDoc.ts";
 import { newProjectText, updateProjectText } from "../../src/project/yamlDoc.ts";
 import { expandUser } from "../dataDir.ts";
 import { HttpError } from "../http.ts";
@@ -44,6 +45,12 @@ type Current =
   | { status: "none"; problem: string | null }
   | { status: "legacy"; dir: string; problem: string | null }
   | { status: "project"; dir: string; meta: ProjectMeta | null; problem: string | null };
+
+export const STARTER_LAYOUT = "first-sketch";
+
+function starterLayoutText(): string {
+  return newLayoutText({ name: STARTER_LAYOUT, region: "arm-left", elements: [] });
+}
 
 const NO_PATHS: ProjectPaths = { dir: null, layoutsDir: null, projectionsDir: null, measurementsFile: null };
 
@@ -251,6 +258,10 @@ export class ProjectStore {
         }
         for (const f of PROJECT_FOLDERS) await mkdir(path.join(dir, f), { recursive: true });
         await writeFile(path.join(dir, MANIFEST_FILE), mergeManifest(null, []).text, { flag: "wx" });
+        // A first, empty layout on the left arm, so the Layout tab has something to draw on.
+        await writeFile(path.join(dir, "layouts", `${STARTER_LAYOUT}.yaml`), starterLayoutText(), {
+          flag: "wx",
+        });
         await writeFile(path.join(dir, PROJECT_FILE), newProjectText({ name, body: kind }), { flag: "wx" });
       }
       await this.remember(dir);

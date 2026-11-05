@@ -460,8 +460,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
     browser = (
       <div className="studio-assets-empty">
         <p className="muted small">
-          No images yet. Copy them into <code>refs/</code> (or <code>cards/</code>, <code>existing/</code>) in
-          the data folder, then click Reload.
+          No images yet. Copy them into <code>images/</code> in the project folder, then click Reload.
         </p>
       </div>
     );

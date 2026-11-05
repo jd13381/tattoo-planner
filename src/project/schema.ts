@@ -1,14 +1,16 @@
 // The project folder (docs/adr/0012-project-folder.md): project.yaml schema and the API types shared
 // by the server (server/projectApi.ts) and the browser. Framework-free.
 import { z } from "zod";
+import { BODY_IDS, type BodyId } from "../body/samples.ts";
 
 export const PROJECT_FILE = "project.yaml";
 export const PROJECT_VERSION = 1;
 export const PROJECT_ENDPOINT = "/api/project";
 
 /** Sample bodies a project starts from. */
-export const BODIES = ["female", "male"] as const;
-export type Body = (typeof BODIES)[number];
+export const BODIES = BODY_IDS;
+export type Body = BodyId;
+export const BODY_LABELS: Record<Body, string> = { female: "Female", male: "Male" };
 
 /** Folders a new project gets (others, such as edits/ and exports/, appear when first written). */
 export const PROJECT_FOLDERS = ["layouts", "projections", "images", "photos"] as const;
