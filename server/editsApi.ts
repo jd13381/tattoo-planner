@@ -110,6 +110,8 @@ type Job = {
   /** Result file in the working folder. */
   outputPath?: string;
   abort: AbortController;
+  /** GPT Image jobs: the settings when the job started (the desktop app can change the key meanwhile). */
+  openai?: OpenAISettings;
 };
 
 export type EditOptions = {
@@ -372,6 +374,12 @@ export class EditManager {
       refs.push({ ...r, path: path.join(dir, fileName), fileName });
     }
 
+    // Read once: the desktop app's key can be removed while the files are copied.
+    const openai = this.opts.openai;
+    if (!openai) {
+      await rm(dir, { recursive: true, force: true });
+      throw new HttpError(409, "Generative edits need an OpenAI API key, and none is set up.");
+    }
     const info = this.newInfo({
       from,
       fromJob: req.fromJob,
@@ -379,7 +387,7 @@ export class EditManager {
       refIds,
       instruction: instruction.text,
       engine: "openai",
-      tool: this.opts.openai!.model,
+      tool: openai.model,
     });
     const job: Job = {
       info,
@@ -389,6 +397,7 @@ export class EditManager {
       refs,
       ...(creating ? { create: { size, background } } : {}),
       abort: new AbortController(),
+      openai,
     };
     this.jobs.set(info.id, job);
     void this.runOpenAI(job, inputFile);
@@ -555,7 +564,7 @@ export class EditManager {
 
   /** One generative edit: send the image and the instruction, write the answer as output.png. */
   private async runOpenAI(job: Job, inputFile: string) {
-    const settings = this.opts.openai!;
+    const settings = job.openai!;
     const doFetch = this.opts.fetchImpl ?? fetch;
     const timer = setTimeout(() => {
       this.log(job, ["Stopped: the edit took too long."]);
