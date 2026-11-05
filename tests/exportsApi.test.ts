@@ -14,10 +14,10 @@ import {
   checkExportFile,
   exportStatus,
   findExportFile,
-  isCrossSite,
   reserveExport,
   writeExportFile,
-} from "../src/export/server/exportsApi.ts";
+} from "../server/exportsApi.ts";
+import { isCrossSite } from "../server/http.ts";
 
 const PDF = new Uint8Array(Buffer.from("%PDF-1.3\n%test\n"));
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);

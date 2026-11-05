@@ -1,10 +1,10 @@
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AssetsPage } from "./assets/AssetsPage.tsx";
 import { ComparePage } from "./compare/ComparePage.tsx";
-import { useDataFolderStatus, type DataFolderStatus } from "./data/useDataFolderStatus.ts";
 import { ImageEditPage } from "./edits/ImageEditPage.tsx";
 import { LayoutPage, type HeaderSlots } from "./editor/LayoutPage.tsx";
 import type { WorkingLayout } from "./layout/useLayouts.ts";
+import type { ProjectStatus } from "./project/schema.ts";
 import {
   DEFAULT_SECTION,
   parseRoute,
@@ -22,7 +22,7 @@ function routeFromHash(): Route {
   return parseRoute(window.location.hash);
 }
 
-export function App() {
+export function App({ project }: { project: ProjectStatus }) {
   const [route, setRouteState] = useState<Route>(routeFromHash);
   const tab: TabId = route.tab;
   // The Settings tab reopens the section seen last.
@@ -35,7 +35,6 @@ export function App() {
   // Elbow flexion in degrees, shared by every 3D view (Arm, Layout, Compare).
   const [bendDeg, setBendDeg] = useState(0);
   const pose = { bendDeg, setBendDeg };
-  const dataFolder = useDataFolderStatus();
   // The Layout and Projection tabs put their notices and their picker / save controls into the top bar.
   const [noticesSlot, setNoticesSlot] = useState<HTMLDivElement | null>(null);
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
@@ -124,10 +123,7 @@ export function App() {
         </nav>
         <span className="spacer" />
         <div className="header-slot" ref={setNoticesSlot} />
-        <DataFolderChip
-          status={dataFolder}
-          onOpen={() => setRoute({ tab: "settings", section: "project" })}
-        />
+        <ProjectChip project={project} onOpen={() => setRoute({ tab: "settings", section: "project" })} />
         <div className="header-slot" ref={setActionsSlot} />
       </header>
       <main className="page">
@@ -190,22 +186,16 @@ function TabPanel(props: { id: TabId; open: boolean; keepMounted?: boolean; chil
   );
 }
 
-/** One place that says whether the data folder is usable; opens Settings → Project. */
-function DataFolderChip({ status, onOpen }: { status: DataFolderStatus; onOpen: () => void }) {
-  if (status.kind === "loading") return null;
-  const [tone, text, title] =
-    status.kind === "ok"
-      ? ["ok", "Data folder", status.dir]
-      : status.kind === "unset"
-        ? [
-            "muted",
-            "No data folder",
-            "No project folder: no reference images, photos or export. Click for setup.",
-          ]
-        : ["error", "Data folder unreadable", status.message];
+/** The open project's name; opens Settings → Project. */
+function ProjectChip({ project, onOpen }: { project: ProjectStatus; onOpen: () => void }) {
+  const legacy = project.status === "legacy";
+  const tone = project.problem ? "error" : legacy ? "warn" : "ok";
+  const title =
+    project.problem ??
+    (legacy ? `${project.path} · older data folder: open to move it into a project` : (project.path ?? ""));
   return (
     <button type="button" className={`chip ${tone}`} onClick={onOpen} title={title}>
-      {text}
+      {project.name ?? "Project"}
     </button>
   );
 }

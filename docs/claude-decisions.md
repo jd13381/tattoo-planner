@@ -214,6 +214,25 @@ Jan asked Claude (2026-11-05) to run Phase B and then work through Phase C on it
 - **Photo projection only on the left arm** (ADR 0006 models the left forearm); elsewhere the element falls back to its box with a notice.
 - **Torso 3D region view frames with 1.5 × the margin**, since the short, wide torso otherwise fills the canvas behind the floating panels.
 
+### Project folder and server (C1, C2)
+
+Implemented on `work/project` (docs/adr/0012-project-folder.md, "Implementation"). Format: decision; _Alternative_; _Change_.
+
+- **One `createApi()` middleware for every shell**, routing by prefix like Connect's `use(prefix)`; Vite mounts it in `configureServer` and `configurePreviewServer` through a plugin written inline in `vite.config.ts` (so `server/` has no Vite import). _Alternative:_ one Vite plugin per area as before. _Change:_ `server/api.ts`.
+- **The current project is asked on every request** (a config read and two `stat`s), so opening a project needs no server restart. _Alternative:_ cache it in memory. _Change:_ `ProjectStore` in `server/project/store.ts`.
+- **Switching, creating or closing a project reloads the page.** Body, measurements, layouts and assets are loaded once by many hooks; a reload resets them all. _Alternative:_ a project context that every hook listens to. _Change:_ `reloadForProject()` in `src/project/api.ts`.
+- **Measurements load before the app modules** (`main.tsx` awaits `/api/project` and `/api/project/measurements`, then imports the app), so `useArm` keeps reading module constants and its signature is unchanged. _Alternative:_ make the measurements React state (touches every page that reads them). _Change:_ `src/project/projectData.ts`.
+- **Body and height: `project.yaml` first, then `measurements.yaml`** (coordinator, 2026-11-05: the bodies step put them into `measurements.yaml` as an interim place). _Change:_ `withProjectBody()` in `src/project/projectData.ts`.
+- **`TATTOO_DATA_DIR` locks the project**: open, create and close answer 409 and the project screen hides them. Any folder it names without `project.yaml` counts as legacy (old behaviour, even without a manifest). _Alternative:_ let the UI switch away for the session. _Change:_ `refuseWhenLocked()`.
+- **Create:** a folder name field under the picked location (default: the project name, made safe), or the location itself when emptied; the parent must exist; dot files do not make a folder non-empty; a legacy folder is migrated with the given name and body. New projects get an empty `first-sketch` layout on the left arm, because the Layout tab draws nothing without a layout. _Change:_ `create()` in `store.ts`, `NewProjectForm`.
+- **Migration names the project after its folder, body male**, and creates `layouts/` and `projections/`; layouts are copied unchanged (no `region:` means `arm-left`). It is idempotent; the summary lists created / copied / kept files. _Change:_ `server/project/migrate.ts`.
+- **Legacy folders read layouts, projections and measurements from the repo's `config/` only while it exists**; without it (packaged app) they use the folder itself. Writing measurements of a legacy folder (`PUT`) writes `config/measurements.yaml`, as editing by hand did.
+- **Folder browser:** real paths, home only, symlinks only when they stay in home, dot folders hidden, 500 entries. Open accepts only a project or legacy folder ("Choose this folder" is disabled elsewhere); New accepts any folder as location. _Change:_ `server/project/browse.ts`, `FolderPicker.tsx`.
+- **`npm run serve` defaults to port 4322** (dev 4320, preview 4321), `0` picks a free port, and refuses requests whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` (DNS rebinding). _Change:_ `server/standalone.ts`.
+- **Writes to layouts and projections now also refuse cross-site requests** (`Sec-Fetch-Site`), like every other write. Otherwise endpoint behaviour is unchanged.
+- **Settings → Project replaces the Data folder page:** project header (name, chip, path, Open other / Close), details form (name, body, height 50–260 cm; body or height changes reload), Move into project with its summary, then the folder's structure and files. The setup steps with `.env` and `npm` commands are gone from the page (README covers them); the structure list shows the project layout and older locations only where they hold files. _Change:_ `src/project/ProjectPage.tsx`, `src/data/expected.ts`.
+- **`config/` wording left in the Body & measurements and Projection pages** (`ArmPage`, `MeasurementsPanel`, `ProjectionPage`): the wizard steps working on those pages in parallel own them. _Change:_ say "measurements.yaml" / "projections/" there.
+
 ### Cuts and simplifications (roadmap Phase C step 6)
 
 Jan approved the cuts (2026-11-05); the details below were decided by Claude. Details in `docs/adr/0013-builtin-image-operations.md`; ADR 0003 and ADR 0007 are marked superseded.

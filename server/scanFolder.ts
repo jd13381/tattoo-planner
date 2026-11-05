@@ -4,10 +4,10 @@
 import { existsSync } from "node:fs";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { MANIFEST_FILE } from "../../assets/manifest.ts";
-import { mergeManifest } from "../../assets/manifestDoc.ts";
-import { scanCandidates } from "../../assets/scan.ts";
-import type { ScanReport } from "../../assets/types.ts";
+import { MANIFEST_FILE } from "../src/assets/manifest.ts";
+import { mergeManifest } from "../src/assets/manifestDoc.ts";
+import { scanCandidates } from "../src/assets/scan.ts";
+import type { ScanReport } from "../src/assets/types.ts";
 import { listDataFiles } from "./dataDir.ts";
 
 /** Serialises scans of this process, so two quick Reloads do not race on manifest.yaml. */

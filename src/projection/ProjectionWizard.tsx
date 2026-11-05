@@ -722,8 +722,8 @@ function Panel(props: {
             <p className="faint small">No photo picked yet.</p>
           )}
           <p className="faint small">
-            A photo not in the list? Put it into the project folder (for example into{" "}
-            <span className="mono">existing/</span>), then look for new images.
+            A photo not in the list? Put it into the project folder&apos;s{" "}
+            <span className="mono">photos/</span> folder, then look for new images.
           </p>
           <button type="button" onClick={props.scan.run}>
             Look for new images

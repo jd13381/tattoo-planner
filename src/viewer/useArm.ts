@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react";
-import measurementsText from "../../config/measurements.yaml?raw";
 import { resolveBody, type ResolvedBody } from "../body/body.ts";
 import { measuredValues, PLACEHOLDERS, type ArmInputKey } from "../body/inputs.ts";
 import type { ArmProfile, RegionProfile } from "../body/profile.ts";
 import type { RegionId } from "../body/regions.ts";
 import { parseMeasurements } from "../config/loadMeasurements.ts";
 import type { ExistingSize } from "../layout/shapes.ts";
+import { measurementsText, withProjectBody } from "../project/projectData.ts";
 
 export const loadedMeasurements = parseMeasurements(measurementsText);
 export const INPUT_COUNT = Object.keys(PLACEHOLDERS).length;
-const measurements = loadedMeasurements.ok ? loadedMeasurements.measurements : null;
+// Body and height: project.yaml first, then measurements.yaml.
+const measurements = withProjectBody(loadedMeasurements.ok ? loadedMeasurements.measurements : null);
 
 /** The left arm's values in measurements.yaml (the measurements panel edits these). */
 export const fileValues: Record<ArmInputKey, number | null> = measuredValues(measurements ?? {});

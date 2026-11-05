@@ -1183,7 +1183,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                       type="button"
                       className="ghost small-button"
                       onClick={reloadAssets}
-                      title="Look for new images in the data folder, then re-read manifest.yaml and the images"
+                      title="Look for new images in the project folder, then re-read manifest.yaml and the images"
                     >
                       Reload
                     </button>

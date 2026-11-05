@@ -2,10 +2,10 @@
 // small side navigation. The sections are the former tabs (Data folder, Arm & measurements), the
 // existing tattoos (list, guided setup and the Advanced calibration page) and the image-generation status.
 import type { ReactNode } from "react";
-import { DataFolderPage } from "../data/DataFolderPage.tsx";
 import type { HeaderSlots } from "../editor/LayoutPage.tsx";
 import type { WorkingLayout } from "../layout/useLayouts.ts";
 import { ProjectionSettings } from "../projection/ProjectionSettings.tsx";
+import { ProjectPage } from "../project/ProjectPage.tsx";
 import { ArmPage } from "../viewer/ArmPage.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
 import { ImageGenerationSettings } from "./ImageGenerationSettings.tsx";
@@ -32,7 +32,7 @@ export function SettingsPage(props: Props) {
   let body: ReactNode;
   switch (section) {
     case "project":
-      body = <DataFolderPage />;
+      body = <ProjectPage />;
       break;
     case "body":
       body = <ArmPage arm={arm} pose={pose} />;
