@@ -18,6 +18,8 @@ A local tool for planning a tattoo sleeve: a parametric 3D model of the arm, a 2
 
 Decisions Claude made without Jan are listed in `docs/claude-decisions.md` for review.
 
+The plan to turn the planner into an open-source product (sample bodies, all body parts, Mac app) is in `docs/product/roadmap.md`.
+
 ## Data stays out of git
 
 Code, docs and YAML configs live in this (private) repo. Every image, the ideas PDF and every export live in a Seafile folder that the planner finds through `TATTOO_DATA_DIR`. Images, PDFs and exports are rejected by `.gitignore`, by a pre-commit hook and by CI.
