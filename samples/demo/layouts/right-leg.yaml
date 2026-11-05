@@ -1,0 +1,16 @@
+# Sample layout on the right leg. u = around the leg (0 front, 0.25 lateral, 0.5 back, 0.75 medial),
+# v = along it (0 ankle, 1 hip).
+name: right-leg
+region: leg-right
+description: "Fern on the front of the thigh, scales on the outer shin"
+elements:
+  - id: fern
+    type: figure
+    asset: fern
+    position: { u: 0.00, v: 0.76 } # front of the thigh
+    size_cm: { h: 20 }
+  - id: scales
+    type: filler
+    pattern: snake-scales
+    region: { u: [0.18, 0.32], v: [0.08, 0.38] }
+    density: 0.3

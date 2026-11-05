@@ -1,0 +1,22 @@
+# Sample layout on the right arm. u = around the arm (0 outer, 0.25 lateral, 0.5 inner, 0.75 medial),
+# v = along it (0 wrist, 1 shoulder).
+name: right-arm
+region: arm-right
+description: "Sun on the outer upper arm, swallow on the forearm, lotus band above the elbow"
+elements:
+  - id: sun
+    type: figure
+    asset: sun
+    position: { u: 0.00, v: 0.78 } # outer upper arm
+    size_cm: { h: 11 }
+  - id: swallow
+    type: figure
+    asset: swallow
+    position: { u: 0.40, v: 0.25 } # inner forearm, towards the thumb side
+    size_cm: { h: 8 }
+    rotation_deg: -15
+  - id: elbow-band
+    type: band
+    pattern: lotus
+    v: 0.55
+    width_cm: 2.5

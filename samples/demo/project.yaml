@@ -1,0 +1,6 @@
+# Sample project of the Tattoo Planner (docs/adr/0012-project-folder.md, "Sample project").
+# It opens read-only; "Save as new project" in Settings → Project copies it into a folder you choose.
+# body: the sample body the project starts from (female | male); height_cm is optional.
+version: 1
+name: Sample project
+body: female
