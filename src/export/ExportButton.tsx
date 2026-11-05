@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ExportIcon } from "../ui/icons.tsx";
-import type { ExportStatus } from "./names.ts";
+import { exportFileUrl, type ExportStatus } from "./names.ts";
 import {
   fetchExportStatus,
   runExport,
@@ -12,8 +13,15 @@ import {
 type Props = {
   /** The current layout and everything needed to draw it; null while nothing is loaded. */
   input: ExportInput | null;
-  /** Why the current state cannot be exported (unsaved changes, images still loading, …). */
+  /** Why the current state cannot be exported (layout errors, images still loading, …). */
   blocked: string | null;
+  /**
+   * There are unsaved edits: the button becomes "Save & export" and calls this first (true = saved),
+   * so the handout always matches the saved file.
+   */
+  saveFirst?: (() => Promise<boolean>) | null;
+  /** Where progress and the result are shown (next to the toasts); without it, next to the button. */
+  statusTarget?: HTMLElement | null;
 };
 
 type State =
@@ -22,8 +30,8 @@ type State =
   | { phase: "done"; result: ExportResult }
   | { phase: "error"; message: string };
 
-/** "Export" in the layout toolbar: PDF handout and PNGs into <TATTOO_DATA_DIR>/exports/. */
-export function ExportButton({ input, blocked }: Props) {
+/** "Export" in the layout toolbar: PDF handout and PNGs into the project's exports folder. */
+export function ExportButton({ input, blocked, saveFirst, statusTarget }: Props) {
   const [status, setStatus] = useState<ExportStatus | null>(null);
   const [state, setState] = useState<State>({ phase: "idle" });
 
@@ -37,16 +45,24 @@ export function ExportButton({ input, blocked }: Props) {
 
   const disabledReason =
     status === null
-      ? "Checking the data folder…"
+      ? "Checking the project folder…"
       : !status.enabled
         ? status.reason
         : !input
           ? "No layout loaded."
           : blocked;
   const running = state.phase === "running";
+  const label = saveFirst ? "Save & export" : "Export";
 
   const start = async () => {
     if (!input || disabledReason) return;
+    if (saveFirst) {
+      setState({ phase: "running", progress: { label: "Saving", done: 0, total: 1 } });
+      if (!(await saveFirst())) {
+        setState({ phase: "error", message: "The layout could not be saved, so nothing was exported." });
+        return;
+      }
+    }
     setState({ phase: "running", progress: { label: "Starting", done: 0, total: 1 } });
     try {
       const result = await runExport(input, (progress) => setState({ phase: "running", progress }));
@@ -56,51 +72,68 @@ export function ExportButton({ input, blocked }: Props) {
     }
   };
 
+  const dismiss = () => setState({ phase: "idle" });
+  const panel = state.phase !== "idle" && (
+    <div className={`export-status float ${state.phase}`} role="status" aria-live="polite">
+      {state.phase === "running" && (
+        <>
+          <span className="export-status-title">Exporting…</span>
+          <progress max={state.progress.total} value={state.progress.done} />
+          <span className="faint">{state.progress.label}</span>
+        </>
+      )}
+      {state.phase === "done" && (
+        <>
+          <span className="export-status-title ok-text">Exported</span>
+          <span>
+            Saved in the project’s <strong>exports</strong> folder as{" "}
+            <span className="mono">{state.result.reservation.base}.pdf</span>, with {state.result.pngs.length}{" "}
+            PNGs beside it ({(state.result.ms / 1000).toFixed(1)} s).
+          </span>
+          <a
+            className="button primary small-button"
+            href={exportFileUrl(`${state.result.reservation.base}.pdf`)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open PDF
+          </a>
+          <button type="button" className="ghost small-button" onClick={dismiss}>
+            Close
+          </button>
+        </>
+      )}
+      {state.phase === "error" && (
+        <>
+          <span className="export-status-title error-text">Export failed</span>
+          <span className="export-error">{state.message}</span>
+          <button type="button" className="ghost small-button" onClick={dismiss}>
+            Close
+          </button>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <>
       <button
         type="button"
         className="export-button"
-        aria-label={running ? "Exporting" : "Export"}
+        aria-label={running ? "Exporting" : label}
         onClick={() => void start()}
         disabled={running || !!disabledReason}
         title={
-          disabledReason ?? "PDF handout for the artist and PNGs of every view, into <data folder>/exports/"
+          disabledReason ??
+          (saveFirst
+            ? "Save the changes, then write the PDF handout for the artist and PNGs of every view"
+            : "PDF handout for the artist and PNGs of every view, into the project's exports folder")
         }
       >
         <ExportIcon />
-        <span className="export-label">{running ? "Exporting…" : "Export"}</span>
+        <span className="export-label">{running ? "Exporting…" : label}</span>
       </button>
-      {/* Why export is unavailable lives in the button's tooltip and the header's data-folder chip. */}
-      {state.phase !== "idle" && (
-        <div className="export-status" role="status" aria-live="polite">
-          {state.phase === "running" && (
-            <>
-              <progress max={state.progress.total} value={state.progress.done} />{" "}
-              <span>{state.progress.label}…</span>
-            </>
-          )}
-          {state.phase === "done" && (
-            <span
-              className="export-done chip ok"
-              title={`${state.result.pdf.absolute}\n${state.result.pngs.length} PNGs in ${state.result.reservation.folder}`}
-            >
-              Exported in {(state.result.ms / 1000).toFixed(1)} s: PDF and {state.result.pngs.length} PNGs{" "}
-              <button type="button" className="link" onClick={() => setState({ phase: "idle" })}>
-                dismiss
-              </button>
-            </span>
-          )}
-          {state.phase === "error" && (
-            <span className="chip error" title={state.message}>
-              Export failed (hover for details){" "}
-              <button type="button" className="link" onClick={() => setState({ phase: "idle" })}>
-                dismiss
-              </button>
-            </span>
-          )}
-        </div>
-      )}
+      {panel && (statusTarget ? createPortal(panel, statusTarget) : panel)}
     </>
   );
 }

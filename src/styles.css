@@ -1340,27 +1340,32 @@ th[class*="cat-"]::before {
 }
 
 th.cat-figure::before,
+.metrics-legend .cat-figure::before,
 .swatch.cat-figure {
   background: #4a4952;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 th.cat-existing::before,
+.metrics-legend .cat-existing::before,
 .swatch.cat-existing {
   box-shadow: inset 0 0 0 1.5px #b9b6c4;
 }
 
 th.cat-filler::before,
+.metrics-legend .cat-filler::before,
 .swatch.cat-filler {
   background: #c9c3bb;
 }
 
 th.cat-band::before,
+.metrics-legend .cat-band::before,
 .swatch.cat-band {
   background: repeating-linear-gradient(45deg, #d7d2cb 0 2px, #3b3a40 2px 4px);
 }
 
 th.cat-line::before,
+.metrics-legend .cat-line::before,
 .swatch.cat-line {
   background: var(--red);
 }
@@ -1731,11 +1736,26 @@ button.canvas-action:active:not(:disabled) {
   min-height: 560px;
 }
 
+/* Errors float over the top of the workspace, so they never push it down. */
+.layout-page {
+  position: relative;
+}
+
 .layout-errors {
-  flex: none;
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: min(720px, calc(100% - 32px));
   margin: 0;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
+  padding: 0;
+  pointer-events: none;
+}
+
+.layout-errors > .notice {
+  pointer-events: auto;
+  box-shadow: var(--shadow-2);
 }
 
 .workspace {
@@ -2800,20 +2820,51 @@ button.asset-card {
   stroke-width: 0.006;
 }
 
+/* Export progress and result: a floating card above the toasts at the bottom centre. */
+.export-status-slot {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--s-6) + 44px);
+  z-index: 61;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(640px, calc(100vw - 32px));
+}
+
 .export-status {
-  display: inline-flex;
+  position: static;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-2);
-  font-size: var(--fs-xs);
+  gap: var(--s-2) var(--s-3);
+  padding: 10px 14px;
+  font-size: var(--fs-sm);
+}
+
+.export-status-title {
+  font-weight: 600;
 }
 
 .export-status progress {
-  width: 80px;
+  width: 140px;
   accent-color: var(--accent);
 }
 
-.export-status code {
-  word-break: break-all;
+.export-error {
+  flex-basis: 100%;
+  order: 3;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.export-status.error {
+  border-color: var(--danger-line);
+}
+
+a.button.small-button {
+  height: 22px;
+  padding: 0 8px;
+  font-size: var(--fs-xs);
 }
 
 /* === Arm & measurements (Pro) === ─────────────────────────────────────────────────────────── */
@@ -5900,4 +5951,465 @@ canvas.builtin-preview {
     border-left: 0;
     border-top: 1px solid var(--border);
   }
+}
+
+/* === Settings (Pro) === ─────────────────────────────────────────────────────────────────────── */
+
+/* Side navigation | section. The 3D sections (body, projection) fill the height like a workspace;
+ * the others scroll as a padded page. */
+.settings-page {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  height: calc(100dvh - var(--header-h));
+  min-height: 560px;
+}
+
+.settings-nav {
+  background: var(--rail);
+  border-right: 1px solid var(--border);
+  padding: var(--s-3) var(--s-2);
+  overflow-y: auto;
+}
+
+.settings-nav-title {
+  margin: 0 var(--s-2) var(--s-2);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.settings-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.settings-nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 6px var(--s-2);
+  border-radius: var(--r-md);
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.settings-nav a:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.settings-nav a[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text);
+}
+
+.settings-body {
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--s-3) var(--s-5) var(--s-6);
+}
+
+/* The former full-bleed tabs keep their own height (100dvh minus the top bar). */
+.settings-body.workspace-body {
+  overflow: hidden;
+  padding: 0;
+}
+
+.settings-section {
+  max-width: 760px;
+  display: grid;
+  gap: var(--s-3);
+}
+
+.settings-section > p {
+  margin: 0;
+  max-width: 70ch;
+}
+
+.settings-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.settings-section-head h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+}
+
+.settings-section .df-panel-note {
+  padding: var(--s-3);
+}
+
+.settings-section .setup-steps {
+  margin: 0;
+  padding: var(--s-3) var(--s-3) var(--s-3) 2.2em;
+}
+
+@media (max-width: 900px) {
+  .settings-page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-nav ul {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}
+
+/* === Assets tab (Pro) === ───────────────────────────────────────────────────────────────────── */
+
+.assets-page {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.assets-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+
+.assets-head h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+}
+
+.assets-path {
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.assets-note {
+  max-width: 40ch;
+}
+
+.assets-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--s-3);
+  align-items: start;
+}
+
+.assets-main,
+.assets-detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s-3);
+  min-width: 0;
+}
+
+.assets-detail {
+  position: sticky;
+  top: var(--s-3);
+}
+
+.assets-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+
+.assets-filters input[type="search"] {
+  flex: 1 1 220px;
+}
+
+.asset-grid.large {
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: var(--s-2);
+  max-height: none;
+}
+
+.asset-badges {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: var(--fs-2xs);
+  min-height: 14px;
+}
+
+.asset-badge {
+  padding: 0 5px;
+  border-radius: var(--r-xs);
+  background: var(--surface-3);
+  color: var(--muted);
+}
+
+.asset-badge.used {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.asset-card.hidden-asset img {
+  opacity: 0.45;
+}
+
+.assets-detail-empty {
+  margin: 0;
+}
+
+.asset-detail {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.asset-detail-image {
+  display: grid;
+  place-items: center;
+  background: repeating-conic-gradient(#15151b 0 25%, #111116 0 50%) 0 0 / 12px 12px;
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--border);
+  min-height: 160px;
+}
+
+.asset-detail-image img {
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+
+.asset-detail-id {
+  margin: 0;
+  font-size: var(--fs-md);
+  word-break: break-all;
+}
+
+.asset-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px var(--s-2);
+  margin: 0;
+  font-size: var(--fs-xs);
+}
+
+.asset-facts dt {
+  color: var(--faint);
+}
+
+.asset-facts dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.asset-uses {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: var(--fs-xs);
+}
+
+@media (max-width: 900px) {
+  .assets-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* === Layout: image swap, picker, line colour (Phase B) === ───────────────────────────────── */
+
+.image-swap {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 2px;
+}
+
+.image-swap-thumb {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  background: var(--field-bg);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+
+.image-swap-thumb .asset-thumb {
+  width: 100%;
+}
+
+.image-swap-thumb .asset-thumb img {
+  max-height: 220px;
+  object-fit: contain;
+}
+
+.image-swap-thumb > p {
+  margin: 0;
+  padding: var(--s-3);
+}
+
+.image-swap-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 4px;
+}
+
+.image-swap-bar .icon-button {
+  font-size: 16px;
+}
+
+.image-swap-id {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The picker: a popover panel placed with JS (fixed), over everything. */
+.image-picker.popover {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+  max-width: calc(100vw - 16px);
+  overflow: hidden;
+}
+
+.image-picker-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.image-picker-head .popover-title {
+  margin: 0;
+}
+
+.picker-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap: 6px;
+}
+
+.picker-grid {
+  max-height: none;
+  min-height: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+
+/* The floating "Change image" button next to the selected figure in the 2D editor. */
+.selection-action {
+  position: absolute;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+button.change-image-float {
+  height: 26px;
+  padding: 0 9px;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  background: var(--panel);
+  backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
+  box-shadow:
+    var(--shadow-float),
+    inset 0 0 0 1px var(--accent-line);
+}
+
+.color-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.color-field input[type="color"] {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  cursor: pointer;
+}
+
+button.swatch-button {
+  width: 18px;
+  height: 18px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+button.swatch-button.on {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.props-row {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.props label .field-error {
+  grid-column: 2;
+  color: var(--danger);
+  font-size: var(--fs-xs);
+}
+
+.props input[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 1px var(--danger-line);
+}
+
+.draw-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.switch-popover {
+  min-width: 280px;
+}
+
+.switch-popover p.muted {
+  margin: 0;
+}
+
+/* One-line key under the floating coverage table (its column heads are swatches only). */
+.metrics-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 4px 12px 0;
+  font-size: var(--fs-2xs);
+  color: var(--faint);
+}
+
+.metrics-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.metrics-legend span::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.metrics-legend .cat-line::before {
+  height: 3px;
 }

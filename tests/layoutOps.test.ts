@@ -11,7 +11,9 @@ import {
   moveLayer,
   moveLayerTo,
   nextBurst,
+  splitIssues,
 } from "../src/editor/layoutOps.ts";
+import { colorToHex, freeSpot, newElement } from "../src/editor/edit.ts";
 import type { Layout, LayoutElement } from "../src/layout/schema.ts";
 
 const fig = (id: string, extra: Partial<LayoutElement> = {}): LayoutElement =>
@@ -129,5 +131,50 @@ describe("nextBurst", () => {
     const d = nextBurst(c, "v", 2600);
     expect(burstKey(d)).not.toBe(burstKey(c));
     expect(burstKey(nextBurst(d, "u", 2700))).not.toBe(burstKey(c));
+  });
+});
+
+describe("splitIssues", () => {
+  it("puts id problems per element and names the element in the others", () => {
+    const r = splitIssues(
+      [
+        { path: ["elements", 2, "id"], message: "duplicate id a" },
+        { path: ["elements", 1, "crop"], message: "crop must stay inside the image" },
+        { path: ["name"], message: "too short" },
+      ],
+      ["a", "b", "a"],
+    );
+    expect([...r.idErrors]).toEqual([[2, "duplicate id a"]]);
+    expect(r.other).toEqual([
+      { index: 1, text: "b.crop: crop must stay inside the image" },
+      { index: null, text: "name: too short" },
+    ]);
+  });
+});
+
+describe("new elements", () => {
+  it("creates figures 10 × 6 cm and existing tattoos unlocked", () => {
+    const f = newElement("figure", 0, 0.5, []);
+    expect(f).toMatchObject({ size_cm: { h: 10, w: 6 } });
+    const e = newElement("existing", 0, 0.5, []);
+    expect(e).toMatchObject({ size_cm: { h: 10, w: 6 } });
+    expect(e.locked).toBeUndefined();
+  });
+
+  it("offsets a new element from the ones already at that spot", () => {
+    expect(freeSpot([], 0, 0.5)).toEqual({ u: 0, v: 0.5 });
+    const first = freeSpot([{ u: 0, v: 0.5 }], 0, 0.5);
+    expect(first).toEqual({ u: 0.04, v: 0.46 });
+    expect(freeSpot([{ u: 0, v: 0.5 }, first], 0, 0.5)).toEqual({ u: 0.08, v: 0.42 });
+    // Wraps round the arm.
+    expect(freeSpot([{ u: 0.98, v: 0.5 }], 0.98, 0.5).u).toBeCloseTo(0.02);
+  });
+
+  it("turns line colours into #rrggbb for the colour picker", () => {
+    expect(colorToHex(undefined)).toBe("#c62828");
+    expect(colorToHex("red")).toBe("#c62828");
+    expect(colorToHex("#ABCDEF")).toBe("#abcdef");
+    expect(colorToHex("#abc")).toBe("#aabbcc");
+    expect(colorToHex("black")).toBe("#000000");
   });
 });

@@ -2,15 +2,18 @@
 //   GET /api/assets             → AssetListing (src/assets/types.ts)
 //   GET /api/assets/image/<id>  → the bytes of that manifest asset, images only
 //   POST /api/assets/scan       → ScanReport: adds entries for new images, as `npm run assets:scan`
+//   PATCH /api/assets/entries/<id>  body EntryPatch → the updated AssetListing: tags, notes, hidden
 // Only files named in the manifest are served, and only when they resolve inside the data folder.
-// The scan is the only write: it appends manifest entries and never touches an image.
+// The scan and the entry update are the only writes: they change manifest.yaml (keeping comments)
+// and never touch an image.
 import { createReadStream } from "node:fs";
-import { readFile, realpath, stat } from "node:fs/promises";
+import { readFile, realpath, rename, stat, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { Plugin } from "vite";
 import { parseDocument } from "yaml";
 import { assetSchema, MANIFEST_FILE, type Asset } from "../../assets/manifest.ts";
+import { ManifestError, updateManifestEntry, type EntryPatch } from "../../assets/manifestDoc.ts";
 import { ASSETS_ENDPOINT, type AssetInfo, type AssetListing } from "../../assets/types.ts";
 import { scanDataFolder } from "./scanFolder.ts";
 
@@ -168,6 +171,80 @@ export async function findAssetImage(dataDir: string, id: string): Promise<Image
   return { ok: true, path: r.path, type: type.type };
 }
 
+/** Checks the body of an entry update: only tags (strings), notes (string or null) and hidden (boolean). */
+export function parseEntryPatch(body: unknown): EntryPatch | null {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return null;
+  const { tags, notes, hidden, ...rest } = body as Record<string, unknown>;
+  if (Object.keys(rest).length > 0) return null;
+  if (
+    tags !== undefined &&
+    !(Array.isArray(tags) && tags.every((t) => typeof t === "string" && t.length <= 64))
+  )
+    return null;
+  if (notes !== undefined && notes !== null && (typeof notes !== "string" || notes.length > 4000))
+    return null;
+  if (hidden !== undefined && typeof hidden !== "boolean") return null;
+  return {
+    ...(tags !== undefined ? { tags: tags as string[] } : {}),
+    ...(notes !== undefined ? { notes: notes as string | null } : {}),
+    ...(hidden !== undefined ? { hidden } : {}),
+  };
+}
+
+/** Writes an entry update into manifest.yaml (atomically); a broken manifest is never overwritten. */
+export async function updateAssetEntry(
+  dataDir: string,
+  id: string,
+  patch: EntryPatch,
+): Promise<{ ok: true } | { ok: false; status: 400 | 404 | 409; message: string }> {
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) return { ok: false, status: 400, message: "invalid asset id" };
+  const file = path.join(dataDir, MANIFEST_FILE);
+  let original: string;
+  try {
+    original = await readFile(file, "utf8");
+  } catch {
+    return { ok: false, status: 404, message: "no manifest" };
+  }
+  let text: string;
+  try {
+    text = updateManifestEntry(original, id, patch);
+  } catch (e) {
+    if (e instanceof ManifestError)
+      return { ok: false, status: e.message.startsWith("no asset") ? 404 : 409, message: e.message };
+    throw e;
+  }
+  if (text !== original) {
+    const tmp = `${file}.tmp-${process.pid}`;
+    await writeFile(tmp, text, "utf8");
+    await rename(tmp, file);
+  }
+  return { ok: true };
+}
+
+function readJsonBody(req: IncomingMessage, limit = 20_000): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > limit) {
+        reject(new Error("body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+      } catch {
+        resolve(undefined);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
@@ -210,6 +287,26 @@ export function assetsPlugin(dataDir: string | null): Plugin {
               return sendJson(res, 403, { error: "cross-site request refused" });
             if (!dataDir) return sendJson(res, 409, { error: "TATTOO_DATA_DIR is not set" });
             return sendJson(res, 200, await scanDataFolder(dataDir));
+          }
+          const entry = /^\/entries\/([^/]+)$/.exec(sub);
+          if (req.method === "PATCH" && entry) {
+            const site = req.headers["sec-fetch-site"];
+            if (site !== undefined && site !== "same-origin" && site !== "none")
+              return sendJson(res, 403, { error: "cross-site request refused" });
+            if (req.headers["content-type"] !== "application/json")
+              return sendJson(res, 415, { error: "JSON only" });
+            if (!dataDir) return sendJson(res, 409, { error: "no data folder" });
+            const patch = parseEntryPatch(await readJsonBody(req));
+            if (!patch) return sendJson(res, 400, { error: "expected { tags?, notes?, hidden? }" });
+            let id: string;
+            try {
+              id = decodeURIComponent(entry[1]!);
+            } catch {
+              return sendJson(res, 400, { error: "invalid asset id" });
+            }
+            const r = await updateAssetEntry(dataDir, id, patch);
+            if (!r.ok) return sendJson(res, r.status, { error: r.message });
+            return sendJson(res, 200, await listAssets(dataDir));
           }
           if (req.method !== "GET") return sendJson(res, 405, { error: "method not allowed" });
           if (sub === "/" || sub === "") return sendJson(res, 200, await listAssets(dataDir));

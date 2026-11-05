@@ -121,12 +121,12 @@ export function appendStroke(profile: ArmProfile, line: UV[], stroke: UV[]): UV[
   return options.reduce((best, o) => (o.d < best.d ? o : best)).pts();
 }
 
-/** `red-stroke-N` with the smallest free N. */
-export function nextStrokeId(taken: Iterable<string>): string {
+/** `red-stroke-N` (or `<prefix>-N`) with the smallest free N. */
+export function nextStrokeId(taken: Iterable<string>, prefix = "red-stroke"): string {
   const ids = new Set(taken);
   let n = 1;
-  while (ids.has(`red-stroke-${n}`)) n++;
-  return `red-stroke-${n}`;
+  while (ids.has(`${prefix}-${n}`)) n++;
+  return `${prefix}-${n}`;
 }
 
 /** Width of a new stroke: that of the layout's first red line, else the brief's 1.5 cm. */
@@ -139,13 +139,15 @@ export function defaultStrokeWidth(layout: Layout): number {
 
 /**
  * Applies a drawn stroke (raw samples in layout coordinates) to the layout: appended to the line at
- * `appendTo`, or as a new red line on top. Returns null for a stroke too short to keep.
+ * `appendTo`, or as a new line on top in `color` (default red: `red-stroke-N`, else `stroke-N`).
+ * Returns null for a stroke too short to keep.
  */
 export function applyStroke(
   profile: ArmProfile,
   layout: Layout,
   samples: UV[],
   appendTo: number | null,
+  color = "red",
 ): { layout: Layout; index: number } | null {
   if (samples.length < 2 || strokeLength(profile, samples) < STROKE_MIN_LENGTH_CM) return null;
   const target = appendTo !== null ? layout.elements[appendTo] : undefined;
@@ -156,9 +158,12 @@ export function applyStroke(
     return { layout: { ...layout, elements }, index: appendTo! };
   }
   const line: LineElement = {
-    id: nextStrokeId(layout.elements.map((e) => e.id)),
+    id: nextStrokeId(
+      layout.elements.map((e) => e.id),
+      color === "red" ? "red-stroke" : "stroke",
+    ),
     type: "line",
-    color: "red",
+    color,
     points: simplifyStroke(profile, samples),
     width_cm: defaultStrokeWidth(layout),
   };

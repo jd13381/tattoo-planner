@@ -4,7 +4,8 @@
 //   exports/<layout>-<YYYY-MM-DD>[-N]/<name>.png the views and the unwrap as PNG
 // Plain TypeScript without Node or DOM imports.
 
-/** GET: whether exports can be written; POST: reserve a name; PUT /<path>: write one file. */
+/** GET: whether exports can be written; POST: reserve a name; PUT /<path>: write one file;
+ * GET /<path>: read one written file back (to open the PDF). */
 export const EXPORTS_ENDPOINT = "/api/exports";
 /** Folder inside the data folder. */
 export const EXPORTS_FOLDER = "exports";
@@ -84,4 +85,9 @@ export type WrittenFile = { path: string; absolute: string; bytes: number };
 /** File names of the PNGs inside the export folder. */
 export function pngName(subject: string, mode: "blockout" | "reference"): string {
   return `${subject}-${mode}`;
+}
+
+/** URL to open a written export file, e.g. `exportFileUrl("v1-2026-11-05.pdf")`. */
+export function exportFileUrl(rel: string): string {
+  return `${EXPORTS_ENDPOINT}/${rel.split("/").map(encodeURIComponent).join("/")}`;
 }
