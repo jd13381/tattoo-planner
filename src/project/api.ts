@@ -7,6 +7,7 @@ import {
   type MigrationReport,
   type ProjectPatch,
   type ProjectStatus,
+  type SaveSampleResult,
 } from "./schema.ts";
 
 async function call<T>(method: string, sub: string, body?: unknown): Promise<T> {
@@ -33,6 +34,11 @@ export const openProject = (path: string) => call<ProjectStatus>("POST", "/open"
 export const createProject = (fields: { path: string; name: string; body: Body }) =>
   call<CreateResult>("POST", "/create", fields);
 export const closeProject = () => call<ProjectStatus>("POST", "/close", {});
+/** Opens the sample project shipped with the app (read-only). */
+export const openSample = () => call<ProjectStatus>("POST", "/open-sample", {});
+/** "Save as new project": copies the open sample into a new folder and opens the copy. */
+export const saveSampleAs = (fields: { path: string; name: string; body: Body }) =>
+  call<SaveSampleResult>("POST", "/save-sample", fields);
 export const updateProject = (patch: ProjectPatch) => call<ProjectStatus>("PATCH", "", patch);
 export const migrateProject = () =>
   call<{ project: ProjectStatus; migration: MigrationReport }>("POST", "/migrate", {});

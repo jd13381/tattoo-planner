@@ -1,6 +1,6 @@
 // Settings → Project: the open project's name, body and height (written to project.yaml), its folder,
-// switching or closing it, and for an older data folder "Move into project". Below, the folder's
-// structure and files.
+// switching or closing it, for an older data folder "Move into project", and for the read-only sample
+// "Save as new project". Below, the folder's structure and files.
 import { useState } from "react";
 import { FolderContents } from "../data/DataFolderPage.tsx";
 import { desktopBridge } from "../desktop/bridge.ts";
@@ -10,10 +10,12 @@ import {
   migrationLines,
   openProject,
   reloadForProject,
+  saveSampleAs,
   updateProject,
 } from "./api.ts";
 import { useFolderPicker } from "./FolderPicker.tsx";
 import { projectStatus } from "./projectData.ts";
+import { NewProjectForm } from "./StartScreen.tsx";
 import { BODIES, BODY_LABELS, type Body, type MigrationReport, type ProjectStatus } from "./schema.ts";
 
 export function ProjectPage() {
@@ -60,7 +62,8 @@ export function ProjectPage() {
   if (!status)
     return <p className="notice error">The planner's server did not answer. Restart the planner.</p>;
   const legacy = status.status === "legacy";
-  const tone = status.problem ? "warn" : "ok";
+  const sample = status.sample;
+  const tone = status.problem || sample ? "warn" : "ok";
 
   return (
     <div className="df-page">
@@ -71,13 +74,13 @@ export function ProjectPage() {
         <div className="df-head-text">
           <div className="df-head-title">
             <h2>{status.name ?? "Project"}</h2>
-            <span className={`chip ${legacy ? "warn" : "ok"}`}>
-              {legacy ? "Older data folder" : "Project"}
+            <span className={`chip ${legacy || sample ? "warn" : "ok"}`}>
+              {sample ? "Sample project (read-only)" : legacy ? "Older data folder" : "Project"}
             </span>
           </div>
           <p className="df-head-path">
-            <code>{status.path}</code>
-            {desktop && status.path && (
+            {sample ? <span className="muted">Shipped with the planner</span> : <code>{status.path}</code>}
+            {desktop && status.path && !sample && (
               <button
                 type="button"
                 className="ghost small-button"
@@ -109,6 +112,33 @@ export function ProjectPage() {
         <p className="notice error" role="alert">
           {error}
         </p>
+      )}
+
+      {sample && (
+        <section className="df-panel pj-migrate" aria-label="Save as new project">
+          <div className="df-panel-head">
+            <h2 className="float-title">Save as new project</h2>
+          </div>
+          <p className="muted">
+            This is the sample project: look around, move things and try the tools, but nothing here can be
+            saved. <strong>Save as new project</strong> copies it into a folder you choose, with its layouts
+            and placeholder images, and opens the copy, which you can change freely.
+          </p>
+          <NewProjectForm
+            busy={busy}
+            pickFolder={pickFolder}
+            initialName="My sample project"
+            initialBody={status.body}
+            submitLabel="Save as new project"
+            busyLabel="Saving…"
+            onCreate={(fields) =>
+              void act(async () => {
+                await saveSampleAs(fields);
+                reloadForProject();
+              })
+            }
+          />
+        </section>
       )}
 
       {legacy && !migration && (
@@ -152,7 +182,7 @@ export function ProjectPage() {
         </section>
       )}
 
-      {status.status === "project" && !migration && (
+      {status.status === "project" && !sample && !migration && (
         <ProjectDetails
           key={`${status.name}|${status.body}|${status.height_cm}`}
           status={status}

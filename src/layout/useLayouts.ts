@@ -19,7 +19,7 @@ function announceLayoutSaved(saved: StoredLayout): void {
 const withFile = (list: StoredLayout[] | null, f: StoredLayout) =>
   [...(list ?? []).filter((x) => x.name !== f.name), f].sort((a, b) => a.name.localeCompare(b.name));
 
-/** Layout files from config/layouts via the dev server; `onLoad` runs once with the first list. */
+/** Layout files of the open project via the planner's server; `onLoad` runs once with the first list. */
 export function useLayouts(onLoad?: (list: StoredLayout[]) => void) {
   const onLoadRef = useRef(onLoad);
   const [files, setFiles] = useState<StoredLayout[] | null>(null);
@@ -32,7 +32,9 @@ export function useLayouts(onLoad?: (list: StoredLayout[]) => void) {
       setFiles((await r.json()) as StoredLayout[]);
       setError(null);
     } catch (e) {
-      setError(`Cannot load layouts (${String(e)}). They load only under npm run dev.`);
+      setError(
+        `Cannot load layouts (${String(e)}). The planner's local server did not answer; restart the planner.`,
+      );
     }
   }, []);
 
@@ -50,7 +52,10 @@ export function useLayouts(onLoad?: (list: StoredLayout[]) => void) {
           onLoadRef.current?.(list);
         },
         (e: unknown) =>
-          !cancelled && setError(`Cannot load layouts (${String(e)}). They load only under npm run dev.`),
+          !cancelled &&
+          setError(
+            `Cannot load layouts (${String(e)}). The planner's local server did not answer; restart the planner.`,
+          ),
       );
     return () => {
       cancelled = true;

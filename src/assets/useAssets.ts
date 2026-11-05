@@ -113,7 +113,7 @@ export function useAssetListing(): {
           !cancelled &&
           setListing({
             status: "error",
-            message: `Cannot load the asset list (${String(e)}). It loads only under npm run dev.`,
+            message: `Cannot load the asset list (${String(e)}). The planner's local server did not answer; restart the planner.`,
           }),
       );
     return () => {

@@ -21,8 +21,9 @@ export type MergeResult = {
   updated: string[];
 };
 
-export const NEW_MANIFEST_TEXT = `# Asset catalogue (PROJECT_BRIEF.md §12.4). Layouts reference assets by id.
-# \`npm run assets:scan\` and the Reload button add entries for new files; hand edits are welcome and kept.
+export const NEW_MANIFEST_TEXT = `# Image catalogue of this Tattoo Planner project. Layouts reference images by id.
+# The Assets tab's "Look for new images" button (or \`npm run assets:scan\` in a git checkout) adds
+# entries for new files; hand edits are welcome and kept.
 version: 1
 assets: []
 `;

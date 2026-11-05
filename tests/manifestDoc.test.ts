@@ -27,7 +27,8 @@ describe("mergeManifest", () => {
     const r = mergeManifest(null, [idea(1), idea(2)], INGEST);
     expect(r.changed).toBe(true);
     expect(r.added).toEqual(["ideas-p01-01", "ideas-p01-02"]);
-    expect(r.text.startsWith("# Asset catalogue")).toBe(true);
+    expect(r.text.startsWith("# Image catalogue")).toBe(true);
+    expect(r.text).toContain("Look for new images");
     expect(r.text).toContain("bbox: [1, 2, 3, 4]");
     expect(r.text).toContain("tags: [medusa-tattoo]");
     const m = manifestSchema.parse(parse(r.text));

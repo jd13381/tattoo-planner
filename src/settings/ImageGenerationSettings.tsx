@@ -8,6 +8,12 @@ import { desktopBridge, type KeyStatus, type TattooDesktop } from "../desktop/br
 /** GET: the Image studio's overview; only the generative status is read here. */
 const EDITS_ENDPOINT = "/api/edits";
 
+/**
+ * docs/privacy.md in the repository. It moves with the repository when the public one opens
+ * (docs/product/roadmap.md, Phase D). The desktop shell opens https links in the system browser.
+ */
+export const PRIVACY_URL = "https://github.com/jd13381/tattoo-planner/blob/main/docs/privacy.md";
+
 type Generative = { enabled: true; model: string } | { enabled: false; reason: string };
 type State = { kind: "loading" } | { kind: "ok"; generative: Generative } | { kind: "failed" };
 
@@ -57,7 +63,10 @@ export function ImageGenerationSettings() {
       </p>
       <p className="muted">
         Privacy: images are only sent to OpenAI when you run a generative edit. The key is only sent to
-        OpenAI, with those requests.
+        OpenAI, with those requests.{" "}
+        <a href={PRIVACY_URL} target="_blank" rel="noreferrer">
+          What the planner sends, and where
+        </a>
       </p>
       <section className="df-panel" aria-label="Status">
         <div className="df-panel-head">
@@ -82,7 +91,12 @@ export function ImageGenerationSettings() {
         <section className="df-panel" aria-label="Set up a key">
           <div className="df-panel-head">
             <h3 className="float-title">Set up a key</h3>
+            <span className="faint small">Planner run from a git checkout</span>
           </div>
+          <p className="df-panel-note">
+            In the desktop app you enter the key right here. A planner started from the source code reads it
+            from its settings file:
+          </p>
           <ol className="setup-steps">
             <li>
               <span>

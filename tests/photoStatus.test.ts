@@ -11,13 +11,13 @@ describe("photoStatus", () => {
 
   it("names the data folder when it is unset or unreadable", () => {
     const unset = photoStatus({ file, listing: "unset", info: null, image: undefined });
-    expect(unset).toMatchObject({ kind: "blocked", title: "No data folder" });
+    expect(unset).toMatchObject({ kind: "blocked", title: "No project folder" });
     expect(photoStatus({ file, listing: "error", info: null, image: undefined }).kind).toBe("blocked");
   });
 
   it("tells a photo outside the manifest from one missing on disk", () => {
     const notListed = photoStatus({ file, listing: "ok", info: null, image: undefined });
-    expect(notListed).toMatchObject({ kind: "blocked", title: "anubis1.jpg is not in manifest.yaml" });
+    expect(notListed).toMatchObject({ kind: "blocked", title: "anubis1.jpg is not in the image catalogue" });
     const missing = photoStatus({ file, listing: "ok", info: { exists: false }, image: undefined });
     expect(missing).toMatchObject({ kind: "blocked", title: "anubis1.jpg is missing" });
   });

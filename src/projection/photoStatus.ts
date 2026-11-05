@@ -7,7 +7,7 @@ export type PhotoStatus =
   | { kind: "ready" }
   /** Waiting for the listing or the image; the frame says so and the photo fields stay disabled. */
   | { kind: "loading"; title: string }
-  /** Cannot be shown until Jan changes something; `detail` says what. */
+  /** Cannot be shown until the user changes something; `detail` says what. */
   | { kind: "blocked"; title: string; detail: string };
 
 export function photoStatus(args: {
@@ -19,31 +19,30 @@ export function photoStatus(args: {
 }): PhotoStatus {
   const { file, listing, info, image } = args;
   const name = file.split("/").pop() ?? file;
-  if (listing === "loading") return { kind: "loading", title: "Reading the data folder…" };
+  if (listing === "loading") return { kind: "loading", title: "Reading the project folder…" };
   if (listing === "unset")
     return {
       kind: "blocked",
-      title: "No data folder",
-      detail:
-        "The photos live in TATTOO_DATA_DIR, which is not set. The Data folder tab shows how to set it.",
+      title: "No project folder",
+      detail: "The photos live in the project folder. Open or create a project in Settings → Project.",
     };
   if (listing === "error")
     return {
       kind: "blocked",
-      title: "The data folder cannot be read",
-      detail: "Check TATTOO_DATA_DIR in the Data folder tab.",
+      title: "The project folder cannot be read",
+      detail: "Check the project folder in Settings → Project.",
     };
   if (!info)
     return {
       kind: "blocked",
-      title: `${name} is not in manifest.yaml`,
-      detail: `Add ${file} to the data folder and run npm run assets:scan.`,
+      title: `${name} is not in the image catalogue`,
+      detail: `Copy ${file} into the project folder, then press Look for new images in the Assets tab.`,
     };
   if (!info.exists)
     return {
       kind: "blocked",
       title: `${name} is missing`,
-      detail: `manifest.yaml lists ${file}, but the file is not in the data folder.`,
+      detail: `The image catalogue lists ${file}, but the file is not in the project folder.`,
     };
   if (image?.status === "error")
     return { kind: "blocked", title: `${name} cannot be loaded`, detail: image.message ?? "Unknown error." };

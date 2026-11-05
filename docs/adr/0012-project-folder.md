@@ -1,6 +1,6 @@
 # ADR 0012: One project folder per person, server code outside Vite
 
-- Status: accepted (2026-11-05, decided by Claude under Jan's autonomy rule; see docs/claude-decisions.md); implemented for roadmap Phase C steps 1 and 2 (details below under "Implementation")
+- Status: accepted (2026-11-05, decided by Claude under Jan's autonomy rule; see docs/claude-decisions.md); implemented for roadmap Phase C steps 1, 2 and 8 (details below under "Implementation")
 - Context: docs/product/roadmap.md §4.2 and §4.3. Today the planner reads layouts, projections and measurements from the repo's `config/` and images from `TATTOO_DATA_DIR`. A published app must keep all personal data in one folder the user picks, and the git checkout and the desktop app must run the same server code.
 
 ## Decision
@@ -58,3 +58,4 @@
 - **Measurements.** The page fetches status and the raw `measurements.yaml` text before the app modules load (`src/project/projectData.ts`) and parses it with the existing parser; no file = `units: cm` (all sample values). `project.yaml` body and height win over `measurements.yaml`. Switching project reloads the page.
 - **Images.** The scan catalogues `images/` (reference) and `photos/` (arm-photo) besides the older folders.
 - **Picker.** `useFolderPicker().pickFolder()` calls `window.tattooDesktop.pickFolder` when the desktop shell provides it, else opens the in-browser dialog.
+- **Sample project (Phase C step 8).** `samples/demo/` (YAML only: `project.yaml` with the female body, `manifest.yaml`, one layout per region). `POST /api/project/open-sample` opens it read-only, held in memory and never written to `config.json`; `POST /api/project/save-sample` (`{ path, name, body }`) copies it into an empty or new folder and opens the copy. While it is open, `server/sampleApi.ts` answers every write with 409, reports exports and edits as unavailable and serves the manifest's images as placeholders drawn on request (`src/sample/placeholders.ts`, PNG via `server/png.ts`); "Save as" writes them as real PNG files into the user's folder. The sample's path is `<app folder>/samples/demo` (in the desktop app inside `app.asar`); with `TATTOO_DATA_DIR` set the sample is not offered.
