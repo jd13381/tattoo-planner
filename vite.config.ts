@@ -4,6 +4,7 @@ import { defineConfig, loadEnv } from "vite";
 import { assetsPlugin } from "./src/data/server/assetsApi.ts";
 import { resolveDataDir } from "./src/data/server/dataDir.ts";
 import { layoutsPlugin } from "./src/data/server/layoutsApi.ts";
+import { measurementsPlugin } from "./src/data/server/measurementsApi.ts";
 import { projectionsPlugin } from "./src/data/server/projectionsApi.ts";
 import { dataFolderPlugin } from "./src/data/server/vitePlugin.ts";
 import { editsPlugin } from "./src/edits/server/editsApi.ts";
@@ -24,6 +25,7 @@ export default defineConfig(({ mode }) => {
       editsPlugin(dataDir, env),
       layoutsPlugin(path.join(root, "config", "layouts")),
       projectionsPlugin(path.join(root, "config", "projections")),
+      measurementsPlugin(path.join(root, "config", "measurements.yaml")),
     ],
     server: {
       // Local only (PROJECT_BRIEF.md §10.2): never listen on the network.
