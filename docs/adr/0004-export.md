@@ -40,3 +40,9 @@
 - One export takes about 15–20 s in a software-rendered (SwiftShader) browser; on a Mac GPU it should be faster.
 - Exports are deterministic in content (same YAML, measurements and images give the same pictures and tables); the PDF's creation date differs.
 - The §9 questions are copied into `strings.ts`; when Jan answers one, remove it there (or move them into the layout YAML later).
+
+## Update 2026-11-05: export canvases in main memory
+
+Jan's first export on his Mac froze the whole machine for 30–60 s and then failed with Safari's "The object is in an invalid state". The reference renderer copies images one pixel row at a time, partly with "multiply" blending: at export resolution (40 px/cm, about 1600 × 2960 px) that is thousands of tiny draws per canvas, plus read-backs for PNG and JPEG encoding. Browsers put a 2D canvas on the GPU by default, and the window server shares that GPU, so the queued work stalled everything; after such a stall Safari resets its GPU process and the next canvas copy throws.
+
+Decision: every canvas of the export and of the reference renderer is created with `willReadFrequently` (`src/render/cpuCanvas.ts`), which keeps it in main memory, where row copies, blending and read-backs are cheap and cannot stall the display. Only the four 3D views still use WebGL (one short-lived context, now checked for context loss). The export frees its canvases when it ends, also after a failure, and an error names the step that failed.

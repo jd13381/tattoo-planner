@@ -14,6 +14,7 @@ import {
   WebGLRenderer,
 } from "three";
 import type { ArmProfile } from "../arm/profile.ts";
+import { cpu2d, cpuCanvas } from "../render/cpuCanvas.ts";
 import {
   armGeometry,
   CAP_COLOR,
@@ -40,6 +41,7 @@ export function renderArmViews<K extends string>(
   opts: ViewRenderOptions,
 ): Record<K, Record<ViewName, HTMLCanvasElement>> {
   const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
+  const gl = renderer.getContext();
   renderer.setPixelRatio(1);
   renderer.setSize(opts.width, opts.height, false);
   // As React Three Fiber sets up the live viewer.
@@ -76,10 +78,14 @@ export function renderArmViews<K extends string>(
         camera.position.set(...position);
         camera.lookAt(...target);
         renderer.render(scene, camera);
-        const c = document.createElement("canvas");
-        c.width = opts.width;
-        c.height = opts.height;
-        c.getContext("2d")!.drawImage(renderer.domElement, 0, 0);
+        // A lost context (GPU reset, too many contexts) would otherwise surface as a blank render or
+        // as Safari's bare "The object is in an invalid state" on the copy below.
+        if (gl.isContextLost())
+          throw new Error(
+            "The graphics card dropped the 3D view (WebGL context lost). Reload the page and export again.",
+          );
+        const c = cpuCanvas(opts.width, opts.height);
+        cpu2d(c).drawImage(renderer.domElement, 0, 0);
         out[name][view] = c;
       }
       texture.dispose();
@@ -99,21 +105,14 @@ export function commonCrop(canvases: HTMLCanvasElement[]): Rect | null {
   if (canvases.length === 0) return null;
   const { width, height } = canvases[0]!;
   const rects = canvases.map((c) =>
-    contentBounds(
-      c.getContext("2d")!.getImageData(0, 0, width, height).data,
-      width,
-      height,
-      EXPORT_BACKGROUND,
-    ),
+    contentBounds(cpu2d(c).getImageData(0, 0, width, height).data, width, height, EXPORT_BACKGROUND),
   );
   const u = unionRect(rects);
   return u && padRect(u, Math.round(height * 0.012), width, height);
 }
 
 export function cropCanvas(src: HTMLCanvasElement, r: Rect): HTMLCanvasElement {
-  const c = document.createElement("canvas");
-  c.width = r.w;
-  c.height = r.h;
-  c.getContext("2d")!.drawImage(src, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  const c = cpuCanvas(r.w, r.h);
+  cpu2d(c).drawImage(src, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   return c;
 }

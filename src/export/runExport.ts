@@ -8,6 +8,7 @@ import type { Layout } from "../layout/schema.ts";
 import { classify, resolveElement, type ExistingSize } from "../layout/shapes.ts";
 import { coverage } from "../metrics/coverage.ts";
 import { BLOCKOUT_COLORS } from "../render/blockout.ts";
+import { cpu2d, cpuCanvas, releaseCanvas } from "../render/cpuCanvas.ts";
 import { missingReason, type ReferenceSources } from "../render/reference.ts";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
 import type { ViewName } from "../viewer/views.ts";
@@ -146,79 +147,94 @@ export async function runExport(
   // reserve, 2 textures per mode, the view renders, one file per view and unwrap per mode, PDF build and save
   const total = 1 + MODES.length * 2 + 1 + (VIEW_ORDER.length + 1) * MODES.length + 2;
   let done = 0;
+  let current = "Starting";
   const step = async (label: string) => {
+    current = label;
     onProgress({ label, done, total });
     await breathe();
   };
   const advance = () => done++;
+  // Every canvas made here is freed at the end, also after a failure: Safari only reclaims canvas
+  // memory at garbage collection, and a second attempt would otherwise start with the first one's.
+  const made: HTMLCanvasElement[] = [];
+  const keep = <C extends HTMLCanvasElement>(c: C): C => (made.push(c), c);
 
-  await step("Reserving the file name");
-  const reservation = await reserve(layout.name, date);
-  advance();
-
-  const viewTextures = {} as Record<Mode, HTMLCanvasElement>;
-  const unwraps = {} as Record<Mode, HTMLCanvasElement>;
-  for (const mode of MODES) {
-    await step(`Painting the ${mode} texture`);
-    const opts = { existing: input.existing, aspects: input.aspects, sources: input.sources };
-    viewTextures[mode] = document.createElement("canvas");
-    renderUnwrap(viewTextures[mode], profile, mode, layout, {
-      ...opts,
-      pxPerCm: VIEW_TEXTURE_PX_PER_CM,
-      grid: false,
-    });
+  try {
+    await step("Reserving the file name");
+    const reservation = await reserve(layout.name, date);
     advance();
-    await step(`Painting the ${mode} unwrap with cm grid`);
-    const u = document.createElement("canvas");
-    renderUnwrap(u, profile, mode, layout, { ...opts, pxPerCm: UNWRAP_PX_PER_CM, grid: true });
-    // Paper white instead of the grey around the skin.
-    const ctx = u.getContext("2d")!;
-    const px = ctx.getImageData(0, 0, u.width, u.height);
-    replaceColor(px.data, BLOCKOUT_COLORS.outside, EXPORT_BACKGROUND);
-    ctx.putImageData(px, 0, 0);
-    unwraps[mode] = u;
-    advance();
-  }
 
-  await step("Rendering the four views");
-  const raw = renderArmViews(profile, viewTextures, VIEW_ORDER, VIEW_SIZE);
-  const crop = commonCrop(MODES.flatMap((m) => VIEW_ORDER.map((v) => raw[m][v])));
-  advance();
-
-  const pngs: WrittenFile[] = [];
-  const views = {} as Record<Mode, Record<ViewName, PdfImage>>;
-  const unwrap = {} as Record<Mode, PdfImage>;
-  for (const mode of MODES) {
-    views[mode] = {} as Record<ViewName, PdfImage>;
-    for (const view of VIEW_ORDER) {
-      await step(`Saving ${view} (${mode})`);
-      const c = crop ? cropCanvas(raw[mode][view], crop) : raw[mode][view];
-      const file = `${reservation.base}/${pngName(view, mode)}.png`;
-      pngs.push(await put(file, await toBlob(c, CONTENT_TYPES.png), CONTENT_TYPES.png));
-      views[mode][view] = await pdfImage(c);
+    const viewTextures = {} as Record<Mode, HTMLCanvasElement>;
+    const unwraps = {} as Record<Mode, HTMLCanvasElement>;
+    for (const mode of MODES) {
+      await step(`Painting the ${mode} texture`);
+      const opts = { existing: input.existing, aspects: input.aspects, sources: input.sources };
+      viewTextures[mode] = keep(cpuCanvas(1, 1));
+      renderUnwrap(viewTextures[mode], profile, mode, layout, {
+        ...opts,
+        pxPerCm: VIEW_TEXTURE_PX_PER_CM,
+        grid: false,
+      });
+      advance();
+      await step(`Painting the ${mode} unwrap with cm grid`);
+      const u = keep(cpuCanvas(1, 1));
+      renderUnwrap(u, profile, mode, layout, { ...opts, pxPerCm: UNWRAP_PX_PER_CM, grid: true });
+      // Paper white instead of the grey around the skin.
+      const ctx = cpu2d(u);
+      const px = ctx.getImageData(0, 0, u.width, u.height);
+      replaceColor(px.data, BLOCKOUT_COLORS.outside, EXPORT_BACKGROUND);
+      ctx.putImageData(px, 0, 0);
+      unwraps[mode] = u;
       advance();
     }
-    await step(`Saving the unwrap (${mode})`);
-    const file = `${reservation.base}/${pngName("unwrap", mode)}.png`;
-    pngs.push(await put(file, await toBlob(unwraps[mode], CONTENT_TYPES.png), CONTENT_TYPES.png));
-    unwrap[mode] = await pdfImage(unwraps[mode]);
-    advance();
-  }
 
-  await step("Building the PDF");
-  const handout = buildHandout(handoutFacts(input, date), t);
-  const images: HandoutImages = {
-    views,
-    unwrap,
-    unwrapTopCircumference: profile.circumferenceAt(profile.length),
-    unwrapMaxCircumference: profile.maxCircumference,
-    armLength: profile.length,
-  };
-  const bytes = await writeHandoutPdf(handout, images, t);
-  advance();
-  await step("Saving the PDF");
-  const pdf = await put(`${reservation.base}.pdf`, bytes as Uint8Array<ArrayBuffer>, CONTENT_TYPES.pdf);
-  advance();
-  onProgress({ label: "Done", done, total });
-  return { reservation, pdf, pngs, ms: performance.now() - t0 };
+    await step("Rendering the four views");
+    const raw = renderArmViews(profile, viewTextures, VIEW_ORDER, VIEW_SIZE);
+    for (const m of MODES) for (const v of VIEW_ORDER) keep(raw[m][v]);
+    const crop = commonCrop(MODES.flatMap((m) => VIEW_ORDER.map((v) => raw[m][v])));
+    advance();
+
+    const pngs: WrittenFile[] = [];
+    const views = {} as Record<Mode, Record<ViewName, PdfImage>>;
+    const unwrap = {} as Record<Mode, PdfImage>;
+    for (const mode of MODES) {
+      views[mode] = {} as Record<ViewName, PdfImage>;
+      for (const view of VIEW_ORDER) {
+        await step(`Saving ${view} (${mode})`);
+        const c = crop ? keep(cropCanvas(raw[mode][view], crop)) : raw[mode][view];
+        const file = `${reservation.base}/${pngName(view, mode)}.png`;
+        pngs.push(await put(file, await toBlob(c, CONTENT_TYPES.png), CONTENT_TYPES.png));
+        views[mode][view] = await pdfImage(c);
+        advance();
+      }
+      await step(`Saving the unwrap (${mode})`);
+      const file = `${reservation.base}/${pngName("unwrap", mode)}.png`;
+      pngs.push(await put(file, await toBlob(unwraps[mode], CONTENT_TYPES.png), CONTENT_TYPES.png));
+      unwrap[mode] = await pdfImage(unwraps[mode]);
+      advance();
+    }
+
+    await step("Building the PDF");
+    const handout = buildHandout(handoutFacts(input, date), t);
+    const images: HandoutImages = {
+      views,
+      unwrap,
+      unwrapTopCircumference: profile.circumferenceAt(profile.length),
+      unwrapMaxCircumference: profile.maxCircumference,
+      armLength: profile.length,
+    };
+    const bytes = await writeHandoutPdf(handout, images, t);
+    advance();
+    await step("Saving the PDF");
+    const pdf = await put(`${reservation.base}.pdf`, bytes as Uint8Array<ArrayBuffer>, CONTENT_TYPES.pdf);
+    advance();
+    onProgress({ label: "Done", done, total });
+    return { reservation, pdf, pngs, ms: performance.now() - t0 };
+  } catch (e) {
+    // Name the step: browser errors such as "The object is in an invalid state" say nothing on their own.
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`${current} failed: ${msg}`, { cause: e });
+  } finally {
+    made.forEach(releaseCanvas);
+  }
 }
