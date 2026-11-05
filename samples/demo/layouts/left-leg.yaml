@@ -1,0 +1,16 @@
+# Sample layout on the left leg. u = around the leg (0 front, 0.25 lateral, 0.5 back, 0.75 medial),
+# v = along it (0 ankle, 1 hip).
+name: left-leg
+region: leg-left
+description: "Mountains on the calf with a line rising up the shin"
+elements:
+  - id: mountains
+    type: figure
+    asset: mountains
+    position: { u: 0.50, v: 0.28 } # calf
+    size_cm: { h: 13 }
+  - id: trail
+    type: line
+    color: red
+    points: [{ u: 0.05, v: 0.06 }, { u: 0.12, v: 0.25 }, { u: 0.02, v: 0.42 }]
+    width_cm: 0.6

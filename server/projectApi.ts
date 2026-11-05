@@ -5,6 +5,8 @@
 //   POST  /api/project/create          body { path, name, body } → CreateResult
 //   POST  /api/project/close           → ProjectStatus (start screen)
 //   POST  /api/project/migrate         → { project, migration }: "Move into project" for a legacy folder
+//   POST  /api/project/open-sample     → ProjectStatus: the sample shipped with the app, read-only
+//   POST  /api/project/save-sample     body { path, name, body } → SaveSampleResult: "Save as new project"
 //   GET   /api/project/browse?path=    → BrowseListing: sub-folders, inside the home folder only
 //   GET   /api/project/measurements    → MeasurementsFile: the raw text of measurements.yaml or null
 //   PUT   /api/project/measurements    body { text } → MeasurementsFile (validated, written as given)
@@ -47,6 +49,8 @@ export function projectHandler(store: ProjectStore, home: string): Handler {
       if (sub === "/create") return send(res, 200, await store.create(await json()));
       if (sub === "/close") return send(res, 200, await store.close());
       if (sub === "/migrate") return send(res, 200, await store.migrate());
+      if (sub === "/open-sample") return send(res, 200, await store.openSample());
+      if (sub === "/save-sample") return send(res, 200, await store.saveSampleAs(await json()));
       throw new HttpError(404, "not found");
     } catch (e) {
       sendError(res, e, 500);

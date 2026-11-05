@@ -72,6 +72,10 @@ export type ProjectStatus = {
   canMigrate: boolean;
   /** Why the remembered project could not be opened, or what is wrong with project.yaml. */
   problem: string | null;
+  /** The open project is the sample shipped with the app: read-only until saved as a new project. */
+  sample: boolean;
+  /** Whether this installation has the sample project (start screen: Open sample project). */
+  sampleAvailable: boolean;
 };
 
 export type MigrationReport = {
@@ -84,6 +88,15 @@ export type MigrationReport = {
 };
 
 export type CreateResult = { project: ProjectStatus; migration: MigrationReport | null };
+
+/** POST /api/project/save-sample: the sample copied into a new project folder, which is now open. */
+export type SaveSampleResult = {
+  project: ProjectStatus;
+  /** YAML files copied, relative to the project (project.yaml, layouts/torso.yaml …). */
+  files: string[];
+  /** Placeholder images written as PNG files, relative to the project. */
+  images: string[];
+};
 
 export type FolderKind = "project" | "legacy" | "folder";
 

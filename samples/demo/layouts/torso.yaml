@@ -1,0 +1,17 @@
+# Sample layout on the torso. u = around it (0 right flank, 0.25 front, 0.5 left flank, 0.75 back),
+# v = up from the waist (0) to the neck (1).
+name: torso
+region: torso
+description: "Mandala between the shoulder blades, waves on the left flank"
+elements:
+  - id: mandala
+    type: figure
+    asset: mandala
+    position: { u: 0.75, v: 0.72 } # upper back
+    size_cm: { h: 16 }
+  - id: waves
+    type: figure
+    asset: wave
+    position: { u: 0.50, v: 0.35 } # left flank
+    size_cm: { h: 9, w: 14 }
+    rotation_deg: 90

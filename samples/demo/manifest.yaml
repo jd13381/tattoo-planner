@@ -1,0 +1,53 @@
+# Asset catalogue of the sample project. The images are simple placeholder motifs that the planner
+# draws itself (src/sample/placeholders.ts): no image file is shipped, and none of them is real tattoo
+# art. "Save as new project" writes them as PNG files into the new project's images/ folder.
+version: 1
+assets:
+  - id: compass
+    file: images/compass.png
+    kind: reference
+    source: placeholder drawn by the planner
+    notes: Compass rose; stands in for a reference image.
+    tags: [placeholder, geometric]
+  - id: moon
+    file: images/moon.png
+    kind: reference
+    source: placeholder drawn by the planner
+    notes: Crescent moon with three small stars.
+    tags: [placeholder, sky]
+  - id: wave
+    file: images/wave.png
+    kind: reference
+    source: placeholder drawn by the planner
+    notes: Wave lines in a frame.
+    tags: [placeholder, water]
+  - id: fern
+    file: images/fern.png
+    kind: reference
+    source: placeholder drawn by the planner
+    notes: Fern frond, tall and narrow.
+    tags: [placeholder, botanical]
+  - id: mandala
+    file: images/mandala.png
+    kind: reference
+    source: placeholder drawn by the planner
+    notes: Mandala of rings, petals and dots.
+    tags: [placeholder, geometric]
+  - id: mountains
+    file: images/mountains.png
+    kind: reference
+    source: placeholder drawn by the planner
+    notes: Mountain range in a circle.
+    tags: [placeholder, landscape]
+  - id: sun
+    file: images/sun.png
+    kind: reference
+    source: placeholder drawn by the planner
+    notes: Sun with long and short rays.
+    tags: [placeholder, sky]
+  - id: swallow
+    file: images/swallow.png
+    kind: reference
+    source: placeholder drawn by the planner
+    notes: Swallow in flight.
+    tags: [placeholder, animal]

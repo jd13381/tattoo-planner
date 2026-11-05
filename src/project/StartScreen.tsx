@@ -1,7 +1,7 @@
-// The start screen when no project is open (docs/adr/0012-project-folder.md): sample project (coming
-// later), new project, open project, recent projects. Opening or creating reloads the page.
+// The start screen when no project is open (docs/adr/0012-project-folder.md): sample project, new
+// project, open project, recent projects. Opening or creating reloads the page.
 import { useState } from "react";
-import { createProject, openProject, reloadForProject } from "./api.ts";
+import { createProject, openProject, openSample, reloadForProject } from "./api.ts";
 import { useFolderPicker } from "./FolderPicker.tsx";
 import { baseName, projectFolder } from "./folders.ts";
 import { BODIES, BODY_LABELS, type Body, type ProjectStatus } from "./schema.ts";
@@ -29,6 +29,9 @@ export function StartScreen({ status }: { status: ProjectStatus | null }) {
   };
 
   const recent = status?.recent ?? [];
+  // A planner started with a fixed folder (TATTOO_DATA_DIR) cannot open or create another one.
+  const locked = status?.locked ?? false;
+  const disabled = busy || locked;
   return (
     <div className="start-page">
       <header className="start-head">
@@ -39,6 +42,11 @@ export function StartScreen({ status }: { status: ProjectStatus | null }) {
         </p>
       </header>
       {status?.problem && <p className="notice warn">{status.problem}</p>}
+      {locked && (
+        <p className="notice">
+          This planner is set up to always open one folder, so other projects cannot be opened here.
+        </p>
+      )}
       {error && (
         <p className="notice error" role="alert">
           {error}
@@ -49,6 +57,7 @@ export function StartScreen({ status }: { status: ProjectStatus | null }) {
           <h2>New project</h2>
           <NewProjectForm
             busy={busy}
+            disabled={locked}
             pickFolder={pickFolder}
             onCreate={(fields) => run(() => createProject(fields))}
           />
@@ -57,14 +66,22 @@ export function StartScreen({ status }: { status: ProjectStatus | null }) {
           <section className="panel start-card" aria-label="Open project">
             <h2>Open project</h2>
             <p className="muted small">Choose a folder you used with the planner before.</p>
-            <button type="button" onClick={() => void openPicked()} disabled={busy}>
+            <button type="button" onClick={() => void openPicked()} disabled={disabled}>
               Choose folder…
             </button>
           </section>
           <section className="panel start-card" aria-label="Sample project">
             <h2>Sample project</h2>
-            <p className="muted small">Coming soon: a ready-made project to try the planner with.</p>
-            <button type="button" disabled>
+            <p className="muted small">
+              A ready-made project with a few placeholder motifs on arms, legs and torso. It opens read-only;
+              save it as a new project to change it.
+            </p>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => void run(openSample)}
+              disabled={disabled || !status?.sampleAvailable}
+            >
               Open sample project
             </button>
           </section>
@@ -77,7 +94,7 @@ export function StartScreen({ status }: { status: ProjectStatus | null }) {
                     <button
                       type="button"
                       className="ghost"
-                      disabled={busy || !r.available}
+                      disabled={disabled || !r.available}
                       title={r.available ? r.path : `Not available: ${r.path}`}
                       onClick={() => void run(() => openProject(r.path))}
                     >
@@ -102,16 +119,22 @@ type NewFields = { path: string; name: string; body: Body };
 
 export function NewProjectForm(props: {
   busy: boolean;
+  disabled?: boolean;
   pickFolder: ReturnType<typeof useFolderPicker>["pickFolder"];
   onCreate: (fields: NewFields) => void;
+  /** Start values, e.g. when saving the sample as a new project. */
+  initialName?: string;
+  initialBody?: Body | null;
+  submitLabel?: string;
+  busyLabel?: string;
 }) {
-  const [name, setName] = useState("");
-  const [body, setBody] = useState<Body | null>(null);
+  const [name, setName] = useState(props.initialName ?? "");
+  const [body, setBody] = useState<Body | null>(props.initialBody ?? null);
   const [location, setLocation] = useState<string | null>(null);
   const [folder, setFolder] = useState<string | null>(null);
   const folderName = folder ?? name;
   const target = location ? projectFolder(location, folderName) : null;
-  const ready = !!name.trim() && !!body && !!target && !props.busy;
+  const ready = !!name.trim() && !!body && !!target && !props.busy && !props.disabled;
 
   return (
     <form
@@ -155,6 +178,7 @@ export function NewProjectForm(props: {
                 .pickFolder({ title: "Where should the project go?", purpose: "create" })
                 .then((p) => p && setLocation(p))
             }
+            disabled={props.disabled}
           >
             Choose…
           </button>
@@ -181,7 +205,7 @@ export function NewProjectForm(props: {
       </div>
       <div className="toolbar">
         <button type="submit" className="primary" disabled={!ready}>
-          {props.busy ? "Creating…" : "Create project"}
+          {props.busy ? (props.busyLabel ?? "Creating…") : (props.submitLabel ?? "Create project")}
         </button>
       </div>
     </form>

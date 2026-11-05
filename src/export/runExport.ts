@@ -75,7 +75,10 @@ export async function fetchExportStatus(): Promise<ExportStatus> {
     if (!r.ok) return { enabled: false, reason: await errorOf(r) };
     return (await r.json()) as ExportStatus;
   } catch (e) {
-    return { enabled: false, reason: `Export needs npm run dev (${String(e)}).` };
+    return {
+      enabled: false,
+      reason: `The planner's local server did not answer (${String(e)}); restart the planner.`,
+    };
   }
 }
 
