@@ -53,7 +53,7 @@ describe("sectionView on every region", () => {
 
   it("puts the torso's front centre (u = 0.25) facing a camera in front and its left flank on the right", () => {
     const torso = body.regions.torso.profile;
-    const s = torso.chestAt;
+    const s = torso.kind === "torso" ? torso.chestAt : 0;
     const view = sectionView(torso.circumferenceAt(s), torso.aspectAt(s), 0.25, torso);
     expect(surfacePoint(torso, 0.25, s).normal[2]).toBeCloseTo(1, 6); // +Z = front
     expect(view.at(0.5).t).toBeCloseTo(1, 2); // left flank: image right (the person's left)
