@@ -30,7 +30,7 @@ Suggested layout of the data folder (PROJECT_BRIEF.md §12.3):
 <TATTOO_DATA_DIR>/
 ├── ideas.pdf        collected ideas
 ├── manifest.yaml    asset catalogue (Phase 4)
-├── ideas/           images extracted from ideas.pdf (Phase 4)
+├── ideas/           images extracted from ideas.pdf earlier (no longer re-extracted)
 ├── refs/            Instagram / Pinterest references
 ├── cards/           MTG card art
 ├── existing/        photos of existing tattoos
@@ -122,19 +122,15 @@ The PDF (A4, English): a cover with the note that this is a sketch and the artis
 
 The dev server endpoint behind it (`src/export/server/exportsApi.ts`): `GET /api/exports` (enabled or why not), `POST /api/exports` (reserve a name), `PUT /api/exports/<base>.pdf` or `/<base>/<name>.png` (write one file; type, signature, size and path are checked; nothing outside `exports/`). Decisions: `docs/adr/0004-export.md`.
 
-### Ideas PDF and assets
+### Cataloguing images
 
 ```sh
-npm run ingest       # split ideas.pdf into images and page text, catalogue them
 npm run assets:scan  # catalogue new images in cards/, refs/, existing/, arm-photos/ (Reload in the planner does the same)
 ```
 
-Both read `TATTOO_DATA_DIR` (shell or `.env`) and write only into the data folder:
+It reads `TATTOO_DATA_DIR` (shell or `.env`) and writes only `manifest.yaml` in the data folder: an entry for every image no entry references yet, with an id from its path (`cards/rhonas.jpg` → `cards-rhonas`) and the kind from its folder (`card-art`, `reference`, `existing`, `arm-photo`). A text file with the same name next to an image (`refs/medusa.txt`) becomes its `source`. Running it again is safe: it only adds entries for new files. Your edits to `manifest.yaml` (ids, notes, tags, comments, order) are kept; a manifest with errors is never overwritten. Details: `docs/adr/0003-ideas-pdf-ingestion.md`.
 
-- `ingest` writes `ideas/page-NN-img-MM.png|jpg` (JPEGs stay JPEG, everything else becomes PNG) and `ideas/page-NN.txt`, and adds an entry per image to `manifest.yaml`: id `ideas-pNN-MM`, kind `idea`, the page heading in `source` (and as tags), the caption next to the image in `notes`, `page` and `bbox` (PDF points, origin top-left) to trace it back.
-- `assets:scan` adds an entry for every image no entry references yet, with an id from its path (`cards/rhonas.jpg` → `cards-rhonas`) and the kind from its folder (`card-art`, `reference`, `existing`, `arm-photo`). A text file with the same name next to an image (`refs/medusa.txt`) becomes its `source`.
-
-Running them again is safe: they only add entries for new files and refresh `page`/`bbox` of extracted images. Your edits to `manifest.yaml` (ids, notes, tags, comments, order) are kept; a manifest with errors is never overwritten. If you change `ideas.pdf` so that pages or images move, check the manifest afterwards: ids follow page and position. Details: `docs/adr/0003-ideas-pdf-ingestion.md`.
+The former `npm run ingest` (splitting `ideas.pdf` into images with mupdf) was removed: it was specific to one PDF and mupdf's AGPL licence does not fit an open-source product (`docs/product/roadmap.md` §3). Images it extracted into `ideas/` earlier keep working: they are ordinary manifest entries (`page` and `bbox` stay as they are).
 
 ### Asset manifest and the dev server
 

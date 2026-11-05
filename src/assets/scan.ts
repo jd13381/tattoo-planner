@@ -1,7 +1,6 @@
 // Catalogue images that Jan drops into the data folder (ADR 0003): every image in a known folder that
 // no manifest entry references yet becomes a new entry with an id derived from its path.
 import type { Asset } from "./manifest.ts";
-import { slug } from "./ideasLayout.ts";
 
 /** Folders that `assets:scan` looks at, and the kind their images get. */
 export const SCAN_FOLDERS: Readonly<Record<string, string>> = {
@@ -20,13 +19,23 @@ function extension(file: string): string {
   return name.includes(".") ? (name.split(".").pop() ?? "").toLowerCase() : "";
 }
 
+/** Lowercase, digits and dashes only, as asset ids and tags need. */
+export function slug(s: string): string {
+  return s
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 /** Id for a scanned file: its path without extension, e.g. cards/Rhonas.jpg → cards-rhonas. */
 export function assetIdFromPath(file: string): string {
   const withoutExt = file.replace(/\.[^./]+$/, "");
   return slug(withoutExt) || "asset";
 }
 
-/** Folders the planner fills itself (PDF ingest, kept edits, new images, exports): never scanned. */
+/** Folders the planner fills itself (images extracted from ideas.pdf in the past, kept edits, new images, exports): never scanned. */
 export const MANAGED_FOLDERS = ["ideas", "edits", "generated", "exports"];
 
 export type ScanResult = {
