@@ -86,7 +86,8 @@ export function viewCamera(
   if (bounds) return boundsCamera(bounds, dir, aspect, margin);
   const target: [number, number, number] = [0, profile.length / 2, 0];
   // Fit the arm's length (plus the rounded ends) into the vertical field of view, with margin.
-  const height = profile.length * margin;
+  // The torso is short and wide, and the page's floating panels cover the canvas edges: more room.
+  const height = profile.length * margin * (profile.kind === "torso" ? 1.5 : 1);
   const vFov = (CAMERA_FOV * Math.PI) / 180;
   const fitHeight = height / 2 / Math.tan(vFov / 2);
   const fitWidth = ((profile.maxCircumference / Math.PI) * 1.6) / 2 / (Math.tan(vFov / 2) * aspect);
@@ -115,4 +116,18 @@ function boundsCamera(b: Bounds, dir: Vec3, aspect: number, margin: number) {
     target[2] + dir[2] * distance,
   ];
   return { position, target };
+}
+
+/** Camera presets of the full-body view (docs/adr/0011), in the body frame (+Z front, +X the body's left). */
+export type BodyViewName = "front" | "back" | "left" | "right";
+export const BODY_VIEWS: { name: BodyViewName; label: string; dir: Vec3 }[] = [
+  { name: "front", label: "Front", dir: [0, 0, 1] },
+  { name: "back", label: "Back", dir: [0, 0, -1] },
+  { name: "left", label: "Left", dir: [1, 0, 0] },
+  { name: "right", label: "Right", dir: [-1, 0, 0] },
+];
+
+/** Camera position and target that frame the whole body from one side. */
+export function bodyCamera(bounds: Bounds, view: BodyViewName, aspect = 1, margin = 1.15) {
+  return boundsCamera(bounds, BODY_VIEWS.find((v) => v.name === view)!.dir, aspect, margin);
 }

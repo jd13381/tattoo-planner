@@ -95,8 +95,9 @@ export function layoutBody(params: BodyParams, regions: Record<RegionId, RegionP
   // Hips and buttocks between the legs and the waist line.
   parts.push({
     name: "hips",
-    centre: [0, hipY + params.pelvis_height * 0.35, -0.8],
-    radii: [params.hip_width / 2, params.pelvis_height * 0.75, params.hip_depth / 2],
+    // Reaches a few cm up into the torso, so no gap opens at the waist line.
+    centre: [0, hipY + params.pelvis_height * 0.45, -0.8],
+    radii: [params.hip_width / 2, params.pelvis_height * 0.85, params.hip_depth / 2],
     rotZ: 0,
   });
   // Hands below the wrists, flat towards the front (palms forward); feet forward from the ankles.

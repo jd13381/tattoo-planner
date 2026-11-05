@@ -9,10 +9,11 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { useLayoutSources, type LayoutSources } from "../assets/useLayoutSources.ts";
 import type { RegionProfile } from "../body/profile.ts";
+import { DEFAULT_REGION, REGIONS, regionOf, type RegionId } from "../body/regions.ts";
 import type { Layout } from "../layout/schema.ts";
 import { classify } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
-import { parseLayout } from "../layout/yamlDoc.ts";
+import { layoutRegion, parseLayout } from "../layout/yamlDoc.ts";
 import { coverage, DIFF_THRESHOLD_PCT, type Coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
@@ -64,15 +65,22 @@ type Props = {
 };
 
 export function ComparePage({ arm, pose, working, onOpenLayout }: Props) {
-  const { profile } = arm;
+  // Variants are compared within one region: the one open in the Layout tab.
+  const region: RegionId = working ? regionOf(working.layout) : DEFAULT_REGION;
+  const profile = arm.region(region);
+  const inRegion = (list: StoredLayout[]) => list.filter((f) => layoutRegion(f.text) === region);
   const [keys, setKeys] = useState<Record<Side, string> | null>(null);
-  const { files, error: loadError } = useLayouts((list) => {
-    const names = list.map((f) => f.name);
+  const { files: allFiles, error: loadError } = useLayouts((list) => {
+    const names = inRegion(list).map((f) => f.name);
     // Unsaved edits: compare them with the saved file; otherwise the open variant with the next one.
     const a = working?.dirty ? WORKING : working && names.includes(working.name) ? working.name : names[0];
     const b = working?.dirty ? working.name : (names.find((n) => n !== a) ?? names[0]);
     if (a && b) setKeys({ a, b });
   });
+  const files = useMemo(
+    () => (allFiles ? allFiles.filter((f) => layoutRegion(f.text) === region) : null),
+    [allFiles, region],
+  );
   const [mode, setMode] = useState<Mode>("blockout");
   const viewState = useViewState();
   const bus = useMemo(() => createCameraSync(), []);
@@ -113,7 +121,7 @@ export function ComparePage({ arm, pose, working, onOpenLayout }: Props) {
     return (
       <div className="compare-page cmp-blank">
         <section className="empty compare-empty">
-          <h2>Only one variant so far</h2>
+          <h2>Only one variant of the {REGIONS[region].label.toLowerCase()} so far</h2>
           <p>
             Compare shows two layout variants side by side, with their coverage and the elements that differ.
             Create a second one with <strong>Save as…</strong> in the Layout tab, or make an edit there to
@@ -218,7 +226,7 @@ export function ComparePage({ arm, pose, working, onOpenLayout }: Props) {
         </div>
 
         <div className="float float-bar cmp-view-bar" title={`${ORBIT_HINT} Both arms move together.`}>
-          <ViewButtons state={viewState} sides />
+          <ViewButtons state={viewState} sides profile={profile} />
         </div>
       </div>
 

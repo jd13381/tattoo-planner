@@ -11,7 +11,7 @@ import { MAX_FLEXION_DEG } from "../body/bend.ts";
 import { addSample, textureToLayout, type UV } from "../editor/stroke.ts";
 import { armGeometry, LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
 import { useViewState, type ViewState } from "./useViewState.ts";
-import { CAMERA_FOV, VIEWS, viewCamera, type Bounds } from "./views.ts";
+import { CAMERA_FOV, viewCamera, viewsFor, type Bounds } from "./views.ts";
 
 type Props = {
   profile: RegionProfile;
@@ -91,7 +91,7 @@ export function ArmViewer(props: Props) {
   const screenshotTitle = "Save this view as a PNG in the browser's download folder";
   const toolbarEl = toolbar && (
     <div className="toolbar viewer-toolbar" role="toolbar" aria-label="3D view">
-      <ViewButtons state={vs} sides={props.viewSides} />
+      <ViewButtons state={vs} sides={props.viewSides} profile={profile} />
       {props.screenshotInToolbar && (
         <>
           <span className="toolbar-sep" aria-hidden="true" />
@@ -162,14 +162,20 @@ export function ArmViewer(props: Props) {
   );
 }
 
-/** Skin side seen from the front and back views (front = inner, back = outer). */
-const VIEW_SIDE: Partial<Record<string, string>> = { front: "inner", back: "outer" };
-
 /** The four fixed view buttons; `sides` adds the skin side: "Front (inner)", "Back (outer)". */
-export function ViewButtons({ state, sides = false }: { state: ViewState; sides?: boolean }) {
+export function ViewButtons({
+  state,
+  sides = false,
+  profile,
+}: {
+  state: ViewState;
+  sides?: boolean;
+  /** The region whose views to offer; default the left arm's. */
+  profile?: Pick<RegionProfile, "kind" | "mirrored">;
+}) {
   return (
     <span className="segmented" role="group" aria-label="View">
-      {VIEWS.map((v) => {
+      {viewsFor(profile ?? { kind: "arm", mirrored: false }).map((v) => {
         const on = !state.free && state.view === v.name;
         return (
           <button
@@ -181,7 +187,7 @@ export function ViewButtons({ state, sides = false }: { state: ViewState; sides?
             onClick={() => state.select(v.name)}
           >
             {v.label}
-            {sides && VIEW_SIDE[v.name] && <span className="view-side">({VIEW_SIDE[v.name]})</span>}
+            {sides && v.side && <span className="view-side">({v.side})</span>}
           </button>
         );
       })}
