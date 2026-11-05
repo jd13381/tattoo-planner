@@ -64,7 +64,7 @@ export function App({ project }: { project: ProjectStatus }) {
   // Unsaved edits: the browser asks before a reload or close throws them away.
   const unsaved: Partial<Record<TabId, boolean>> = {
     layout: !!working?.dirty,
-    settings: projectionDirty,
+    settings: projectionDirty || arm.dirty > 0,
   };
   const anyUnsaved = Object.values(unsaved).some(Boolean);
   useEffect(() => {
@@ -157,7 +157,7 @@ export function App({ project }: { project: ProjectStatus }) {
               pose={pose}
               onProjectionDirty={setProjectionDirty}
               openLayout={working}
-              unsaved={{ projection: projectionDirty }}
+              unsaved={{ projection: projectionDirty, body: arm.dirty > 0 }}
               header={header}
             />
           )}
