@@ -1,22 +1,45 @@
-// Forward model of a photo of the forearm (docs/adr/0006-anubis-projection.md).
+// Forward model of a photo of a body region (docs/adr/0006-anubis-projection.md, generalised to every
+// region in docs/adr/0014-guided-projection.md).
 //
-// Locally the forearm is the planner's elliptical cross-section at that height (circumference and
-// aspect from the profile, points placed by arc length as in src/body/geometry.ts), seen
-// orthographically (photos from about 1 m). A photo is calibrated by
-//   - its two silhouette edges (straight lines), which fix where each cross-section lies across the arm,
-//   - two points at known distances along the arm (e.g. wrist crease and top of the tattoo), which fix
-//     where the wrist crease is and the scale along the arm,
-//   - u_view, the u whose surface normal points at the camera, at the wrist and at the elbow.
+// Locally the region is the planner's elliptical cross-section at that height (circumference and
+// aspect from the profile, points placed by arc length as in src/body/geometry.ts, with the region's
+// own u = 0 line and direction), seen orthographically (photos from about 1 m). A photo is calibrated by
+//   - its two silhouette edges (straight lines), which fix where each cross-section lies across the limb,
+//   - two points at known distances from the region's start along its axis (e.g. wrist crease and top of
+//     the tattoo), which fix where the start line is and the scale along the axis,
+//   - u_view, the u whose surface normal points at the camera, at the start and at the twist reference
+//     (the elbow tip on arms, the knee on legs, the neck on the torso; `twistReach`).
 // For a skin point (u, s) the model gives the photo point and the cosine between the skin normal and
 // the view direction (visibility; ≤ 0 = facing away). The patch is built in this direction, skin pixel
 // → photo pixel, so it has no holes.
 import { arcLengthInverse, semiAxes } from "../body/ellipse.ts";
-import type { ArmProfile } from "../body/profile.ts";
+import { U0_ANGLE } from "../body/geometry.ts";
+import type { RegionKind, RegionProfile } from "../body/profile.ts";
 import { wrapU } from "../body/uv.ts";
 import type { PhotoCalibration, PhotoPoint } from "./schema.ts";
 
-/** Parametric angle of the outer centre line (-Z), as in src/body/geometry.ts. */
-const OUTER_ANGLE = -Math.PI / 2;
+/** What the cross-section needs to know about its region: where u = 0 lies and which way u turns. */
+export type SectionConvention = { kind: RegionKind; mirrored: boolean };
+
+/** The left arm, the region the projection was first built for (docs/adr/0006). */
+const LEFT_ARM: SectionConvention = { kind: "arm", mirrored: false };
+
+/**
+ * Distance from the region's start (cm) at which `u_view.elbow` applies; u_view is interpolated
+ * linearly from the start up to here and constant beyond. The forearm twists between wrist and elbow,
+ * the lower leg between ankle and knee; the torso has no such joint, so its far value applies at the
+ * neck.
+ */
+export function twistReach(profile: RegionProfile): number {
+  switch (profile.kind) {
+    case "arm":
+      return profile.elbowAt;
+    case "leg":
+      return profile.kneeAt;
+    case "torso":
+      return profile.length;
+  }
+}
 
 export type Vec = { x: number; y: number };
 
@@ -30,14 +53,23 @@ const norm = (a: Vec): Vec => {
 /**
  * One cross-section seen from the direction of u_view's normal. `at(u)` gives the position across the
  * silhouette, t = -1 (left edge of the photo) … 1 (right edge), and the visibility cosine.
- * Image right is the arm's Y × N (wrist down, shoulder up in the photo): seen from the inner side,
- * lateral is on the right, as in the unwrap.
+ * Image right is the region's Y × N (its start down, its end up in the photo), a physical direction,
+ * so on every region the photo shows the skin as the unwrap does, seen from outside: on the left arm
+ * seen from the inner side lateral is on the right; on a mirrored region u grows to the right.
  */
 export type SectionView = { at(u: number): { t: number; cos: number } };
 
-export function sectionView(circumference: number, aspect: number, uView: number): SectionView {
+export function sectionView(
+  circumference: number,
+  aspect: number,
+  uView: number,
+  region: SectionConvention = LEFT_ARM,
+): SectionView {
   const { a, b } = semiAxes(circumference, aspect);
-  const angleAt = arcLengthInverse(a, b, OUTER_ANGLE, 360);
+  // As ringAngles in src/body/geometry.ts: u grows with the angle unless the region is mirrored.
+  const start = U0_ANGLE[region.kind];
+  const plain = arcLengthInverse(a, b, start, 360);
+  const angleAt = region.mirrored ? (u: number) => 2 * start - plain(u) : plain;
   const pv = angleAt(wrapU(uView));
   // Outward normal at parameter φ of (a cos φ, b sin φ) is ∝ (b cos φ, a sin φ) in (x, z).
   const n = norm({ x: b * Math.cos(pv), y: a * Math.sin(pv) });
@@ -60,15 +92,15 @@ export function sectionView(circumference: number, aspect: number, uView: number
 export type PhotoFrame = {
   width: number;
   height: number;
-  /** Wrist crease reference, px. */
+  /** The region's start line (wrist crease on arms) on the axis, px. */
   wrist: Vec;
-  /** Unit vector along the arm towards the elbow, px space. */
+  /** Unit vector along the axis towards the region's end, px space. */
   axis: Vec;
-  /** Pixels per cm along the arm. */
+  /** Pixels per cm along the axis. */
   pxPerCm: number;
   left: [Vec, Vec];
   right: [Vec, Vec];
-  /** u facing the camera at s cm from the wrist crease. */
+  /** u facing the camera at s cm from the region's start. */
   uViewAt(s: number): number;
 };
 
@@ -78,7 +110,8 @@ export function photoFrame(
   photo: PhotoCalibration,
   width: number,
   height: number,
-  elbowAt: number,
+  /** Where `u_view.elbow` applies, cm from the start (`twistReach`). */
+  reach: number,
 ): PhotoFrame | null {
   const left: [Vec, Vec] = [px(photo.edges.left[0], width, height), px(photo.edges.left[1], width, height)];
   const right: [Vec, Vec] = [
@@ -109,7 +142,7 @@ export function photoFrame(
     left,
     right,
     uViewAt(s: number) {
-      const t = Math.min(1, Math.max(0, s / elbowAt));
+      const t = Math.min(1, Math.max(0, s / reach));
       return uw + (ue - uw) * t;
     },
   };
@@ -143,18 +176,18 @@ export function acrossSilhouette(sil: [Vec, Vec], t: number): Vec {
  */
 export function projectPoint(
   frame: PhotoFrame,
-  profile: ArmProfile,
+  profile: RegionProfile,
   u: number,
   s: number,
 ): { x: number; y: number; cos: number } | null {
   const sil = silhouetteAt(frame, s);
   if (!sil) return null;
-  const view = sectionView(profile.circumferenceAt(s), profile.aspectAt(s), frame.uViewAt(s));
+  const view = sectionView(profile.circumferenceAt(s), profile.aspectAt(s), frame.uViewAt(s), profile);
   const { t, cos } = view.at(u);
   return { ...acrossSilhouette(sil, t), cos };
 }
 
-/** Distance along the arm (cm from the wrist crease) of a photo point, px. */
+/** Distance along the axis (cm from the region's start) of a photo point, px. */
 export function alongArm(frame: PhotoFrame, p: Vec): number {
   return dot(sub(p, frame.wrist), frame.axis) / frame.pxPerCm;
 }
@@ -187,17 +220,18 @@ export type GridLine = { kind: "inner" | "side" | "u" | "s10" | "s"; pts: Vec[] 
 
 /**
  * The model's skin grid as seen in a photo (px), for checking a calibration by eye: lines of equal u
- * every `uStep` (inner, lateral and medial lines marked) and of equal distance from the wrist crease
- * every `sStep` cm up to `sMax`, only where they face the camera.
+ * every `uStep` (the seam line u = 0.5 as "inner", u = 0.25 and 0.75 as "side") and of equal distance
+ * from the region's start every `sStep` cm from `sMin` up to `sMax`, only where they face the camera.
  */
 export function modelGrid(
   frame: PhotoFrame,
-  profile: ArmProfile,
-  opts: { uStep?: number; sStep?: number; sMax?: number } = {},
+  profile: RegionProfile,
+  opts: { uStep?: number; sStep?: number; sMin?: number; sMax?: number } = {},
 ): GridLine[] {
   const uStep = opts.uStep ?? 0.05;
   const sStep = opts.sStep ?? 2;
-  const sMax = opts.sMax ?? profile.elbowAt;
+  const sMax = Math.min(profile.length, opts.sMax ?? twistReach(profile));
+  const sMin = Math.max(0, Math.ceil((opts.sMin ?? 0) / sStep) * sStep);
   const lines: GridLine[] = [];
   const visible = (u: number, s: number) => {
     const q = projectPoint(frame, profile, u, s);
@@ -207,7 +241,7 @@ export function modelGrid(
   for (let k = 0; k < steps; k++) {
     const u = k / steps;
     const pts: Vec[] = [];
-    for (let s = 0; s <= sMax + 1e-9; s += 0.5) {
+    for (let s = sMin; s <= sMax + 1e-9; s += 0.5) {
       const p = visible(u, s);
       if (p) pts.push(p);
     }
@@ -219,7 +253,7 @@ export function modelGrid(
           : "u";
     if (pts.length > 1) lines.push({ kind, pts });
   }
-  for (let s = 0; s <= sMax + 1e-9; s += sStep) {
+  for (let s = sMin; s <= sMax + 1e-9; s += sStep) {
     const pts: Vec[] = [];
     for (let u = 0; u <= 1 + 1e-9; u += 0.01) {
       const p = visible(u, s);

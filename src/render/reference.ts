@@ -180,21 +180,28 @@ function blitRows(
   }
 }
 
-/** The patch as an RGBA canvas (grey ink, alpha where photos see the skin), cached per patch. */
+/**
+ * The patch as an RGBA canvas (grey ink, alpha where photos see the skin), cached per patch. Its
+ * columns run from u1 to u0 (src/projection/patch.ts); `mirrored` turns them round for a region whose
+ * unwrap has u growing to the right, so the canvas always reads left to right as the unwrap does.
+ */
 const patchCanvases = new WeakMap<ProjectedPatch, Map<string, HTMLCanvasElement>>();
 
-function patchCanvas(patch: ProjectedPatch, hatching: boolean): HTMLCanvasElement {
+function patchCanvas(patch: ProjectedPatch, hatching: boolean, mirrored: boolean): HTMLCanvasElement {
   let byLook = patchCanvases.get(patch);
   if (!byLook) patchCanvases.set(patch, (byLook = new Map()));
-  const key = hatching ? "hatching" : "grayscale";
+  const key = `${hatching ? "hatching" : "grayscale"}${mirrored ? "|mirrored" : ""}`;
   const hit = byLook.get(key);
   if (hit) return hit;
   const out = canvas(patch.width, patch.height);
   const c = cpu2d(out);
   const img = c.createImageData(patch.width, patch.height);
+  const W = patch.width;
   for (let k = 0; k < patch.gray.length; k++) {
-    img.data[k * 4] = img.data[k * 4 + 1] = img.data[k * 4 + 2] = patch.gray[k]!;
-    img.data[k * 4 + 3] = patch.alpha[k]!;
+    const x = k % W;
+    const from = mirrored ? k - x + (W - 1 - x) : k;
+    img.data[k * 4] = img.data[k * 4 + 1] = img.data[k * 4 + 2] = patch.gray[from]!;
+    img.data[k * 4 + 3] = patch.alpha[from]!;
   }
   if (hatching) lineScreen(img.data, patch.width, Math.max(3, patch.pxPerCm * 0.25));
   c.putImageData(img, 0, 0);
@@ -213,7 +220,7 @@ function drawPatch(
   hatching: boolean,
   opts: ReferenceOptions,
 ) {
-  const src = patchCanvas(patch, hatching);
+  const src = patchCanvas(patch, hatching, profile.mirrored);
   const ppc = opts.pxPerCm;
   const W = ctx.canvas.width;
   const L = profile.length;
@@ -226,7 +233,7 @@ function drawPatch(
     if (r < 0 || r >= patch.height) continue;
     const c = profile.circumferenceAt(v * L);
     const half = ((patch.u1 - patch.u0) / 2) * c;
-    // Screen x grows towards smaller u, as the patch columns do.
+    // The canvas columns run the way screen x does (towards smaller u unless mirrored).
     for (const piece of wrapStrip(screenX(uc, opts.centerU, c, screenSign(profile)), -half, half, c)) {
       const sx = ((piece.from + half) / (2 * half)) * patch.width;
       const sw = ((piece.to - piece.from) / (2 * half)) * patch.width;

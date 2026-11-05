@@ -1,8 +1,10 @@
 // Reference images and image proportions for one layout, shared by the Layout and Compare tabs.
 import { useEffect, useMemo } from "react";
 import type { RegionProfile } from "../body/profile.ts";
+import { REGIONS } from "../body/regions.ts";
 import type { ElementPatches } from "../layout/shapes.ts";
 import type { ProjectedPatch } from "../projection/patch.ts";
+import { projectionRegion } from "../projection/schema.ts";
 import { patchFor, photoAssets, useProjections } from "../projection/useProjections.ts";
 import { elementAspects, isFigureLike, type ElementAspects, type ImageDims } from "../layout/imageFit.ts";
 import type { Layout } from "../layout/schema.ts";
@@ -68,9 +70,10 @@ export function useLayoutSources(
         else patchIssues.set(e.id, `projection ${e.projection} not found in config/projections/`);
         continue;
       }
-      // Photo projection (docs/adr/0006) models the left forearm only.
-      if (profile.kind !== "arm" || profile.mirrored) {
-        patchIssues.set(e.id, "photo projection works on the left arm only");
+      // A projection belongs to one region (docs/adr/0014); on another region it has no place.
+      const home = REGIONS[projectionRegion(cal)];
+      if (home.kind !== profile.kind || home.mirrored !== profile.mirrored) {
+        patchIssues.set(e.id, `projection ${e.projection} belongs to the ${home.label.toLowerCase()}`);
         continue;
       }
       const r = patchFor(cal, profile, assetMap, images);

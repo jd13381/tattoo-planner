@@ -1,5 +1,5 @@
 // Builds the combined skin patch of an existing tattoo from several calibrated photos
-// (docs/adr/0006-anubis-projection.md). Plain TypeScript on pixel arrays, no DOM, so it runs in the
+// (docs/adr/0006-anubis-projection.md; any body region, docs/adr/0014-guided-projection.md). Plain TypeScript on pixel arrays, no DOM, so it runs in the
 // browser, in Node and in tests alike.
 //
 // For every patch pixel (u, v) and every photo: project into the photo (src/projection/model.ts),
@@ -7,7 +7,7 @@
 // divided by its local skin brightness (a max filter over `white_radius_cm`, smoothed), which evens
 // out exposure differences between photos and the shading towards the silhouette: skin becomes 1,
 // ink stays dark. The photos are then averaged with their weights.
-import type { ArmProfile } from "../body/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import {
   acrossSilhouette,
   photoFrame,
@@ -15,6 +15,7 @@ import {
   silhouetteAt,
   turnedSize,
   turnedToStored,
+  twistReach,
   viewWeight,
 } from "./model.ts";
 import type { ProjectionCalibration } from "./schema.ts";
@@ -22,7 +23,11 @@ import type { ProjectionCalibration } from "./schema.ts";
 /** RGBA pixels of a photo as stored, already turned upright by its EXIF orientation. */
 export type PhotoPixels = { width: number; height: number; data: Uint8ClampedArray };
 
-/** The patch, in skin coordinates. Row 0 is the shoulder end (v1), column 0 the u1 end (as the unwrap seen from outside). */
+/**
+ * The patch, in skin coordinates. Row 0 is the region's end side (v1), column 0 the u1 end: the left
+ * arm's unwrap seen from outside. On a mirrored region (src/body/uv.ts screenSign) the unwrap runs the
+ * other way, so the renderer mirrors the columns.
+ */
 export type ProjectedPatch = {
   u0: number;
   u1: number;
@@ -223,7 +228,7 @@ const smoothstep = (e0: number, e1: number, x: number) => {
 /** Size of the patch grid in pixels for a calibration. */
 export function patchSize(
   cal: ProjectionCalibration,
-  profile: ArmProfile,
+  profile: RegionProfile,
 ): { width: number; height: number } {
   const { u, v, px_per_cm: ppc } = cal.patch;
   let maxC = 0;
@@ -252,14 +257,14 @@ export type PhotoLayer = { value: Float32Array; weight: Float32Array; cos: Float
 export function photoLayer(
   cal: ProjectionCalibration,
   index: number,
-  profile: ArmProfile,
+  profile: RegionProfile,
   img: PhotoPixels,
   size: { width: number; height: number },
 ): PhotoLayer {
   const photo = cal.photos[index]!;
   const { width: W, height: H } = size;
   const turned = turnedSize(img.width, img.height, photo.turn);
-  const frame = photoFrame(photo, turned.width, turned.height, profile.elbowAt);
+  const frame = photoFrame(photo, turned.width, turned.height, twistReach(profile));
   const raw = new Float32Array(W * H).fill(NaN);
   const weight = new Float32Array(W * H);
   const cosArr = new Float32Array(W * H);
@@ -268,7 +273,7 @@ export function photoLayer(
       const s = patchV(cal, H, j) * profile.length;
       const sil = silhouetteAt(frame, s);
       if (!sil) continue;
-      const view = sectionView(profile.circumferenceAt(s), profile.aspectAt(s), frame.uViewAt(s));
+      const view = sectionView(profile.circumferenceAt(s), profile.aspectAt(s), frame.uViewAt(s), profile);
       for (let i = 0; i < W; i++) {
         const { t, cos } = view.at(patchU(cal, W, i));
         cosArr[j * W + i] = cos;
@@ -299,7 +304,7 @@ export function photoLayer(
  */
 export function buildPatch(
   cal: ProjectionCalibration,
-  profile: ArmProfile,
+  profile: RegionProfile,
   photos: readonly (PhotoPixels | null)[],
 ): ProjectedPatch | null {
   if (!photos.some((p) => p)) return null;

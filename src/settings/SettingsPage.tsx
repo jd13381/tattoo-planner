@@ -1,10 +1,11 @@
 // The Settings tab: everything that is set up once rather than used every day, as sections with a
-// small side navigation. The sections are the former tabs (Data folder, Arm & measurements,
-// Projection), shown unchanged, plus the image-generation status.
+// small side navigation. The sections are the former tabs (Data folder, Arm & measurements), the
+// existing tattoos (list, guided setup and the Advanced calibration page) and the image-generation status.
 import type { ReactNode } from "react";
 import type { HeaderSlots } from "../editor/LayoutPage.tsx";
+import type { WorkingLayout } from "../layout/useLayouts.ts";
+import { ProjectionSettings } from "../projection/ProjectionSettings.tsx";
 import { ProjectPage } from "../project/ProjectPage.tsx";
-import { ProjectionPage } from "../projection/ProjectionPage.tsx";
 import { ArmPage } from "../viewer/ArmPage.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
 import { ImageGenerationSettings } from "./ImageGenerationSettings.tsx";
@@ -16,6 +17,8 @@ type Props = {
   arm: ArmState;
   pose: Pose;
   onProjectionDirty: (dirty: boolean) => void;
+  /** The Layout tab's open variant: the projection wizard links a tattoo into it when it fits. */
+  openLayout?: WorkingLayout | null;
   /** Sections with unsaved edits get a dot in the side navigation. */
   unsaved?: Partial<Record<SettingsSection, boolean>>;
   header?: HeaderSlots;
@@ -24,7 +27,8 @@ type Props = {
 /** Sections whose page is a full-bleed workspace (a 3D view filling the height). */
 const WORKSPACES: ReadonlySet<SettingsSection> = new Set(["body", "projection"]);
 
-export function SettingsPage({ section, onSection, arm, pose, onProjectionDirty, unsaved, header }: Props) {
+export function SettingsPage(props: Props) {
+  const { section, onSection, arm, pose, onProjectionDirty, openLayout, unsaved, header } = props;
   let body: ReactNode;
   switch (section) {
     case "project":
@@ -34,7 +38,15 @@ export function SettingsPage({ section, onSection, arm, pose, onProjectionDirty,
       body = <ArmPage arm={arm} pose={pose} />;
       break;
     case "projection":
-      body = <ProjectionPage arm={arm} pose={pose} onDirty={onProjectionDirty} header={header} />;
+      body = (
+        <ProjectionSettings
+          arm={arm}
+          pose={pose}
+          onDirty={onProjectionDirty}
+          openLayout={openLayout}
+          header={header}
+        />
+      );
       break;
     case "image-generation":
       body = <ImageGenerationSettings />;

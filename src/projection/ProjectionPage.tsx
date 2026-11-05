@@ -1,46 +1,50 @@
-// Projection tab (docs/adr/0006): calibrate how the photos of an existing tattoo map onto the arm and
-// preview the combined patch on the unwrap and the 3D arm. Save writes config/projections/<name>.yaml.
+// Advanced projection page (docs/adr/0006, docs/adr/0014): every number of a calibration, for fine-tuning
+// what the guided wizard set up. Calibrate how the photos of an existing tattoo map onto its body region
+// and preview the combined patch on the unwrap and in 3D. Save writes the projection's YAML file.
 // The maths lives in model.ts and patch.ts; this file only draws and edits numbers.
 import {
   useEffect,
   useEffectEvent,
   useMemo,
-  useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import type { ArmProfile } from "../body/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
+import { REGIONS, type RegionId } from "../body/regions.ts";
 import { requestImage, useAssetImages, useAssetListing } from "../assets/useAssets.ts";
 import type { HeaderSlots } from "../editor/LayoutPage.tsx";
 import { formatKeys } from "../editor/shortcuts.ts";
 import { currentPlatform } from "../editor/useLayoutShortcuts.ts";
-import type { Layout } from "../layout/schema.ts";
 import type { AssetImage } from "../render/reference.ts";
-import { renderUnwrap } from "../render/unwrapCanvas.ts";
 import { WarnIcon } from "../ui/icons.tsx";
 import { Popover } from "../ui/Popover.tsx";
 import { ToastRegion, useToast } from "../ui/Toast.tsx";
 import { ArmViewer, ORBIT_HINT, PoseControl } from "../viewer/ArmViewer.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
-import { modelGrid, photoFrame, turnedSize, type GridLine } from "./model.ts";
-import type { ProjectedPatch } from "./patch.ts";
+import type { GridLine } from "./model.ts";
+import { CanvasHost, EDGE_COLOR, GRID_COLORS, PhotoEditor, PhotoPlaceholder } from "./PhotoEditor.tsx";
 import { photoStatus, type ListingState, type PhotoStatus } from "./photoStatus.ts";
 import type { PhotoCalibration, ProjectionCalibration } from "./schema.ts";
-import { projectionSchema } from "./schema.ts";
+import { projectionRegion, projectionSchema } from "./schema.ts";
+import { farLabel, startLabel } from "./wizard.ts";
 import { patchFor, photoAssets, saveProjection, useProjections } from "./useProjections.ts";
+import { previewCanvases } from "./preview.ts";
 
 /** Preview resolution: coarse enough to rebuild while dragging, fine enough to judge seams. */
 const PREVIEW_PX_PER_CM = 10;
 const TEXTURE_PX_PER_CM = 12;
-const PREVIEW_ID = "projection-preview";
 
-const PHOTO_HINT =
-  "Drag the orange edge ends onto the forearm's outline and the red marks onto points whose distance " +
-  "from the wrist crease you know. Red line: inner centre line, green: lateral and medial, yellow: every " +
-  "2 cm, magenta: every 10 cm from the wrist crease.";
+function photoHint(region: RegionId): string {
+  const lines = REGIONS[region].lines;
+  const start = startLabel(region);
+  return (
+    "Drag the orange edge ends onto the outline of the body part and the red marks onto points whose " +
+    `distance from the ${start} you know. Red line: ${lines[2]} centre line, green: ${lines[1]} and ` +
+    `${lines[3]}, yellow: every 2 cm, magenta: every 10 cm from the ${start}.`
+  );
+}
 const VIEW_HINT = `${ORBIT_HINT} Shows the combined patch alone, in reference mode.`;
 
 export function ProjectionPage({
@@ -48,6 +52,8 @@ export function ProjectionPage({
   pose,
   onDirty,
   header,
+  initialName,
+  onBack,
 }: {
   arm: ArmState;
   pose: Pose;
@@ -55,9 +61,18 @@ export function ProjectionPage({
   onDirty?: (dirty: boolean) => void;
   /** Top-bar slots (App.tsx); without them the picker and Save sit in a bar above the workspace. */
   header?: HeaderSlots;
+  /** The projection to open first. */
+  initialName?: string;
+  /** Back to the list of existing tattoos. */
+  onBack?: () => void;
 }) {
   const { files, calibrations, errors, loadError } = useProjections();
-  const [name, setName] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(initialName ?? null);
+  const back = onBack && (
+    <button type="button" className="ghost" onClick={onBack} title="Back to the list of existing tattoos">
+      ‹ Existing tattoos
+    </button>
+  );
   if (loadError)
     return (
       <div className="projection-page">
@@ -79,12 +94,9 @@ export function ProjectionPage({
     return (
       <div className="projection-page">
         <section className="empty">
-          <h2>No projections yet</h2>
-          <p>
-            A projection maps the photos of an existing tattoo onto the arm. Add{" "}
-            <code>config/projections/&lt;name&gt;.yaml</code> (see{" "}
-            <code>docs/adr/0006-anubis-projection.md</code>) and reload.
-          </p>
+          <h2>No existing tattoos yet</h2>
+          <p>Add one from its photos with the guided setup first; this page then fine-tunes it.</p>
+          {back}
         </section>
       </div>
     );
@@ -112,6 +124,7 @@ export function ProjectionPage({
     return (
       <div className="projection-page">
         <TopBar header={header}>
+          {back}
           <span className="header-sep" aria-hidden="true" />
           {picker(false)}
         </TopBar>
@@ -127,7 +140,8 @@ export function ProjectionPage({
       key={current}
       saved={saved}
       picker={picker}
-      profile={arm.profile}
+      back={back}
+      profile={arm.region(projectionRegion(saved))}
       pose={pose}
       onDirty={onDirty}
       header={header}
@@ -166,13 +180,15 @@ type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "failed"; messa
 function ProjectionEditor(props: {
   saved: ProjectionCalibration;
   picker: (dirty: boolean) => ReactNode;
-  profile: ArmProfile;
+  back?: ReactNode;
+  profile: RegionProfile;
   pose: Pose;
   onDirty?: (dirty: boolean) => void;
   header?: HeaderSlots;
 }) {
-  const { saved, picker, profile, pose, onDirty, header } = props;
+  const { saved, picker, back, profile, pose, onDirty, header } = props;
   const current = saved.name;
+  const region = projectionRegion(saved);
   const { listing } = useAssetListing();
   const assetMap = useMemo(
     () => (listing?.status === "ok" ? new Map(listing.assets.map((a) => [a.id, a])) : null),
@@ -233,48 +249,23 @@ function ProjectionEditor(props: {
             }
           : null;
   const draftV1 = Math.min(1, draft.patch.v[1] + 0.03);
+  const [du0, du1] = draft.patch.u;
+  const draftU = useMemo(() => [du0, du1] as const, [du0, du1]);
 
-  const { texture, innerImage } = useMemo(() => {
-    const layout: Layout = {
-      name: "projection-preview",
-      elements: [
-        {
-          type: "existing",
-          id: PREVIEW_ID,
-          projection: current,
-          locked: true,
-          position: { u: 0.5, v: 0.2 },
-          size_cm: { h: null },
-        },
-      ],
-    };
-    const sources = {
-      assets: assetMap,
-      images,
-      aspects: new Map<string, number>(),
-      patches: new Map<string, ProjectedPatch>(patch ? [[PREVIEW_ID, patch]] : []),
-    };
-    const make = (centerU: number) => {
-      const c = document.createElement("canvas");
-      c.className = "projection-unwrap";
-      renderUnwrap(c, profile, patch ? "reference" : "grid", layout, {
+  const { texture, innerImage } = useMemo(
+    () =>
+      previewCanvases({
+        name: current,
+        patch,
+        profile,
+        assets: assetMap,
+        images,
+        v1: draftV1,
+        centerU: (draftU[0] + draftU[1]) / 2,
         pxPerCm: TEXTURE_PX_PER_CM,
-        grid: true,
-        centerU,
-        sources,
-      });
-      return c;
-    };
-    // The 2D preview only shows the rows of the patch, with a little skin around it.
-    const full = make(0.5);
-    const top = Math.max(0, Math.floor((1 - draftV1) * full.height) - 2 * TEXTURE_PX_PER_CM);
-    const crop = document.createElement("canvas");
-    crop.className = "projection-unwrap";
-    crop.width = full.width;
-    crop.height = full.height - top;
-    crop.getContext("2d")!.drawImage(full, 0, top, full.width, crop.height, 0, 0, full.width, crop.height);
-    return { texture: make(0), innerImage: crop };
-  }, [patch, current, assetMap, images, profile, draftV1]);
+      }),
+    [patch, current, assetMap, images, profile, draftV1, draftU],
+  );
 
   const photo = draft.photos[Math.min(photoIndex, draft.photos.length - 1)];
   const info = infos[photoIndex] ?? null;
@@ -293,7 +284,7 @@ function ProjectionEditor(props: {
     try {
       await saveProjection(draft);
       setSaveState({ kind: "idle" });
-      toast.show(`Saved config/projections/${draft.name}.yaml`);
+      toast.show(`Saved ${draft.name}`);
     } catch (e) {
       setSaveState({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
     }
@@ -349,6 +340,7 @@ function ProjectionEditor(props: {
   return (
     <div className="projection-page">
       <TopBar header={header} notices={noticesChip}>
+        {back}
         <span className="header-sep" aria-hidden="true" />
         {picker(dirty)}
         <button
@@ -370,7 +362,7 @@ function ProjectionEditor(props: {
             validationError
               ? `Fix first: ${validationError}`
               : dirty
-                ? `Save config/projections/${current}.yaml (${kbdSave})`
+                ? `Save ${current} (${kbdSave})`
                 : "No unsaved changes"
           }
         >
@@ -411,8 +403,8 @@ function ProjectionEditor(props: {
             <div className="float float-bar proj-photo-bar">
               <PhotoTabs photos={draft.photos} index={photoIndex} share={share} onSelect={setPhotoIndex} />
             </div>
-            <div className="float status-bar proj-status" title={PHOTO_HINT}>
-              <GridLegend />
+            <div className="float status-bar proj-status" title={photoHint(region)}>
+              <GridLegend region={region} />
               <span className="spacer" />
               <PhotoMeta status={status} image={image} turn={photo.turn} />
             </div>
@@ -440,7 +432,7 @@ function ProjectionEditor(props: {
               <CanvasHost canvas={innerImage} />
               <figcaption className="float float-bar proj-patch-label">
                 <span className="float-title">Combined patch</span>
-                <span className="faint">inner side centred</span>
+                <span className="faint">centred on the patch</span>
               </figcaption>
             </figure>
           </section>
@@ -456,7 +448,7 @@ function ProjectionEditor(props: {
                 </span>
               </div>
               <fieldset disabled={!photoReady}>
-                <PhotoFields photo={photo} onChange={setPhoto} />
+                <PhotoFields photo={photo} region={region} onChange={setPhoto} />
               </fieldset>
             </section>
             <section className="insp-section" aria-labelledby="proj-patch-head">
@@ -473,7 +465,7 @@ function ProjectionEditor(props: {
                 )}
               </div>
               <fieldset disabled={noData}>
-                <PatchFields cal={draft} onChange={setDraft} />
+                <PatchFields cal={draft} region={region} onChange={setDraft} />
               </fieldset>
             </section>
             <section className="insp-section" aria-labelledby="proj-share-head">
@@ -529,10 +521,11 @@ function PhotoShares(props: {
 }
 
 /** Colour key of the grid drawn on the photo (the full explanation is the status bar's tooltip). */
-function GridLegend() {
+function GridLegend({ region }: { region: RegionId }) {
+  const short = REGIONS[region].short;
   const items: { kind: GridLine["kind"] | "edge"; label: string }[] = [
-    { kind: "inner", label: "inner" },
-    { kind: "side", label: "lat / med" },
+    { kind: "inner", label: REGIONS[region].lines[2] },
+    { kind: "side", label: `${short[1]} / ${short[3]}` },
     { kind: "s10", label: "10 cm" },
     { kind: "s", label: "2 cm" },
     { kind: "edge", label: "outline" },
@@ -627,182 +620,6 @@ function photoLabel(file: string): string {
 }
 
 /** Stands in for the photo while it cannot be shown, and says why. */
-function PhotoPlaceholder({
-  status,
-  file,
-}: {
-  status: Exclude<PhotoStatus, { kind: "ready" }>;
-  file: string;
-}) {
-  return (
-    <div
-      className={`photo-frame placeholder ${status.kind}`}
-      role="img"
-      aria-label={`${file}: ${status.title}`}
-    >
-      <div className="photo-placeholder">
-        <strong>{status.title}</strong>
-        {status.kind === "blocked" && <span>{status.detail}</span>}
-      </div>
-    </div>
-  );
-}
-
-function CanvasHost({ canvas }: { canvas: HTMLCanvasElement }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    ref.current?.replaceChildren(canvas);
-  }, [canvas]);
-  return <div ref={ref} className="proj-patch-host" />;
-}
-
-type Handle = { kind: "edge"; side: "left" | "right"; end: 0 | 1 } | { kind: "along"; index: 0 | 1 };
-
-const EDGE_COLOR = "#ff9800";
-
-const GRID_COLORS: Record<GridLine["kind"], string> = {
-  inner: "#e53935",
-  side: "#43a047",
-  u: "rgba(0, 200, 255, 0.7)",
-  s10: "#d81b60",
-  s: "rgba(255, 235, 59, 0.8)",
-};
-
-/** The turned photo with the calibration drawn on it; edge ends and marks can be dragged. */
-function PhotoEditor(props: {
-  photo: PhotoCalibration;
-  image: Extract<AssetImage, { status: "ready" }>;
-  profile: ArmProfile;
-  onChange: (p: PhotoCalibration) => void;
-}) {
-  const { photo, image: ready, profile, onChange } = props;
-  const size = turnedSize(ready.width, ready.height, photo.turn);
-  const turned = useMemo(() => {
-    const c = document.createElement("canvas");
-    c.width = size.width;
-    c.height = size.height;
-    const ctx = c.getContext("2d")!;
-    ctx.translate(size.width / 2, size.height / 2);
-    ctx.rotate((photo.turn * Math.PI) / 180);
-    ctx.drawImage(ready.image, -ready.width / 2, -ready.height / 2);
-    return c.toDataURL("image/jpeg", 0.85);
-  }, [ready, photo.turn, size.width, size.height]);
-  const frame = useMemo(
-    () => photoFrame(photo, size.width, size.height, profile.elbowAt),
-    [photo, size.width, size.height, profile.elbowAt],
-  );
-  const grid = useMemo(
-    () => (frame ? modelGrid(frame, profile, { sMax: profile.elbowAt + 2 }) : []),
-    [frame, profile],
-  );
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [drag, setDrag] = useState<Handle | null>(null);
-
-  const toNorm = (e: { clientX: number; clientY: number }) => {
-    const ctm = svgRef.current?.getScreenCTM();
-    if (!ctm) return null;
-    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
-    const r = (x: number) => Math.round(x * 10000) / 10000;
-    return { x: r(p.x / size.width), y: r(p.y / size.height) };
-  };
-  const move = (e: ReactPointerEvent) => {
-    if (!drag) return;
-    const p = toNorm(e);
-    if (!p) return;
-    if (drag.kind === "edge") {
-      const line = [...photo.edges[drag.side]] as PhotoCalibration["edges"]["left"];
-      line[drag.end] = p;
-      onChange({ ...photo, edges: { ...photo.edges, [drag.side]: line } });
-    } else {
-      const along = [...photo.along] as PhotoCalibration["along"];
-      along[drag.index] = { ...along[drag.index], ...p };
-      onChange({ ...photo, along });
-    }
-  };
-  const start = (h: Handle) => (e: ReactPointerEvent) => {
-    e.stopPropagation();
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-    setDrag(h);
-  };
-  const px = (q: { x: number; y: number }) => ({ x: q.x * size.width, y: q.y * size.height });
-  const r = Math.max(size.width, size.height) / 120;
-
-  return (
-    <div className="photo-frame photo-editor">
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${size.width} ${size.height}`}
-        onPointerMove={move}
-        onPointerUp={() => setDrag(null)}
-        onPointerCancel={() => setDrag(null)}
-        role="application"
-        aria-label={`Calibration of ${photo.file}`}
-      >
-        {turned && <image href={turned} width={size.width} height={size.height} />}
-        {grid.map((l, i) => (
-          <polyline
-            key={i}
-            points={l.pts.map((p) => `${p.x},${p.y}`).join(" ")}
-            fill="none"
-            stroke={GRID_COLORS[l.kind]}
-            strokeWidth={l.kind === "u" || l.kind === "s" ? r / 6 : r / 3}
-          />
-        ))}
-        {(["left", "right"] as const).map((side) => {
-          const [a, b] = photo.edges[side].map(px) as [{ x: number; y: number }, { x: number; y: number }];
-          return (
-            <g key={side} className="edge">
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={EDGE_COLOR} strokeWidth={r / 3} />
-              {[a, b].map((p, end) => (
-                <circle
-                  key={end}
-                  cx={p.x}
-                  cy={p.y}
-                  r={r}
-                  className="handle"
-                  fill="rgba(255, 152, 0, 0.5)"
-                  stroke={EDGE_COLOR}
-                  strokeWidth={r / 4}
-                  onPointerDown={start({ kind: "edge", side, end: end as 0 | 1 })}
-                >
-                  <title>{`${side} edge`}</title>
-                </circle>
-              ))}
-            </g>
-          );
-        })}
-        {photo.along.map((m, index) => {
-          const p = px(m);
-          return (
-            <g key={index}>
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={r}
-                className="handle"
-                fill="rgba(229, 57, 53, 0.4)"
-                stroke="#e53935"
-                strokeWidth={r / 4}
-                onPointerDown={start({ kind: "along", index: index as 0 | 1 })}
-              />
-              <text
-                x={p.x + r * 1.4}
-                y={p.y + r / 2}
-                fontSize={r * 2}
-                fill="#fff"
-                stroke="#000"
-                strokeWidth={r / 6}
-              >
-                {m.cm} cm
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
 type NumberProps = { value: number; step: number; min?: number; max?: number; onChange: (v: number) => void };
 
 function NumberInput({ value, step, min, max, onChange, label }: NumberProps & { label?: string }) {
@@ -863,16 +680,22 @@ function RangeField(props: { label: string; title?: string; from: NumberProps; t
 
 function PhotoFields({
   photo,
+  region,
   onChange,
 }: {
   photo: PhotoCalibration;
+  region: RegionId;
   onChange: (p: PhotoCalibration) => void;
 }) {
+  const start = startLabel(region);
+  const far = farLabel(region);
+  const startShort = REGIONS[region].ends[0];
+  const lines = REGIONS[region].lines;
   return (
     <div className="props">
       <NumberField
-        label="View at wrist"
-        title="u facing the camera at the wrist"
+        label={`View at ${startShort}`}
+        title={`u facing the camera at the ${start}`}
         value={photo.u_view.wrist}
         step={0.005}
         min={0}
@@ -881,8 +704,8 @@ function PhotoFields({
         onChange={(wrist) => onChange({ ...photo, u_view: { ...photo.u_view, wrist } })}
       />
       <NumberField
-        label="View at elbow"
-        title="u facing the camera at the elbow"
+        label={`View at ${far}`}
+        title={`u facing the camera at the ${far}`}
         value={photo.u_view.elbow}
         step={0.005}
         min={0}
@@ -894,7 +717,7 @@ function PhotoFields({
         <NumberField
           key={i}
           label={`Mark ${i + 1} (cm)`}
-          title={`Red mark ${i + 1}: its distance from the wrist crease in cm`}
+          title={`Red mark ${i + 1}: its distance from the ${start} in cm`}
           value={m.cm}
           step={0.25}
           onChange={(cm) =>
@@ -927,8 +750,8 @@ function PhotoFields({
         </select>
       </label>
       <p className="muted small">
-        View: the u facing the camera; 0.25 lateral (thumb side), 0.5 inner, 0.75 medial. Seen from the inner
-        side, lateral is on the right. Marks: cm from the wrist crease.
+        View: the u facing the camera; 0 {lines[0]}, 0.25 {lines[1]}, 0.5 {lines[2]}, 0.75 {lines[3]}. Marks:
+        cm from the {start}.
       </p>
     </div>
   );
@@ -936,11 +759,14 @@ function PhotoFields({
 
 function PatchFields({
   cal,
+  region,
   onChange,
 }: {
   cal: ProjectionCalibration;
+  region: RegionId;
   onChange: (c: ProjectionCalibration) => void;
 }) {
+  const def = REGIONS[region];
   const patch = (p: Partial<ProjectionCalibration["patch"]>) =>
     onChange({ ...cal, patch: { ...cal.patch, ...p } });
   const blend = (b: Partial<ProjectionCalibration["blend"]>) =>
@@ -949,13 +775,13 @@ function PatchFields({
     <div className="props">
       <RangeField
         label="u range"
-        title="Around the arm: where the patch starts and ends (0.5 = inner centre line)"
+        title={`Around the body part: where the patch starts and ends (0.5 = ${def.lines[2]} centre line)`}
         from={{ value: cal.patch.u[0], step: 0.01, onChange: (u) => patch({ u: [u, cal.patch.u[1]] }) }}
         to={{ value: cal.patch.u[1], step: 0.01, onChange: (u) => patch({ u: [cal.patch.u[0], u] }) }}
       />
       <RangeField
         label="v range"
-        title="Along the arm: where the patch starts and ends (0 = wrist, 1 = shoulder)"
+        title={`Along the body part: where the patch starts and ends (0 = ${def.ends[0]}, 1 = ${def.ends[1]})`}
         from={{
           value: cal.patch.v[0],
           step: 0.005,

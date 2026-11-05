@@ -1,9 +1,12 @@
-// Schema for config/projections/*.yaml (docs/adr/0006-anubis-projection.md): how several photos of an
-// existing tattoo are projected onto the arm's skin coordinates and blended into one patch.
-// Numbers only: the photos stay in the data folder and are named by their path there.
-// Photo points are normalised (0..1 from the left/top edge) in the photo as shown upright: after the
-// camera's EXIF orientation and after `turn`, so the wrist points down.
+// Schema for config/projections/*.yaml (docs/adr/0006-anubis-projection.md, docs/adr/0014-guided-projection.md):
+// how several photos of an existing tattoo are projected onto a body region's skin coordinates and
+// blended into one patch. Numbers only: the photos stay in the data folder and are named by their path
+// there. Photo points are normalised (0..1 from the left/top edge) in the photo as shown upright: after
+// the camera's EXIF orientation and after `turn`, so the region's start (wrist, ankle, waist) points down.
+// The keys keep the arm's names (`wrist`, `elbow`, "wrist crease") for every region: on another region
+// "wrist" means the region's start and "elbow" its twist reference (src/projection/model.ts twistReach).
 import { z } from "zod";
+import { DEFAULT_REGION, REGION_IDS, type RegionId } from "../body/regions.ts";
 import { IMAGE_ROTATIONS } from "../layout/schema.ts";
 
 const unit = z.number().min(0).max(1);
@@ -41,6 +44,8 @@ export const projectionSchema = z
   .strictObject({
     name: z.string().min(1),
     description: z.string().optional(),
+    /** The body region the tattoo is on; default arm-left (files written before regions existed). */
+    region: z.enum(REGION_IDS).optional(),
     /** The area of skin the combined picture covers. */
     patch: z.strictObject({
       u: z.tuple([z.number(), z.number()]),
@@ -81,3 +86,8 @@ export const projectionSchema = z
   });
 
 export type ProjectionCalibration = z.infer<typeof projectionSchema>;
+
+/** The region a calibration belongs to. */
+export function projectionRegion(cal: { region?: RegionId }): RegionId {
+  return cal.region ?? DEFAULT_REGION;
+}

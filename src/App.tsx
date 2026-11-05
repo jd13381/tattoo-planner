@@ -156,6 +156,7 @@ export function App({ project }: { project: ProjectStatus }) {
               arm={arm}
               pose={pose}
               onProjectionDirty={setProjectionDirty}
+              openLayout={working}
               unsaved={{ projection: projectionDirty }}
               header={header}
             />
