@@ -2,8 +2,8 @@
 // (src/export/renderViews.ts), so exported views look exactly like the screen.
 import { BufferAttribute, BufferGeometry, CanvasTexture, SRGBColorSpace } from "three";
 import { bendArmMesh } from "../body/bend.ts";
-import { buildArmMesh } from "../body/geometry.ts";
-import type { ArmProfile } from "../body/profile.ts";
+import { buildLoftMesh } from "../body/geometry.ts";
+import type { RegionProfile } from "../body/profile.ts";
 
 /**
  * The live viewer's canvas is transparent so the workspace gradient (CSS, .canvas-wrap) shows
@@ -23,8 +23,10 @@ export const CAP_ROUGHNESS = 0.9;
  * Arm mesh with two material groups: 0 = textured skin, 1 = the rounded end caps. `bendDeg` flexes
  * the elbow (src/body/bend.ts); the UVs stay the same, so the texture bends with the skin.
  */
-export function armGeometry(profile: ArmProfile, bendDeg = 0): BufferGeometry {
-  const mesh = bendArmMesh(buildArmMesh(profile), profile, bendDeg);
+export function armGeometry(profile: RegionProfile, bendDeg = 0): BufferGeometry {
+  const straight = buildLoftMesh(profile);
+  // Only arms bend (docs/adr/0005); legs and the torso stay straight in v1.
+  const mesh = profile.kind === "arm" ? bendArmMesh(straight, profile, bendDeg) : straight;
   const g = new BufferGeometry();
   g.setAttribute("position", new BufferAttribute(mesh.positions, 3));
   g.setAttribute("normal", new BufferAttribute(mesh.normals, 3));

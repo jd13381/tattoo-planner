@@ -42,6 +42,17 @@ export function updateLayoutText(original: string, layout: Layout): string {
     if (layout[key] === undefined) doc.delete(key);
     else if (!same(doc.get(key), layout[key])) doc.set(key, layout[key]);
   }
+  // `region` sits right after `name`; files without one (the left arm) are left without it.
+  if (layout.region === undefined) doc.delete("region");
+  else if (!same(doc.get("region"), layout.region)) {
+    if (doc.has("region")) doc.set("region", layout.region);
+    else if (isMap(doc.contents)) {
+      const items = doc.contents.items;
+      const at = items.findIndex((p) => String((p.key as { value?: unknown })?.value ?? p.key) === "name");
+      const pair = doc.createPair("region", layout.region);
+      items.splice(at + 1, 0, pair as (typeof items)[number]);
+    } else doc.set("region", layout.region);
+  }
 
   const oldSeq = doc.get("elements", true);
   const oldById = new Map<string, YAMLMap>();

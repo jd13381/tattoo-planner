@@ -1,12 +1,14 @@
 // Row geometry of the "vase" unwrap (docs/adr/0002), shared by the reference renderer.
 // Screen cm: x from the centre of the image (the `centerU` line), positive to the right (medial when
-// the outer side is centred); every texture row is as wide as the local circumference.
-import type { ArmProfile } from "../body/profile.ts";
+// the left arm's outer side is centred); every texture row is as wide as the local circumference.
+// `sign` (src/body/uv.ts screenSign) is the screen direction in which u grows: -1 unless mirrored.
+import type { RegionProfile } from "../body/profile.ts";
+import { screenSign } from "../body/uv.ts";
 import { hits, wrapDelta, type Shape } from "../layout/shapes.ts";
 
 /** Screen x (cm) of the line u in a row with circumference c, for an image centred on centerU. */
-export function screenX(u: number, centerU: number, c: number): number {
-  return -wrapDelta(u - centerU) * c;
+export function screenX(u: number, centerU: number, c: number, sign: 1 | -1 = -1): number {
+  return sign * wrapDelta(u - centerU) * c;
 }
 
 /** One piece of a strip after wrapping it round the arm: local offsets [from, to) land at `at`. */
@@ -34,7 +36,7 @@ export function wrapStrip(cx: number, x0: number, x1: number, c: number): StripP
 }
 
 /** Texture rows (0 = shoulder) whose centres fall within [y0, y1] cm from the wrist. */
-export function rowRange(profile: ArmProfile, pxPerCm: number, y0: number, y1: number): [number, number] {
+export function rowRange(profile: RegionProfile, pxPerCm: number, y0: number, y1: number): [number, number] {
   const height = Math.ceil(profile.length * pxPerCm);
   const first = Math.max(0, Math.floor((profile.length - y1) * pxPerCm - 0.5));
   const last = Math.min(height - 1, Math.ceil((profile.length - y0) * pxPerCm - 0.5));
@@ -42,7 +44,7 @@ export function rowRange(profile: ArmProfile, pxPerCm: number, y0: number, y1: n
 }
 
 /** The rows a shape can touch, in cm from the wrist. */
-export function shapeYRange(shape: Shape, profile: ArmProfile): [number, number] {
+export function shapeYRange(shape: Shape, profile: RegionProfile): [number, number] {
   switch (shape.kind) {
     case "box": {
       const r = Math.hypot(shape.w, shape.h) / 2;
@@ -70,6 +72,7 @@ export function columnSpan(
   y: number,
   c: number,
   centerU: number,
+  sign: 1 | -1 = -1,
 ): [number, number] | null | "none" {
   if (shape.kind !== "line") return null;
   let lo = Infinity;
@@ -79,9 +82,9 @@ export function columnSpan(
     const a = pts[k]!;
     const b = pts[k + 1]!;
     if (y < Math.min(a.y, b.y) - shape.half || y > Math.max(a.y, b.y) + shape.half) continue;
-    const xa = screenX(a.u, centerU, c);
+    const xa = screenX(a.u, centerU, c, sign);
     // The segment is unwrapped from its first point, as in hits().
-    const xb = xa - wrapDelta(b.u - a.u) * c;
+    const xb = xa + sign * wrapDelta(b.u - a.u) * c;
     lo = Math.min(lo, xa, xb) - shape.half;
     hi = Math.max(hi, xa, xb) + shape.half;
   }
@@ -96,11 +99,12 @@ export function columnSpan(
  */
 export function shapeMask(
   shape: Shape,
-  profile: ArmProfile,
+  profile: RegionProfile,
   pxPerCm: number,
   centerU: number,
 ): { rowStart: number; rows: number; width: number; alpha: Uint8Array } {
   const width = Math.ceil(profile.maxCircumference * pxPerCm);
+  const sign = screenSign(profile);
   const [y0, y1] = shapeYRange(shape, profile);
   const [first, last] = rowRange(profile, pxPerCm, y0, y1);
   const rows = Math.max(0, last - first + 1);
@@ -110,7 +114,7 @@ export function shapeMask(
     const y = profile.length - (j + 0.5) / pxPerCm;
     const c = profile.circumferenceAt(y);
     // Only test the columns the shape can reach in this row (a whole row near the seam).
-    const span = columnSpan(shape, y, c, centerU);
+    const span = columnSpan(shape, y, c, centerU, sign);
     if (span === "none") continue;
     const i0 = span ? Math.max(0, Math.floor((span[0] + profile.maxCircumference / 2) * pxPerCm) - 1) : 0;
     const i1 = span
@@ -119,8 +123,8 @@ export function shapeMask(
     for (let i = i0; i <= i1; i++) {
       const sx = (i + 0.5) / pxPerCm - profile.maxCircumference / 2;
       if (Math.abs(sx) > c / 2) continue;
-      // Screen x grows to the right; u grows towards lateral, which is on the left.
-      const u = centerU - sx / c;
+      // Screen x grows to the right; u grows the way `sign` says (on the left arm towards lateral, left).
+      const u = centerU + (sign * sx) / c;
       if (hits(shape, ((u % 1) + 1) % 1, y, c)) alpha[r * width + i] = 255;
     }
   }

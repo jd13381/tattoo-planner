@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CameraIcon } from "../ui/icons.tsx";
 import { createPortal } from "react-dom";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import type { ArmProfile } from "../body/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import { ArmModel } from "./ArmModel.tsx";
 import type { CameraSync } from "./cameraSync.ts";
 import { MAX_FLEXION_DEG } from "../body/bend.ts";
@@ -14,7 +14,7 @@ import { useViewState, type ViewState } from "./useViewState.ts";
 import { CAMERA_FOV, VIEWS, viewCamera, type Bounds } from "./views.ts";
 
 type Props = {
-  profile: ArmProfile;
+  profile: RegionProfile;
   canvas: HTMLCanvasElement;
   version: number;
   hint?: string;
@@ -245,7 +245,7 @@ export function PoseControl({
 }
 
 /** Records a stroke on the skin: raycast hit → texture UV → layout point, with a live preview line. */
-function useBrush(profile: ArmProfile, draw: Props["draw"]) {
+function useBrush(profile: RegionProfile, draw: Props["draw"]) {
   const samples = useRef<UV[] | null>(null);
   const [preview, setPreview] = useState<[number, number, number][]>([]);
   const onStroke = draw?.onStroke;
@@ -301,7 +301,7 @@ function useBrush(profile: ArmProfile, draw: Props["draw"]) {
 }
 
 function CameraRig(props: {
-  profile: ArmProfile;
+  profile: RegionProfile;
   bounds?: Bounds;
   state: ViewState;
   sync?: { bus: CameraSync; id: string };
@@ -310,7 +310,7 @@ function CameraRig(props: {
   const { profile, bounds, state, sync, rotate = true } = props;
   const { view, request, free, setFree } = state;
   // What the last framing was for: a new pose re-frames a fixed view, but not a hand-rotated camera.
-  const framedFor = useRef<{ key: string; profile: ArmProfile | null }>({ key: "", profile: null });
+  const framedFor = useRef<{ key: string; profile: RegionProfile | null }>({ key: "", profile: null });
   const controls = useRef<OrbitControlsImpl>(null);
   // Set while a camera from another viewer is applied, so it is not sent back.
   const applying = useRef(false);

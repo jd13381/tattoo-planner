@@ -35,6 +35,8 @@ export type HandoutImages = {
   /** Unwrap geometry for the side labels: circumference at the shoulder edge and the widest one. */
   unwrapTopCircumference: number;
   unwrapMaxCircumference: number;
+  /** Whether u grows to the right on the unwrap (src/body/uv.ts screenSign); default false. */
+  unwrapMirrored?: boolean;
   /** Arm length in cm, for the print scale of the unwrap. */
   armLength: number;
 };
@@ -299,7 +301,11 @@ function drawUnwrap(w: Writer, images: HandoutImages, mode: Mode, box: Rect): vo
   w.doc.setDrawColor(...RULE);
   w.doc.setLineWidth(0.2);
   w.doc.rect(r.x, r.y, r.w, r.h, "S");
-  for (const mark of unwrapAxisMarks(images.unwrapTopCircumference, images.unwrapMaxCircumference)) {
+  for (const mark of unwrapAxisMarks(
+    images.unwrapTopCircumference,
+    images.unwrapMaxCircumference,
+    images.unwrapMirrored,
+  )) {
     const x = r.x + mark.fx * r.w;
     w.text(t.sideShort[mark.side], x, labelTop, { size: 7.5, color: RED, align: "center" });
   }

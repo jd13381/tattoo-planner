@@ -7,7 +7,9 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import type { ArmProfile } from "../body/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
+import { REGIONS, type CentreLines } from "../body/regions.ts";
+import { screenSign, wrapU } from "../body/uv.ts";
 import type { ElementAspects } from "../layout/imageFit.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import {
@@ -37,7 +39,7 @@ import {
 import { imagePlacement } from "./viewBox.ts";
 
 type Props = {
-  profile: ArmProfile;
+  profile: RegionProfile;
   layout: Layout;
   existing: ExistingSize;
   /** Image proportions per element id (figures without a width take them). */
@@ -48,6 +50,8 @@ type Props = {
   image: HTMLCanvasElement;
   version: number;
   centerU: number;
+  /** Names of the centre lines at u = 0, 0.25, 0.5, 0.75 (for the edge labels); default the arm's. */
+  lines?: CentreLines;
   selected: number | null;
   onSelect: (index: number | null) => void;
   /** `gesture` is the same for every change of one drag, so the caller can make it one undo step. */
@@ -92,7 +96,10 @@ type Drag =
 
 type ViewBox = { x: number; y: number; w: number; h: number };
 
-/** 2D editor on the skin unwrap. SVG units are cm; x grows towards medial (right), y from the shoulder down. */
+/**
+ * 2D editor on the skin unwrap. SVG units are cm; x grows to the right (towards medial on the left arm,
+ * against u unless the region is mirrored), y from the region's end (the shoulder) down.
+ */
 export function UnwrapEditor(props: Props) {
   const {
     profile,
@@ -114,6 +121,11 @@ export function UnwrapEditor(props: Props) {
   } = props;
   const L = profile.length;
   const half = profile.maxCircumference / 2;
+  // The lines a quarter turn left and right of the centre line, as seen on screen.
+  const lineNames = props.lines ?? REGIONS["arm-left"].lines;
+  const sign = screenSign(profile);
+  const lineAt = (du: number) => lineNames[Math.round(wrapU(centerU + du) * 4) % 4]!;
+  const edgeLabels = [lineAt(-sign * 0.25), lineAt(sign * 0.25)];
   const fullView = useMemo<ViewBox>(() => ({ x: -half - 1, y: -1, w: 2 * half + 2, h: L + 2 }), [half, L]);
   const [view, setView] = useState<ViewBox>(fullView);
   // Fit on request (adjusting state during render, so no extra effect pass).
@@ -187,7 +199,7 @@ export function UnwrapEditor(props: Props) {
 
   /** Screen (SVG) position of a skin point. */
   const toSvg = (u: number, y: number) => ({
-    x: -wrapDelta(u - centerU) * profile.circumferenceAt(y),
+    x: screenSign(profile) * wrapDelta(u - centerU) * profile.circumferenceAt(y),
     y: L - y,
   });
 
@@ -367,10 +379,10 @@ export function UnwrapEditor(props: Props) {
         }
       >
         <text className="edge-label" x={-half + 0.3} y={-0.3}>
-          {centerU === 0 ? "lateral ←" : "medial ←"}
+          {edgeLabels[0]} ←
         </text>
         <text className="edge-label" x={half - 0.3} y={-0.3} textAnchor="end">
-          {centerU === 0 ? "→ medial" : "→ lateral"}
+          → {edgeLabels[1]}
         </text>
         {resolved.map((r, i) => (
           <ShapeOverlay
@@ -441,8 +453,10 @@ function ShapeOverlay(props: {
   hovered: boolean;
   locked: boolean;
   toSvg: ToSvg;
-  profile: ArmProfile;
+  profile: RegionProfile;
   centerU: number;
+  /** Names of the centre lines at u = 0, 0.25, 0.5, 0.75 (for the edge labels); default the arm's. */
+  lines?: CentreLines;
   onDown: (e: ReactPointerEvent) => void;
   onEnter: () => void;
   onLeave: () => void;

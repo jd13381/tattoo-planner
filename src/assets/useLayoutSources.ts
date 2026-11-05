@@ -1,6 +1,6 @@
 // Reference images and image proportions for one layout, shared by the Layout and Compare tabs.
 import { useEffect, useMemo } from "react";
-import type { ArmProfile } from "../body/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import type { ElementPatches } from "../layout/shapes.ts";
 import type { ProjectedPatch } from "../projection/patch.ts";
 import { patchFor, photoAssets, useProjections } from "../projection/useProjections.ts";
@@ -32,7 +32,7 @@ export function useLayoutSources(
   layout: Layout | null,
   assetMap: ReadonlyMap<string, AssetInfo> | null,
   listingLoaded: boolean,
-  profile: ArmProfile,
+  profile: RegionProfile,
 ): LayoutSources {
   const { images, version: imagesVersion } = useAssetImages();
   const { calibrations, files: projectionFiles } = useProjections();
@@ -66,6 +66,11 @@ export function useLayoutSources(
       if (!cal) {
         if (projectionFiles === null) patchesLoading = true;
         else patchIssues.set(e.id, `projection ${e.projection} not found in config/projections/`);
+        continue;
+      }
+      // Photo projection (docs/adr/0006) models the left forearm only.
+      if (profile.kind !== "arm" || profile.mirrored) {
+        patchIssues.set(e.id, "photo projection works on the left arm only");
         continue;
       }
       const r = patchFor(cal, profile, assetMap, images);

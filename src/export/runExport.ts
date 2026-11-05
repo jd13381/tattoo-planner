@@ -2,7 +2,7 @@
 // blockout and reference mode, writes them as PNGs and builds the PDF handout, then sends every
 // file to the local dev server, which stores it in <TATTOO_DATA_DIR>/exports/. Nothing is uploaded
 // anywhere else and nothing is written into the repo.
-import type { ArmProfile } from "../body/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import { isFigureLike, type ElementAspects } from "../layout/imageFit.ts";
 import type { Layout } from "../layout/schema.ts";
 import { classify, resolveElement, type ExistingSize } from "../layout/shapes.ts";
@@ -25,7 +25,8 @@ import {
 import { writeHandoutPdf, type HandoutImages, type PdfImage } from "./pdf.ts";
 import { MODES, replaceColor, VIEW_ORDER } from "./pdfLayout.ts";
 import { commonCrop, cropCanvas, EXPORT_BACKGROUND, renderArmViews } from "./renderViews.ts";
-import { HANDOUT_EN, type HandoutText, type Mode } from "./strings.ts";
+import { handoutText, type HandoutText, type Mode } from "./strings.ts";
+import { DEFAULT_REGION, type RegionId } from "../body/regions.ts";
 
 /** Unwrap PNG resolution: 40 px per cm of skin (about 100 dpi at life size). */
 export const UNWRAP_PX_PER_CM = 40;
@@ -40,12 +41,14 @@ const METRICS_PX_PER_CM = 6;
 
 export type ExportInput = {
   layout: Layout;
-  profile: ArmProfile;
+  profile: RegionProfile;
   existing: ExistingSize;
   aspects: ElementAspects;
   sources: ReferenceSources;
   placeholderMeasurements: string[];
   measurementCount: number;
+  /** The body region the layout belongs to; picks the handout's wording (default the left arm). */
+  region?: RegionId;
   now?: Date;
   text?: HandoutText;
 };
@@ -141,7 +144,7 @@ export async function runExport(
   onProgress: (p: ExportProgress) => void,
 ): Promise<ExportResult> {
   const t0 = performance.now();
-  const t = input.text ?? HANDOUT_EN;
+  const t = input.text ?? handoutText(input.region ?? DEFAULT_REGION);
   const { layout, profile } = input;
   const date = localIsoDate(input.now ?? new Date());
   // reserve, 2 textures per mode, the view renders, one file per view and unwrap per mode, PDF build and save
@@ -221,6 +224,7 @@ export async function runExport(
       unwrap,
       unwrapTopCircumference: profile.circumferenceAt(profile.length),
       unwrapMaxCircumference: profile.maxCircumference,
+      unwrapMirrored: profile.mirrored,
       armLength: profile.length,
     };
     const bytes = await writeHandoutPdf(handout, images, t);

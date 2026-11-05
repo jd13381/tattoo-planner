@@ -265,13 +265,16 @@ export function replaceColor(
 
 /**
  * Where the named centre lines meet the top (shoulder) edge of the unwrap, as fractions of the image
- * width: the thumb side (lateral) is drawn on the left (src/body/uv.ts), the inner line is both edges.
+ * width: on the left arm the thumb side (lateral) is drawn on the left (src/body/uv.ts), the inner line is
+ * both edges. Mirrored regions turn the other way; the side names are slots for u = 0, 0.25, 0.5, 0.75.
  */
 export function unwrapAxisMarks(
   topCircumference: number,
   maxCircumference: number,
+  mirrored = false,
 ): { side: "inner" | "lateral" | "outer" | "medial"; fx: number }[] {
-  const at = (u: number) => 0.5 - (u * topCircumference) / maxCircumference;
+  const sign = mirrored ? 1 : -1;
+  const at = (u: number) => 0.5 + (sign * u * topCircumference) / maxCircumference;
   return [
     { side: "inner", fx: at(0.5) },
     { side: "lateral", fx: at(0.25) },

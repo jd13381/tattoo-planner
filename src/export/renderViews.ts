@@ -13,7 +13,7 @@ import {
   SRGBColorSpace,
   WebGLRenderer,
 } from "three";
-import type { ArmProfile } from "../body/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import { cpu2d, cpuCanvas } from "../render/cpuCanvas.ts";
 import {
   armGeometry,
@@ -35,7 +35,7 @@ export type ViewRenderOptions = { width: number; height: number };
  * context, which is released afterwards. Results are 2D canvases, keyed by texture name and view.
  */
 export function renderArmViews<K extends string>(
-  profile: ArmProfile,
+  profile: RegionProfile,
   textures: Record<K, HTMLCanvasElement>,
   views: ViewName[],
   opts: ViewRenderOptions,

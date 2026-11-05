@@ -8,7 +8,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { useLayoutSources, type LayoutSources } from "../assets/useLayoutSources.ts";
-import type { ArmProfile } from "../body/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import type { Layout } from "../layout/schema.ts";
 import { classify } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
@@ -44,7 +44,7 @@ function pick(key: string, files: StoredLayout[] | null, working: WorkingLayout 
     : { key, label: key, layout: null, error: r.error };
 }
 
-function useCoverage(layout: Layout | null, profile: ArmProfile, src: LayoutSources): Coverage | null {
+function useCoverage(layout: Layout | null, profile: RegionProfile, src: LayoutSources): Coverage | null {
   const { aspects, patches } = src;
   return useMemo(
     () =>
@@ -397,7 +397,7 @@ function CompareSide(props: {
   cov: Coverage | null;
   otherCov: Coverage | null;
   mode: Mode;
-  profile: ArmProfile;
+  profile: RegionProfile;
   viewState: ReturnType<typeof useViewState>;
   bendDeg: number;
   sync: { bus: ReturnType<typeof createCameraSync>; id: string };

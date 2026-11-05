@@ -61,7 +61,7 @@ describe("coverage comparison", () => {
     expect(d["upper-outer"].figure).toBeLessThan(0);
     expect(d["upper-outer"].open).toBeGreaterThan(0);
     expect(d["upper-outer"].figure).toBe(
-      sharePct(cb.zones["upper-outer"], "figure") - sharePct(ca.zones["upper-outer"], "figure"),
+      sharePct(cb.zones["upper-outer"]!, "figure") - sharePct(ca.zones["upper-outer"]!, "figure"),
     );
     expect(d["forearm-inner"].existing).toBe(0);
     expect(coverageDelta(ca, ca).total.open).toBe(0);
