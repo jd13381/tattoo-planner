@@ -14,7 +14,7 @@ import {
   rootAssetId,
   showInStudio,
 } from "../src/edits/edit.ts";
-import { EditManager, handleEditRequest } from "../src/edits/server/editsApi.ts";
+import { EditManager, handleEditRequest } from "../server/editsApi.ts";
 
 /** Header-only PNG: signature, IHDR with the given size and colour type, IEND. Enough for readPngInfo. */
 function png(width: number, height: number, colourType = 6): Buffer {

@@ -47,7 +47,7 @@ export function SaveAsForm({ suggested, taken, current, onSave, onCancel }: Prop
         aria-live="polite"
       >
         {check.status === "ok"
-          ? `Saves config/layouts/${check.name}.yaml as a copy of what you see; ${current ?? "the open variant"} stays as saved.`
+          ? `Saves layouts/${check.name}.yaml as a copy of what you see; ${current ?? "the open variant"} stays as saved.`
           : check.message}
       </p>
       <div className="toolbar">

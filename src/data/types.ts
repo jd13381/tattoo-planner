@@ -3,7 +3,7 @@
 /** Name of the environment variable that points at the Seafile data folder. */
 export const DATA_DIR_VAR = "TATTOO_DATA_DIR";
 
-/** Endpoint served by the dev server; see src/data/server/vitePlugin.ts. */
+/** Endpoint served by the dev server; see server/dataFilesApi.ts. */
 export const DATA_FILES_ENDPOINT = "/api/data-files";
 
 export type DataFile = {

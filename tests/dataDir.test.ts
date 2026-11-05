@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { expandUser, listDataFiles, resolveDataDir } from "../src/data/server/dataDir.ts";
+import { expandUser, listDataFiles, resolveDataDir } from "../server/dataDir.ts";
 
 describe("resolveDataDir", () => {
   const root = "/repo";

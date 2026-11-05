@@ -1,4 +1,4 @@
-// Dev-server API for the asset manifest (<TATTOO_DATA_DIR>/manifest.yaml) and its images.
+// API for the asset manifest (<project>/manifest.yaml) and its images.
 //   GET /api/assets             → AssetListing (src/assets/types.ts)
 //   GET /api/assets/image/<id>  → the bytes of that manifest asset, images only
 //   POST /api/assets/scan       → ScanReport: adds entries for new images, as `npm run assets:scan`
@@ -10,11 +10,11 @@ import { createReadStream } from "node:fs";
 import { readFile, realpath, rename, stat, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
-import type { Plugin } from "vite";
 import { parseDocument } from "yaml";
-import { assetSchema, MANIFEST_FILE, type Asset } from "../../assets/manifest.ts";
-import { ManifestError, updateManifestEntry, type EntryPatch } from "../../assets/manifestDoc.ts";
-import { ASSETS_ENDPOINT, type AssetInfo, type AssetListing } from "../../assets/types.ts";
+import { assetSchema, MANIFEST_FILE, type Asset } from "../src/assets/manifest.ts";
+import { ManifestError, updateManifestEntry, type EntryPatch } from "../src/assets/manifestDoc.ts";
+import type { AssetInfo, AssetListing } from "../src/assets/types.ts";
+import { isCrossSite, readJson, send, sendError, subPath, type Handler } from "./http.ts";
 import { scanDataFolder } from "./scanFolder.ts";
 
 /** Image types a browser can show. HEIC/HEIF are named separately: Chrome cannot decode them. */
@@ -221,40 +221,9 @@ export async function updateAssetEntry(
   return { ok: true };
 }
 
-function readJsonBody(req: IncomingMessage, limit = 20_000): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    req.on("data", (c: Buffer) => {
-      size += c.length;
-      if (size > limit) {
-        reject(new Error("body too large"));
-        req.destroy();
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => {
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-      } catch {
-        resolve(undefined);
-      }
-    });
-    req.on("error", reject);
-  });
-}
-
-function sendJson(res: ServerResponse, status: number, body: unknown) {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("Cache-Control", "no-store");
-  res.end(JSON.stringify(body));
-}
-
 async function serveImage(req: IncomingMessage, res: ServerResponse, dataDir: string, id: string) {
   const found = await findAssetImage(dataDir, id);
-  if (!found.ok) return sendJson(res, found.status, { error: found.message });
+  if (!found.ok) return send(res, found.status, { error: found.message });
   const s = await stat(found.path);
   const lastModified = s.mtime.toUTCString();
   // Private: never stored by shared caches. Revalidated, so a replaced image shows up at once.
@@ -273,58 +242,49 @@ async function serveImage(req: IncomingMessage, res: ServerResponse, dataDir: st
   createReadStream(found.path).pipe(res);
 }
 
-export function assetsPlugin(dataDir: string | null): Plugin {
-  return {
-    name: "tattoo-planner-assets",
-    configureServer(server) {
-      server.middlewares.use(ASSETS_ENDPOINT, (req, res) => {
-        const sub = (req.url ?? "/").split("?")[0] ?? "/";
-        const run = async () => {
-          if (req.method === "POST" && sub === "/scan") {
-            // Only the planner page itself may change the manifest.
-            const site = req.headers["sec-fetch-site"];
-            if (site !== undefined && site !== "same-origin" && site !== "none")
-              return sendJson(res, 403, { error: "cross-site request refused" });
-            if (!dataDir) return sendJson(res, 409, { error: "TATTOO_DATA_DIR is not set" });
-            return sendJson(res, 200, await scanDataFolder(dataDir));
-          }
-          const entry = /^\/entries\/([^/]+)$/.exec(sub);
-          if (req.method === "PATCH" && entry) {
-            const site = req.headers["sec-fetch-site"];
-            if (site !== undefined && site !== "same-origin" && site !== "none")
-              return sendJson(res, 403, { error: "cross-site request refused" });
-            if (req.headers["content-type"] !== "application/json")
-              return sendJson(res, 415, { error: "JSON only" });
-            if (!dataDir) return sendJson(res, 409, { error: "no data folder" });
-            const patch = parseEntryPatch(await readJsonBody(req));
-            if (!patch) return sendJson(res, 400, { error: "expected { tags?, notes?, hidden? }" });
-            let id: string;
-            try {
-              id = decodeURIComponent(entry[1]!);
-            } catch {
-              return sendJson(res, 400, { error: "invalid asset id" });
-            }
-            const r = await updateAssetEntry(dataDir, id, patch);
-            if (!r.ok) return sendJson(res, r.status, { error: r.message });
-            return sendJson(res, 200, await listAssets(dataDir));
-          }
-          if (req.method !== "GET") return sendJson(res, 405, { error: "method not allowed" });
-          if (sub === "/" || sub === "") return sendJson(res, 200, await listAssets(dataDir));
-          const m = /^\/image\/([^/]+)$/.exec(sub);
-          if (!m) return sendJson(res, 404, { error: "not found" });
-          if (!dataDir) return sendJson(res, 404, { error: "TATTOO_DATA_DIR is not set" });
-          let id: string;
-          try {
-            id = decodeURIComponent(m[1]!);
-          } catch {
-            return sendJson(res, 400, { error: "invalid asset id" });
-          }
-          return serveImage(req, res, dataDir, id);
-        };
-        run().catch((e: unknown) =>
-          sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) }),
-        );
-      });
-    },
+/** The asset manifest and its images in the open project (`dir` null = no project). */
+export function assetsHandler(dir: () => Promise<string | null>): Handler {
+  return async (req, res, url) => {
+    const sub = subPath(url);
+    try {
+      const dataDir = await dir();
+      if (req.method === "POST" && sub === "/scan") {
+        // Only the planner page itself may change the manifest.
+        if (isCrossSite(req.headers)) return send(res, 403, { error: "cross-site request refused" });
+        if (!dataDir) return send(res, 409, { error: "no project is open" });
+        return send(res, 200, await scanDataFolder(dataDir));
+      }
+      const entry = /^\/entries\/([^/]+)$/.exec(sub);
+      if (req.method === "PATCH" && entry) {
+        if (isCrossSite(req.headers)) return send(res, 403, { error: "cross-site request refused" });
+        if (req.headers["content-type"] !== "application/json") return send(res, 415, { error: "JSON only" });
+        if (!dataDir) return send(res, 409, { error: "no project is open" });
+        const patch = parseEntryPatch(await readJson(req, 20_000).catch(() => undefined));
+        if (!patch) return send(res, 400, { error: "expected { tags?, notes?, hidden? }" });
+        let id: string;
+        try {
+          id = decodeURIComponent(entry[1]!);
+        } catch {
+          return send(res, 400, { error: "invalid asset id" });
+        }
+        const r = await updateAssetEntry(dataDir, id, patch);
+        if (!r.ok) return send(res, r.status, { error: r.message });
+        return send(res, 200, await listAssets(dataDir));
+      }
+      if (req.method !== "GET") return send(res, 405, { error: "method not allowed" });
+      if (sub === "/" || sub === "") return send(res, 200, await listAssets(dataDir));
+      const m = /^\/image\/([^/]+)$/.exec(sub);
+      if (!m) return send(res, 404, { error: "not found" });
+      if (!dataDir) return send(res, 404, { error: "no project is open" });
+      let id: string;
+      try {
+        id = decodeURIComponent(m[1]!);
+      } catch {
+        return send(res, 400, { error: "invalid asset id" });
+      }
+      return await serveImage(req, res, dataDir, id);
+    } catch (e) {
+      sendError(res, e, 500);
+    }
   };
 }

@@ -11,7 +11,7 @@ import {
   buildGenerativePrompt,
   type OpenAISettings,
 } from "../src/edits/openai.ts";
-import { EditManager } from "../src/edits/server/editsApi.ts";
+import { EditManager } from "../server/editsApi.ts";
 import type { EditJob } from "../src/edits/types.ts";
 
 /** Header-only PNG: signature, IHDR with the given size and colour type, IEND. */
