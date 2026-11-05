@@ -1,18 +1,10 @@
 // Turns the measurement edits from the Arm tab into a YAML snippet Jan can paste into
 // config/measurements.yaml. Only values that differ from the file are listed, grouped under the
 // same section keys and in the same order as the file.
-import { measurementsSchema } from "../config/measurements.ts";
-import type { ArmInputKey } from "./inputs.ts";
-
-const SECTIONS = ["lengths", "circumferences", "positions"] as const;
+import { INPUT_SECTIONS, type ArmInputKey } from "./inputs.ts";
 
 /** Section keys of measurements.yaml with their field keys, in file order. */
-const SECTION_KEYS: { section: (typeof SECTIONS)[number]; keys: ArmInputKey[] }[] = SECTIONS.map(
-  (section) => ({
-    section,
-    keys: Object.keys(measurementsSchema.shape[section].shape) as ArmInputKey[],
-  }),
-);
+const SECTION_KEYS = INPUT_SECTIONS.arm;
 
 /** The edited keys whose value differs from the file (null in the file counts as different). */
 export function changedKeys(

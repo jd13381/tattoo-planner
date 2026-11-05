@@ -4,8 +4,8 @@
 // wrist). A box's local frame has x along its width and y along its height, pointing *up* on the
 // screen when the box is not rotated; `rot` (radians) turns the box counter-clockwise on the screen,
 // as `Shape.rot` and the editor's `rotate(-deg)` do.
-import type { ArmProfile } from "../arm/profile.ts";
-import { wrapU } from "../arm/uv.ts";
+import type { RegionProfile } from "../body/profile.ts";
+import { screenSign, wrapU } from "../body/uv.ts";
 import type { LayoutElement } from "../layout/schema.ts";
 
 /** Sizes snap to this step (cm) unless snapping is off. */
@@ -161,17 +161,17 @@ export function formatSize(w: number, h: number): string {
 }
 
 /** A point in the editor's SVG frame as skin coordinates (u around, v along), clamped to the arm. */
-export function svgToSkin(profile: ArmProfile, centerU: number, x: number, y: number) {
+export function svgToSkin(profile: RegionProfile, centerU: number, x: number, y: number) {
   const L = profile.length;
   const skinY = Math.min(L, Math.max(0, L - y));
-  return { u: wrapU(centerU - x / profile.circumferenceAt(skinY)), v: skinY / L };
+  return { u: wrapU(centerU + (screenSign(profile) * x) / profile.circumferenceAt(skinY)), v: skinY / L };
 }
 
 /**
  * The skin point under an SVG position, or null when it lies off the unwrap sheet (above the
  * shoulder, below the wrist, or beyond half the local circumference). For the cursor readout.
  */
-export function skinAt(profile: ArmProfile, centerU: number, x: number, y: number) {
+export function skinAt(profile: RegionProfile, centerU: number, x: number, y: number) {
   const L = profile.length;
   const skinY = L - y;
   if (skinY < 0 || skinY > L) return null;

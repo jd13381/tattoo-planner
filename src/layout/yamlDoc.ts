@@ -1,6 +1,7 @@
 // Reading and writing layout YAML so that Jan's hand edits survive: comments, key order and flow style
 // of unchanged elements are kept; only changed values are rewritten.
 import { Document, isMap, isSeq, parseDocument, YAMLMap, YAMLSeq } from "yaml";
+import { DEFAULT_REGION, isRegionId, regionOf, type RegionId } from "../body/regions.ts";
 import { layoutSchema, type Layout, type LayoutElement } from "./schema.ts";
 
 export type ParseResult = { ok: true; layout: Layout } | { ok: false; error: string };
@@ -14,6 +15,14 @@ export function parseLayout(text: string): ParseResult {
     ok: false,
     error: result.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; "),
   };
+}
+
+/** The region a stored layout belongs to, also when the file does not parse (then read from its text). */
+export function layoutRegion(text: string): RegionId {
+  const r = parseLayout(text);
+  if (r.ok) return regionOf(r.layout);
+  const m = /^region:\s*["']?([a-z-]+)/m.exec(text);
+  return m && isRegionId(m[1]) ? m[1] : DEFAULT_REGION;
 }
 
 /** Keys whose object values are written in flow style ({ u: 0.5, v: 0.1 }), as in the brief. */
@@ -41,6 +50,17 @@ export function updateLayoutText(original: string, layout: Layout): string {
   for (const key of ["name", "description"] as const) {
     if (layout[key] === undefined) doc.delete(key);
     else if (!same(doc.get(key), layout[key])) doc.set(key, layout[key]);
+  }
+  // `region` sits right after `name`; files without one (the left arm) are left without it.
+  if (layout.region === undefined) doc.delete("region");
+  else if (!same(doc.get("region"), layout.region)) {
+    if (doc.has("region")) doc.set("region", layout.region);
+    else if (isMap(doc.contents)) {
+      const items = doc.contents.items;
+      const at = items.findIndex((p) => String((p.key as { value?: unknown })?.value ?? p.key) === "name");
+      const pair = doc.createPair("region", layout.region);
+      items.splice(at + 1, 0, pair as (typeof items)[number]);
+    } else doc.set("region", layout.region);
   }
 
   const oldSeq = doc.get("elements", true);

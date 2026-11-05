@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import type { ArmProfile } from "../arm/profile.ts";
+import type { ArmProfile } from "../body/profile.ts";
 import { requestImage, useAssetImages, useAssetListing } from "../assets/useAssets.ts";
 import type { HeaderSlots } from "../editor/LayoutPage.tsx";
 import { formatKeys } from "../editor/shortcuts.ts";

@@ -1,7 +1,8 @@
 // Turns layout elements into shapes on the unwrap and tests which element covers a point of skin.
-// Unwrap cm: x from the outer centre line (lateral positive, as src/arm/uv.ts), y from the wrist crease.
-import type { ArmProfile } from "../arm/profile.ts";
-import { uToCm, wrapU } from "../arm/uv.ts";
+// Unwrap cm: x from the u = 0 line (positive towards u = 0.25, lateral on arms, src/body/uv.ts), y from
+// the region's start (the wrist crease on arms).
+import type { RegionProfile } from "../body/profile.ts";
+import { screenSign, uToCm, wrapU } from "../body/uv.ts";
 import { footprintBounds, patchCovers, type ProjectedPatch } from "../projection/patch.ts";
 import type { ElementAspects } from "./imageFit.ts";
 import type { Layout, LayoutElement } from "./schema.ts";
@@ -14,7 +15,17 @@ export const DEFAULT_ASPECT = 0.55;
 export type ExistingSize = { height: number | null; width: number | null };
 
 export type Shape =
-  | { kind: "box"; uc: number; cx: number; cy: number; w: number; h: number; rot: number }
+  | {
+      kind: "box";
+      uc: number;
+      cx: number;
+      cy: number;
+      w: number;
+      h: number;
+      rot: number;
+      /** Screen direction of growing u (src/body/uv.ts screenSign): the box is upright on screen. */
+      sign: 1 | -1;
+    }
   | { kind: "region"; u0: number; u1: number; y0: number; y1: number }
   | { kind: "band"; y: number; half: number }
   | { kind: "line"; points: { u: number; y: number }[]; half: number }
@@ -55,7 +66,7 @@ export function wrappedMidU(u0: number, u1: number): number {
 
 export function resolveElement(
   el: LayoutElement,
-  profile: ArmProfile,
+  profile: RegionProfile,
   existing?: ExistingSize,
   /** Width / height of the element's upright image cut-out, when known (src/layout/imageFit.ts). */
   imageAspect?: number,
@@ -114,6 +125,7 @@ export function resolveElement(
           w,
           h,
           rot: ((el.rotation_deg ?? 0) * Math.PI) / 180,
+          sign: screenSign(profile),
         },
         flags,
       };
@@ -149,8 +161,8 @@ export function resolveElement(
 export function hits(shape: Shape, u: number, y: number, c: number): boolean {
   switch (shape.kind) {
     case "box": {
-      // Screen frame of the unwrap seen from outside: right = medial, so screen x = -cm x.
-      const sx = -wrapDelta(u - shape.uc) * c;
+      // Screen frame of the unwrap seen from outside (on the left arm right = medial, screen x = -cm x).
+      const sx = shape.sign * wrapDelta(u - shape.uc) * c;
       const sy = y - shape.cy;
       const cos = Math.cos(shape.rot);
       const sin = Math.sin(shape.rot);
@@ -201,7 +213,7 @@ export function hits(shape: Shape, u: number, y: number, c: number): boolean {
  */
 export function pickAllElements(
   resolved: ResolvedElement[],
-  profile: ArmProfile,
+  profile: RegionProfile,
   u: number,
   v: number,
 ): number[] {
@@ -238,7 +250,7 @@ export type Classification = {
  */
 export function classify(
   layout: Layout,
-  profile: ArmProfile,
+  profile: RegionProfile,
   pxPerCm: number,
   existing?: ExistingSize,
   centerU = 0,
@@ -250,13 +262,14 @@ export function classify(
   );
   const width = Math.ceil(profile.maxCircumference * pxPerCm);
   const height = Math.ceil(profile.length * pxPerCm);
+  const sign = screenSign(profile);
   const cells = new Uint8Array(width * height);
   for (let j = 0; j < height; j++) {
     const y = profile.length - (j + 0.5) / pxPerCm;
     const c = profile.circumferenceAt(y);
     for (let i = 0; i < width; i++) {
       const sx = (i + 0.5) / pxPerCm - profile.maxCircumference / 2;
-      const x = -sx; // lateral positive
+      const x = sign * sx; // towards u = 0.25 positive
       let value = OUTSIDE;
       if (Math.abs(x) <= c / 2) {
         value = 0;

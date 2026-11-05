@@ -10,7 +10,7 @@
 //    the cut-out's edges (default 1 cm).
 // Plain TypeScript, no DOM: the canvas side lives in src/render/reference.ts.
 import type { Asset, NormRect } from "../assets/manifest.ts";
-import type { ArmProfile } from "../arm/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
 import type { FigureLike, ImageFilter, LayoutElement } from "./schema.ts";
 
 export const DEFAULT_FEATHER_CM = 1;
@@ -35,14 +35,14 @@ export function effectiveCrop(el: FigureLike, asset?: Pick<Asset, "crop">): Norm
   return el.crop ?? asset?.crop ?? FULL_IMAGE;
 }
 
-/** Forearm pieces default to grayscale (the illustrative end of the style gradient), the rest to colour. */
-export function defaultFilter(el: FigureLike, profile: ArmProfile): ImageFilter {
-  return el.position.v * profile.length < profile.elbowAt ? "grayscale" : "none";
+/** Forearm pieces (on either arm) default to grayscale (the illustrative end of the style gradient), the rest to colour. */
+export function defaultFilter(el: FigureLike, profile: RegionProfile): ImageFilter {
+  return profile.kind === "arm" && el.position.v * profile.length < profile.elbowAt ? "grayscale" : "none";
 }
 
 export function imageSettings(
   el: FigureLike,
-  profile: ArmProfile,
+  profile: RegionProfile,
   asset?: Pick<Asset, "crop">,
 ): ImageSettings {
   return {

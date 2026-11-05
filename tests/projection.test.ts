@@ -4,11 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { PLACEHOLDERS } from "../src/arm/inputs.ts";
+import { PLACEHOLDERS } from "../src/body/inputs.ts";
 import { listProjections, saveProjection } from "../server/projectionsApi.ts";
 import { classify, resolveElement } from "../src/layout/shapes.ts";
 import { coverage } from "../src/metrics/coverage.ts";
-import { buildProfile } from "../src/arm/profile.ts";
+import { buildProfile } from "../src/body/profile.ts";
 import {
   alongArm,
   modelGrid,

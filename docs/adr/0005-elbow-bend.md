@@ -5,7 +5,7 @@
 
 ## Decision
 
-**Only vertices move.** The bend is a pure function on the straight mesh (`src/arm/bend.ts`, unit-tested in `tests/bend.test.ts`): positions and normals change, UVs and triangles are shared with the straight mesh. The unwrap, the editor, the metrics and every texture stay exactly as they are; the texture simply bends with the skin. Raycasts (the brush tool) hit the bent mesh and still read the same UVs.
+**Only vertices move.** The bend is a pure function on the straight mesh (`src/body/bend.ts`, unit-tested in `tests/bend.test.ts`): positions and normals change, UVs and triangles are shared with the straight mesh. The unwrap, the editor, the metrics and every texture stay exactly as they are; the texture simply bends with the skin. Raycasts (the brush tool) hit the bent mesh and still read the same UVs.
 
 **Pose.** The upper arm stays in place; the forearm swings towards the palm side (+Z) about an axis parallel to X (lateral–medial), as in flexing the elbow from the palm-forward pose. The flexion angle runs from 0° (straight) to 120° in the UI (`MAX_FLEXION_DEG`); a fully bent elbow reaches about 140–150°, where the forearm and upper arm flesh press together, which this model cannot show.
 
@@ -30,3 +30,7 @@
 - No forearm rotation (pronation), no carrying angle, no muscle bulge when flexing.
 - The cross-section keeps its width (X) in the crease; only the depth shrinks.
 - The export (PDF and PNGs) still shows the straight arm only. A bent view in the handout is a follow-up: `renderArmViews` would need a pose parameter and the handout one more page.
+
+## Body regions (2026-11-05)
+
+With ADR 0011 the bend applies to both arms (the right arm's local frame also has the palm side at +Z, so the same function bends it) and only in the region view; legs and the torso stay straight, and the full-body view shows the straight A-pose.

@@ -4,6 +4,7 @@
 // (– — … ’ “ ” • ×); German umlauts and ß work. Anything else is replaced (pdfLayout.ts toPdfText).
 import type { ViewName } from "../viewer/views.ts";
 import type { ElementType } from "../layout/schema.ts";
+import { REGIONS, type RegionId } from "../body/regions.ts";
 import type { Category, ZoneId } from "../metrics/coverage.ts";
 
 export type Mode = "blockout" | "reference";
@@ -81,6 +82,16 @@ export const HANDOUT_EN = {
     "upper-inner": "Upper arm inner",
     "upper-outer": "Upper arm outer",
     shoulder: "Shoulder",
+    shin: "Shin",
+    calf: "Calf",
+    knee: "Knee",
+    "thigh-front": "Thigh front",
+    "thigh-back": "Thigh back",
+    chest: "Chest",
+    stomach: "Stomach",
+    "back-upper": "Upper back",
+    "back-lower": "Lower back",
+    flanks: "Flanks",
   } satisfies Record<ZoneId, string>,
   wholeArm: "Whole arm",
   questionsTitle: "Open questions",
@@ -133,3 +144,93 @@ export const HANDOUT_EN = {
 };
 
 export type HandoutText = typeof HANDOUT_EN;
+
+type Region = (typeof REGIONS)[RegionId];
+
+/**
+ * The handout's wording for a region. HANDOUT_EN is the generic text, written for the left arm; every
+ * other region swaps in its own views, centre lines, zones and landmarks.
+ */
+export function handoutText(region: RegionId, base: HandoutText = HANDOUT_EN): HandoutText {
+  if (region === "arm-left") return base;
+  const r: Region = REGIONS[region];
+  const [start, end] = r.ends;
+  const [l0, l1, l2, l3] = r.lines;
+  const above = (cm: string) => `${cm} cm above the ${start}`;
+  const views = VIEW_TEXT[r.kind];
+  const part = r.kind === "torso" ? "torso" : r.label.toLowerCase();
+  return {
+    ...base,
+    subjectFallback: `A placement sketch for the ${part}, from the ${start} to the ${end}`,
+    note: [
+      `These pages show the idea for the ${part}: which motifs go where, roughly how big they are, and how figures, fillers and open skin balance out. The body is a simple 3D model built from measurements or a sample body; the pictures are rough reference images.`,
+      base.note[1]!,
+    ],
+    legend: {
+      ...base.legend,
+      existing: "Existing tattoo (outlined)",
+      band: `Band around the ${part}`,
+      line: "Line",
+    },
+    legendIntro:
+      "Blockout shows every element as a flat shape coloured by type, to judge balance at a glance. Reference shows the same layout with rough reference images and procedural placeholder patterns for fillers and bands.",
+    views,
+    overviewIntro: `${r.kind === "arm" ? "Arm hanging down, palm facing forward" : "Standing upright"}; the ${end} at the top, the ${start} at the bottom. All views use the same scale.`,
+    viewNote: `The 3D ${part} is a smooth model built from tape measurements or a sample body; sizes are right, the silhouette is approximate.`,
+    unwrapIntro: [
+      `The skin of the ${part} laid flat, seen from outside: the ${end} at the top, the ${start} at the bottom, the ${l0} line in the middle. The ${l2} line is cut open and forms both edges.`,
+      `Grid: 1 cm squares, bold every 5 cm, measured on the skin; red lines mark the ${l0}, ${l1}, ${l2} and ${l3} lines.`,
+    ],
+    elementsIntro: `Every element of the layout, bottom layer first. Sizes in cm on the skin; positions from the ${start} along the ${part} and around it by the centre lines.`,
+    coverageIntro: COVERAGE_INTRO[r.kind],
+    wholeArm: `Whole ${r.kind === "torso" ? "torso" : r.kind}`,
+    point: {
+      ...base.point,
+      measurements: (n: number, total: number, keys: string) =>
+        `Body model: ${n} of ${total} values come from the sample body (${keys}).`,
+      profile: (warning: string) => `Body model: ${warning}.`,
+    },
+    cell: {
+      ...base.cell,
+      fromPhotos: "from the photos",
+      aboveWrist: above,
+      centre: (side: string, cm: string) => `${side}, centre ${above(cm)}`,
+      span: (from: string, to: string, y0: string, y1: string) =>
+        `from ${from} to ${to}, ${y0}–${y1} cm above the ${start}`,
+      around: (cm: string) => `all around the ${part}, ${above(cm)}`,
+      path: (from: string, to: string, y0: string, y1: string) =>
+        `from ${from} at ${y0} cm to ${to} at ${y1} cm above the ${start}`,
+    },
+    sides: {
+      outer: `${l0} line`,
+      lateral: `${l1} line`,
+      inner: `${l2} line`,
+      medial: `${l3} line`,
+      between: base.sides.between,
+    },
+    sideShort: { outer: l0, lateral: l1, inner: l2, medial: l3 },
+  };
+}
+
+const VIEW_TEXT: Record<Region["kind"], HandoutText["views"]> = {
+  arm: HANDOUT_EN.views,
+  leg: {
+    front: { title: "Front", side: "shin and front of the thigh" },
+    back: { title: "Back", side: "calf and back of the thigh" },
+    medial: { title: "Medial", side: "inner side, towards the other leg" },
+    lateral: { title: "Lateral", side: "outer side" },
+  },
+  torso: {
+    front: { title: "Front", side: "chest and stomach" },
+    back: { title: "Back", side: "upper and lower back" },
+    medial: { title: "Left", side: "left flank" },
+    lateral: { title: "Right", side: "right flank" },
+  },
+};
+
+const COVERAGE_INTRO: Record<Region["kind"], string> = {
+  arm: HANDOUT_EN.coverageIntro,
+  leg: "Share of each zone’s skin taken by each element type (topmost element counted). Knee: 5 cm below to 6 cm above the knee centre; front = the half around the shin line.",
+  torso:
+    "Share of each zone’s skin taken by each element type (topmost element counted). Flanks: about 7 cm either side of each flank line; chest and upper back above the lowest ribs.",
+};

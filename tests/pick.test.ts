@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { PLACEHOLDERS } from "../src/arm/inputs.ts";
-import { buildProfile } from "../src/arm/profile.ts";
+import { PLACEHOLDERS } from "../src/body/inputs.ts";
+import { buildProfile } from "../src/body/profile.ts";
 import type { LayoutElement } from "../src/layout/schema.ts";
 import { nextInCycle, pickAllElements, resolveElement } from "../src/layout/shapes.ts";
 

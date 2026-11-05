@@ -1,8 +1,10 @@
 // Schema for config/layouts/*.yaml (PROJECT_BRIEF.md §13.2, refined).
-// Coordinates: u around the arm (0 outer, 0.25 lateral, 0.5 inner, 0.75 medial), v along it (0 wrist, 1 shoulder).
+// Coordinates: u around the region, v along it. On the arm (the default region) u is 0 outer, 0.25 lateral,
+// 0.5 inner, 0.75 medial and v 0 wrist, 1 shoulder; other regions: src/body/regions.ts, docs/adr/0011.
 // Array order is layer order: later elements are drawn on top.
 import { z } from "zod";
 import { rectSchema } from "../assets/manifest.ts";
+import { REGION_IDS } from "../body/regions.ts";
 
 const unit = z.number().min(0).max(1);
 
@@ -93,6 +95,8 @@ export const elementSchema = z.discriminatedUnion("type", [
 export const layoutSchema = z
   .strictObject({
     name: z.string().min(1),
+    /** The body region the layout is drawn on; missing = arm-left (every layout before regions). */
+    region: z.enum(REGION_IDS).optional(),
     description: z.string().optional(),
     elements: z.array(elementSchema),
   })

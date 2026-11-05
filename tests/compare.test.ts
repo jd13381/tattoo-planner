@@ -3,8 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { PLACEHOLDERS } from "../src/arm/inputs.ts";
-import { buildProfile } from "../src/arm/profile.ts";
+import { PLACEHOLDERS } from "../src/body/inputs.ts";
+import { buildProfile } from "../src/body/profile.ts";
 import { diffLayouts } from "../src/compare/diff.ts";
 import { compareSummary } from "../src/compare/summary.ts";
 import { saveLayout } from "../server/layoutsApi.ts";
@@ -61,7 +61,7 @@ describe("coverage comparison", () => {
     expect(d["upper-outer"].figure).toBeLessThan(0);
     expect(d["upper-outer"].open).toBeGreaterThan(0);
     expect(d["upper-outer"].figure).toBe(
-      sharePct(cb.zones["upper-outer"], "figure") - sharePct(ca.zones["upper-outer"], "figure"),
+      sharePct(cb.zones["upper-outer"]!, "figure") - sharePct(ca.zones["upper-outer"]!, "figure"),
     );
     expect(d["forearm-inner"].existing).toBe(0);
     expect(coverageDelta(ca, ca).total.open).toBe(0);

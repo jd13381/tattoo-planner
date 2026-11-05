@@ -5,8 +5,8 @@
 // (src/layout/shapes.ts `hits`), and a segment always takes the short way round the arm. The
 // simplification measures distances the same way, so the simplified line stays within the
 // tolerance of what was drawn, also across the inner seam.
-import type { ArmProfile } from "../arm/profile.ts";
-import { wrapU } from "../arm/uv.ts";
+import type { RegionProfile } from "../body/profile.ts";
+import { screenSign, wrapU } from "../body/uv.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import { wrapDelta } from "../layout/shapes.ts";
 
@@ -26,37 +26,38 @@ const round = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
  * Layout coordinates of a texture point (three.js UV: x across the unwrap, y = v, origin bottom
- * left; see src/arm/uv.ts layoutToTexture). Null outside the skin of that row.
+ * left; see src/body/uv.ts layoutToTexture). Null outside the skin of that row.
  */
-export function textureToLayout(profile: ArmProfile, x: number, y: number): UV | null {
+export function textureToLayout(profile: RegionProfile, x: number, y: number): UV | null {
   const v = Math.min(1, Math.max(0, y));
-  const cm = (0.5 - x) * profile.maxCircumference; // lateral positive, from the outer line
+  // Towards u = 0.25 positive (lateral on arms), from the u = 0 line.
+  const cm = screenSign(profile) * (x - 0.5) * profile.maxCircumference;
   const c = profile.circumferenceAt(v * profile.length);
   if (Math.abs(cm) > c / 2 + 1e-6) return null;
   return { u: wrapU(cm / c), v };
 }
 
 /** Distance in cm on the skin between two layout points, the short way round. */
-export function skinDistance(profile: ArmProfile, a: UV, b: UV): number {
+export function skinDistance(profile: RegionProfile, a: UV, b: UV): number {
   const y = ((a.v + b.v) / 2) * profile.length;
   return Math.hypot(wrapDelta(b.u - a.u) * profile.circumferenceAt(y), (b.v - a.v) * profile.length);
 }
 
 /** Adds a sample unless it is closer than `minCm` to the last one; returns the same array if skipped. */
-export function addSample(profile: ArmProfile, points: UV[], p: UV, minCm = STROKE_MIN_STEP_CM): UV[] {
+export function addSample(profile: RegionProfile, points: UV[], p: UV, minCm = STROKE_MIN_STEP_CM): UV[] {
   const last = points[points.length - 1];
   if (last && skinDistance(profile, last, p) < minCm) return points;
   return [...points, p];
 }
 
-export function strokeLength(profile: ArmProfile, points: UV[]): number {
+export function strokeLength(profile: RegionProfile, points: UV[]): number {
   let sum = 0;
   for (let i = 1; i < points.length; i++) sum += skinDistance(profile, points[i - 1]!, points[i]!);
   return sum;
 }
 
 /** Distance (cm) of p from segment a–b, measured as the line renders: u scaled by p's circumference. */
-function segmentDistance(profile: ArmProfile, p: UV, a: UV, b: UV): number {
+function segmentDistance(profile: RegionProfile, p: UV, a: UV, b: UV): number {
   const L = profile.length;
   const c = profile.circumferenceAt(p.v * L);
   // Unwrapped around p, so a segment across the seam stays in one piece.
@@ -75,7 +76,11 @@ function segmentDistance(profile: ArmProfile, p: UV, a: UV, b: UV): number {
  * Ramer–Douglas–Peucker on the skin: keeps the fewest points whose line stays within `toleranceCm`
  * of every drawn sample. Points come back wrapped to 0…1 and rounded like the editor's edits.
  */
-export function simplifyStroke(profile: ArmProfile, points: UV[], toleranceCm = STROKE_TOLERANCE_CM): UV[] {
+export function simplifyStroke(
+  profile: RegionProfile,
+  points: UV[],
+  toleranceCm = STROKE_TOLERANCE_CM,
+): UV[] {
   if (points.length <= 2) return points.map((p) => ({ u: round(wrapU(p.u)), v: round(p.v) }));
   const keep = new Uint8Array(points.length);
   keep[0] = 1;
@@ -104,7 +109,7 @@ export function simplifyStroke(profile: ArmProfile, points: UV[], toleranceCm = 
  * Joins a new stroke to an existing line at whichever ends are closest, so drawing on from either
  * end of a line continues it. The existing points keep their order.
  */
-export function appendStroke(profile: ArmProfile, line: UV[], stroke: UV[]): UV[] {
+export function appendStroke(profile: RegionProfile, line: UV[], stroke: UV[]): UV[] {
   if (line.length === 0) return stroke;
   if (stroke.length === 0) return line;
   const first = line[0]!;
@@ -143,7 +148,7 @@ export function defaultStrokeWidth(layout: Layout): number {
  * Returns null for a stroke too short to keep.
  */
 export function applyStroke(
-  profile: ArmProfile,
+  profile: RegionProfile,
   layout: Layout,
   samples: UV[],
   appendTo: number | null,

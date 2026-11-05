@@ -6,7 +6,8 @@
 // Elements are drawn row by row: each texture row is as wide as the local circumference, so a box
 // is copied one pixel row at a time to where that row puts it, and whatever crosses the inner seam
 // re-enters on the other edge, exactly like the blockout classification.
-import type { ArmProfile } from "../arm/profile.ts";
+import type { RegionProfile } from "../body/profile.ts";
+import { screenSign } from "../body/uv.ts";
 import type { AssetInfo } from "../assets/types.ts";
 import {
   fitContain,
@@ -68,7 +69,7 @@ export function missingReason(el: FigureLike, sources: ReferenceSources): string
 
 export function renderReference(
   ctx: CanvasRenderingContext2D,
-  profile: ArmProfile,
+  profile: RegionProfile,
   layout: Layout,
   opts: ReferenceOptions,
 ): void {
@@ -117,7 +118,7 @@ export function renderReference(
     }
   }
 
-  if (opts.grid && centerU === 0) paintGrid(ctx, profile, ppc, OVERLAY_GRID_STYLE, { background: false });
+  if (opts.grid) paintGrid(ctx, profile, ppc, OVERLAY_GRID_STYLE, { background: false, centerU });
 
   // Red as the bracket (§4.3): lines on top of everything, whatever their layer.
   lines.forEach((shape, k) => fillMask(ctx, shapeMask(shape, profile, ppc, centerU), lineColors[k]!, 0.9));
@@ -127,7 +128,7 @@ type BoxShape = Extract<Shape, { kind: "box" }>;
 
 function drawFigure(
   ctx: CanvasRenderingContext2D,
-  profile: ArmProfile,
+  profile: RegionProfile,
   el: FigureLike,
   box: BoxShape,
   opts: ReferenceOptions,
@@ -153,7 +154,7 @@ function drawFigure(
 /** Copies a canvas centred on the box onto the unwrap, row by row, wrapping at the seam. */
 function blitRows(
   ctx: CanvasRenderingContext2D,
-  profile: ArmProfile,
+  profile: RegionProfile,
   local: HTMLCanvasElement,
   box: BoxShape,
   opts: ReferenceOptions,
@@ -168,7 +169,7 @@ function blitRows(
     const ly = Math.floor(j + 0.5 - top);
     if (ly < 0 || ly >= local.height) continue;
     const c = profile.circumferenceAt(L - (j + 0.5) / ppc);
-    const cx = screenX(box.uc, opts.centerU, c);
+    const cx = screenX(box.uc, opts.centerU, c, box.sign);
     const halfLocal = local.width / 2 / ppc;
     for (const piece of wrapStrip(cx, -halfLocal, halfLocal, c)) {
       const sx = (piece.from + halfLocal) * ppc;
@@ -207,7 +208,7 @@ function patchCanvas(patch: ProjectedPatch, hatching: boolean): HTMLCanvasElemen
  */
 function drawPatch(
   ctx: CanvasRenderingContext2D,
-  profile: ArmProfile,
+  profile: RegionProfile,
   patch: ProjectedPatch,
   hatching: boolean,
   opts: ReferenceOptions,
@@ -226,7 +227,7 @@ function drawPatch(
     const c = profile.circumferenceAt(v * L);
     const half = ((patch.u1 - patch.u0) / 2) * c;
     // Screen x grows towards smaller u, as the patch columns do.
-    for (const piece of wrapStrip(screenX(uc, opts.centerU, c), -half, half, c)) {
+    for (const piece of wrapStrip(screenX(uc, opts.centerU, c, screenSign(profile)), -half, half, c)) {
       const sx = ((piece.from + half) / (2 * half)) * patch.width;
       const sw = ((piece.to - piece.from) / (2 * half)) * patch.width;
       if (sw < 0.01) continue;
@@ -380,7 +381,7 @@ function maskImage(mask: ReturnType<typeof shapeMask>): HTMLCanvasElement {
 /** Paints a pattern over the shape's rows, then keeps only the pixels inside the shape. */
 function drawPattern(
   ctx: CanvasRenderingContext2D,
-  profile: ArmProfile,
+  profile: RegionProfile,
   id: string,
   pattern: string,
   density: number,

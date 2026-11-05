@@ -1,5 +1,5 @@
 // Elbow flexion (PROJECT_BRIEF.md §10.1 F2 "elbow-bent view", §14 Phase 6). Pure geometry on the
-// typed arrays of src/arm/geometry.ts: vertices move, UVs and triangles stay, so the same texture
+// typed arrays of src/body/geometry.ts: vertices move, UVs and triangles stay, so the same texture
 // (and the same unwrap) bends with the arm. Model and limits: docs/adr/0005-elbow-bend.md.
 //
 // The upper arm stays put; the forearm swings towards the palm side (+Z) about an axis parallel to X

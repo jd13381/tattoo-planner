@@ -1,7 +1,7 @@
 // Forward model of a photo of the forearm (docs/adr/0006-anubis-projection.md).
 //
 // Locally the forearm is the planner's elliptical cross-section at that height (circumference and
-// aspect from the profile, points placed by arc length as in src/arm/geometry.ts), seen
+// aspect from the profile, points placed by arc length as in src/body/geometry.ts), seen
 // orthographically (photos from about 1 m). A photo is calibrated by
 //   - its two silhouette edges (straight lines), which fix where each cross-section lies across the arm,
 //   - two points at known distances along the arm (e.g. wrist crease and top of the tattoo), which fix
@@ -10,12 +10,12 @@
 // For a skin point (u, s) the model gives the photo point and the cosine between the skin normal and
 // the view direction (visibility; ≤ 0 = facing away). The patch is built in this direction, skin pixel
 // → photo pixel, so it has no holes.
-import { arcLengthInverse, semiAxes } from "../arm/ellipse.ts";
-import type { ArmProfile } from "../arm/profile.ts";
-import { wrapU } from "../arm/uv.ts";
+import { arcLengthInverse, semiAxes } from "../body/ellipse.ts";
+import type { ArmProfile } from "../body/profile.ts";
+import { wrapU } from "../body/uv.ts";
 import type { PhotoCalibration, PhotoPoint } from "./schema.ts";
 
-/** Parametric angle of the outer centre line (-Z), as in src/arm/geometry.ts. */
+/** Parametric angle of the outer centre line (-Z), as in src/body/geometry.ts. */
 const OUTER_ANGLE = -Math.PI / 2;
 
 export type Vec = { x: number; y: number };

@@ -197,6 +197,23 @@ Jan asked Claude (2026-11-05) to run Phase B and then work through Phase C on it
 - **One project folder per person** (`docs/adr/0012-project-folder.md`) with `project.yaml`; current project remembered in `~/.config/tattoo-planner/config.json`, `TATTOO_DATA_DIR` still wins. Jan's Seafile folder opens as a legacy project and keeps using the repo's `config/` until "Move into project" (or `npm run migrate`) copies it over.
 - **Server code moves out of the Vite plugins** into `server/`, mounted by Vite in dev and by the desktop app.
 
+### Body regions and sample bodies (roadmap Phase C step 3, ADR 0011)
+
+- **Mirrored regions via a flag, not a reflected mesh.** The right arm, the left leg and the torso turn u the other way round (seen from outside u grows to the right), so `RegionProfile.mirrored` and `screenSign` carry the direction through every u ↔ screen conversion (shapes, unwrap rows, reference images, grid, editor, nudge, brush, coverage, PDF marks) and the mesh builder turns its rings the other way. Pictures are never mirrored and stored u keeps the ADR's meaning (0.25 lateral on both arms, 0.25 front on the torso). _Alternative:_ keep the pipeline in one direction and convert u at load and save (stored values would differ from what the editor shows). _Change:_ `src/body/uv.ts` `screenSign`, `REGIONS[*].mirrored`.
+- **Legs: u = 0 front (shin), 0.25 lateral on both sides**, like the arms. _Alternative:_ 0.25 towards the body's left on both legs. _Change:_ `REGIONS` and `viewsFor`.
+- **Torso editor centres on Front (u = 0.25) or Back (0.75)**, not on the texture centre (right flank). _Change:_ `editorCentres` in `src/body/regions.ts`.
+- **The cm grid now follows the editor centre** (it used to disappear on the Inner view), since the torso is never edited centred on its texture centre. _Change:_ `paintGrid(…, { centerU })`.
+- **Unmeasured right arm / leg copies the measured other side** before falling back to the sample, so Jan's right arm matches his left. _Alternative:_ sample values only (ADR wording). _Change:_ `MIRROR` in `src/body/body.ts`.
+- **Male sample arm = the old placeholders** (33/27 cm …), so an unmeasured left arm looks exactly as before on the default body. All other sample values are rounded estimates for ≈165 / ≈178 cm, not anthropometric data. _Change:_ `src/body/samples.ts`.
+- **Torso aspect ratios and the "shoulder line" circumference are inputs** (sample values, `shape:` section in `measurements.yaml`), since they cannot be taped and differ more between bodies than an arm's. _Change:_ `INPUT_SECTIONS.torso`.
+- **measurements.yaml:** `regions:` takes any subset of a region's keys; the old top-level arm blocks stay the left arm, and giving the left arm in both places is an error. `existing` and `notes` became optional. _Change:_ `src/config/measurements.ts`.
+- **Region picker in the top bar** left of the variant picker, with the number of layouts per region; a region without a layout opens an empty unsaved `<region>-1` layout (not marked dirty until edited), written with `region:` right after `name:` on the first save. _Alternative:_ an empty state with a "New layout" button.
+- **Full-body view as a switch over the Layout tab's 3D view** (region view or full body), straight A-pose (no elbow bend), other regions painted in the current mode at 8 px/cm with their last opened (else first) layout. Clicking a region switches the editor (asking first when there are unsaved edits). _Change:_ `src/viewer/BodyViewer.tsx`, `src/editor/RegionTextures.tsx`.
+- **Compare follows the region open in the Layout tab** (no picker of its own). _Change:_ `region` in `ComparePage.tsx`.
+- **Handout wording per region:** the left arm keeps `HANDOUT_EN` unchanged (Jan's sleeve, design questions included); other regions get their own title, views, lines, zones and landmarks and no design questions. _Change:_ `handoutText` in `src/export/strings.ts`.
+- **Photo projection only on the left arm** (ADR 0006 models the left forearm); elsewhere the element falls back to its box with a notice.
+- **Torso 3D region view frames with 1.5 × the margin**, since the short, wide torso otherwise fills the canvas behind the floating panels.
+
 ### Cuts and simplifications (roadmap Phase C step 6)
 
 Jan approved the cuts (2026-11-05); the details below were decided by Claude. Details in `docs/adr/0013-builtin-image-operations.md`; ADR 0003 and ADR 0007 are marked superseded.

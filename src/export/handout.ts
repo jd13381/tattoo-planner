@@ -1,8 +1,8 @@
 // The content of the artist handout (PROJECT_BRIEF.md §10.1 F10) as plain data: element rows,
 // coverage rows, open points, which elements face each view. No DOM, no PDF library: the PDF
 // writer (pdf.ts) only lays this out. All wording comes from strings.ts.
-import type { ArmProfile } from "../arm/profile.ts";
-import { wrapU } from "../arm/uv.ts";
+import type { RegionProfile } from "../body/profile.ts";
+import { wrapU } from "../body/uv.ts";
 import { isFigureLike } from "../layout/imageFit.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import {
@@ -11,13 +11,19 @@ import {
   type ExistingSize,
   type ResolvedElement,
 } from "../layout/shapes.ts";
-import { CATEGORIES, ZONES, type Coverage, type ZoneCoverage } from "../metrics/coverage.ts";
-import type { ViewName } from "../viewer/views.ts";
+import {
+  CATEGORIES,
+  ZONES_BY_KIND,
+  zoneCoverage,
+  type Coverage,
+  type ZoneCoverage,
+} from "../metrics/coverage.ts";
+import { viewU, type ViewName } from "../viewer/views.ts";
 import type { HandoutText } from "./strings.ts";
 
 export type HandoutFacts = {
   layout: Layout;
-  profile: ArmProfile;
+  profile: RegionProfile;
   /** YYYY-MM-DD */
   date: string;
   /** resolveElement() of every element, same order as layout.elements. */
@@ -50,7 +56,10 @@ export function cm(x: number): string {
 
 const two = (x: number) => x.toFixed(2);
 
-/** The u of each named centre line (src/arm/uv.ts). */
+/**
+ * The u of each centre line (src/body/uv.ts). The names are the arm's; other regions name the same
+ * four slots their own way (strings.ts handoutText).
+ */
 export const SIDE_U = { outer: 0, lateral: 0.25, inner: 0.5, medial: 0.75 } as const;
 type Side = keyof typeof SIDE_U;
 const SIDE_ORDER: Side[] = ["outer", "lateral", "inner", "medial"];
@@ -66,7 +75,7 @@ export function sideName(u: number, t: HandoutText): string {
 
 export function sizeText(
   r: ResolvedElement,
-  profile: ArmProfile,
+  profile: RegionProfile,
   t: HandoutText,
   existing?: ExistingSize,
 ): string {
@@ -107,7 +116,7 @@ export function sizeText(
   }
 }
 
-export function positionText(r: ResolvedElement, profile: ArmProfile, t: HandoutText): string {
+export function positionText(r: ResolvedElement, profile: RegionProfile, t: HandoutText): string {
   const el = r.element;
   const L = profile.length;
   switch (el.type) {
@@ -179,7 +188,10 @@ const pct = (z: ZoneCoverage, k: number) => `${z.area > 0 ? Math.round((100 * k)
 
 export function coverageRows(cov: Coverage, t: HandoutText): string[][] {
   const row = (label: string, z: ZoneCoverage) => [label, ...CATEGORIES.map((c) => pct(z, z.byCategory[c]))];
-  return [...ZONES.map((z) => row(t.zones[z.id], cov.zones[z.id])), row(t.wholeArm, cov.total)];
+  return [
+    ...ZONES_BY_KIND[cov.kind].map((z) => row(t.zones[z.id], zoneCoverage(cov, z.id))),
+    row(t.wholeArm, cov.total),
+  ];
 }
 
 /** Things the layout leaves open: unset sizes, missing images, placeholder measurements. */
@@ -204,14 +216,6 @@ export function layoutPoints(facts: HandoutFacts, t: HandoutText): string[] {
   return out;
 }
 
-/** The u of the skin line in the middle of each fixed view (src/viewer/views.ts). */
-export const VIEW_U: Record<ViewName, number> = {
-  front: SIDE_U.inner,
-  back: SIDE_U.outer,
-  medial: SIDE_U.medial,
-  lateral: SIDE_U.lateral,
-};
-
 /** How far from a view's centre line (fraction of the circumference) an element must reach to count as facing it. */
 export const FACING_HALF_WIDTH = 0.2;
 
@@ -220,8 +224,8 @@ export const FACING_HALF_WIDTH = 0.2;
  * the view's centre line, so pieces that only graze the silhouette are left out. Bands go all
  * around, so they face every view.
  */
-export function facesView(r: ResolvedElement, view: ViewName, profile: ArmProfile): boolean {
-  const vu = VIEW_U[view];
+export function facesView(r: ResolvedElement, view: ViewName, profile: RegionProfile): boolean {
+  const vu = viewU(profile)[view];
   const k = FACING_HALF_WIDTH;
   const s = r.shape;
   switch (s.kind) {
