@@ -38,3 +38,39 @@ describe("fixed views of a bent arm", () => {
     expect(viewCamera(profile, "lateral", 0.3, 1.25, box).position[0]).toBeGreaterThan(lateral.position[0]);
   });
 });
+
+describe("framing clear of floating panels", () => {
+  it("cuts each panel away by the side that leaves the most room for the content", async () => {
+    const { freeInsets } = await import("../src/viewer/views.ts");
+    // A full-height inspector on the right and a coverage card bottom left (the Layout tab's 3D pane).
+    const panels = [
+      { x: 538, y: 12, w: 300, h: 832 },
+      { x: 12, y: 600, w: 300, h: 244 },
+    ];
+    // A thin arm keeps the full height and moves right of the card; a wide torso keeps the width.
+    const arm = freeInsets(850, 856, panels, 0.2);
+    expect(arm.right).toBe(850 - 530);
+    expect(arm.left).toBe(320);
+    expect(arm.bottom).toBe(0);
+    const torso = freeInsets(850, 856, panels, 1.1);
+    expect(torso.left).toBe(0);
+    expect(torso.bottom).toBe(856 - 592);
+    // No panels: the whole canvas.
+    expect(freeInsets(400, 300, [], 1)).toEqual({ top: 0, right: 0, bottom: 0, left: 0 });
+  });
+
+  it("fits the bounds into the free part and shifts the picture into it", async () => {
+    const { fitCamera } = await import("../src/viewer/views.ts");
+    const b = {
+      min: [-20, 0, -10] as [number, number, number],
+      max: [20, 45, 10] as [number, number, number],
+    };
+    const full = fitCamera(b, [0, 0, 1], 800, 800);
+    const half = fitCamera(b, [0, 0, 1], 800, 800, { top: 0, right: 400, bottom: 0, left: 0 });
+    expect(full.offset).toEqual([0, 0]);
+    expect(half.target).toEqual(full.target);
+    expect(half.position[2]).toBeGreaterThan(full.position[2]);
+    // Free part on the left: the picture moves left (the sub-window right).
+    expect(half.offset).toEqual([200, 0]);
+  });
+});

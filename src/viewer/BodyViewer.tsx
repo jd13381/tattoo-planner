@@ -11,7 +11,8 @@ import type { ResolvedBody } from "../body/body.ts";
 import type { Placement } from "../body/placement.ts";
 import { REGION_IDS, REGIONS, type RegionId } from "../body/regions.ts";
 import { armGeometry, CAP_COLOR, CAP_ROUGHNESS, LIGHTS, SKIN_ROUGHNESS, skinTexture } from "./scene.ts";
-import { BODY_VIEWS, bodyCamera, CAMERA_FOV, type BodyViewName } from "./views.ts";
+import { useFreeInsets } from "./useFreeInsets.ts";
+import { BODY_VIEWS, boundsAspect, CAMERA_FOV, fitCamera, type BodyViewName } from "./views.ts";
 
 /** Regions without a layout: plain skin, a shade lighter than the parts nobody edits. */
 export const NEUTRAL_SKIN = "#e8ddd2";
@@ -27,9 +28,11 @@ type Props = {
   onPick: (id: RegionId) => void;
   /** Renders the camera presets into this element (the page's floating bar). */
   toolbarTarget?: HTMLElement | null;
+  /** The camera presets frame the body clear of the `.float` panels inside this element. */
+  frameAround?: HTMLElement | null;
 };
 
-export function BodyViewer({ body, textures, active, onPick, toolbarTarget }: Props) {
+export function BodyViewer({ body, textures, active, onPick, toolbarTarget, frameAround }: Props) {
   const [view, setView] = useState<{ name: BodyViewName; request: number }>({ name: "front", request: 0 });
   const [hover, setHover] = useState<RegionId | null>(null);
   const geometries = useMemo(
@@ -104,7 +107,7 @@ export function BodyViewer({ body, textures, active, onPick, toolbarTarget }: Pr
               <meshStandardMaterial color={CAP_COLOR} roughness={CAP_ROUGHNESS} />
             </mesh>
           ))}
-          <BodyCameraRig body={body} view={view.name} request={view.request} />
+          <BodyCameraRig body={body} view={view.name} request={view.request} frameAround={frameAround} />
         </Canvas>
       </div>
     </div>
@@ -158,18 +161,39 @@ function RegionMesh(props: {
   );
 }
 
-function BodyCameraRig({ body, view, request }: { body: ResolvedBody; view: BodyViewName; request: number }) {
+const BODY_MARGIN = 1.1;
+
+function BodyCameraRig({
+  body,
+  view,
+  request,
+  frameAround,
+}: {
+  body: ResolvedBody;
+  view: BodyViewName;
+  request: number;
+  frameAround?: HTMLElement | null;
+}) {
   const controls = useRef<OrbitControlsImpl>(null);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const bounds = body.layout.bounds;
+  const dir = BODY_VIEWS.find((v) => v.name === view)!.dir;
+  const insets = useFreeInsets(frameAround, boundsAspect(bounds, dir, BODY_MARGIN));
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
-    const { position, target } = bodyCamera(bounds, view, size.width / Math.max(size.height, 1));
-    camera.position.set(...position);
-    c.target.set(...target);
+    const fit = fitCamera(bounds, dir, size.width, size.height, insets, BODY_MARGIN);
+    if ("setViewOffset" in camera) {
+      if (fit.offset[0] === 0 && fit.offset[1] === 0) camera.clearViewOffset();
+      else
+        camera.setViewOffset(size.width, size.height, fit.offset[0], fit.offset[1], size.width, size.height);
+    }
+    camera.position.set(...fit.position);
+    c.target.set(...fit.target);
     c.update();
-  }, [bounds, view, request, camera, size.width, size.height]);
+    // `dir` follows `view`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bounds, view, request, camera, size.width, size.height, insets]);
   return <OrbitControls ref={controls} makeDefault enableDamping={false} />;
 }

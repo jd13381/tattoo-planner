@@ -137,6 +137,8 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const [saveError, setSaveError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [viewerToolbar, setViewerToolbar] = useState<HTMLDivElement | null>(null);
+  // The 3D pane: its floating panels are kept clear of the region in the fixed views.
+  const [pane3d, setPane3d] = useState<HTMLElement | null>(null);
   const [mode, setMode] = useState<RenderMode>("reference");
   const [grid, setGrid] = useState(true);
   const [centerU, setCenterU] = useState(0);
@@ -1028,7 +1030,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
             />
           </section>
 
-          <section className="ws-3d" aria-label="3D view">
+          <section className="ws-3d" aria-label="3D view" ref={setPane3d}>
             {view3d === "body" && (
               <>
                 {otherLayouts.map((o) => (
@@ -1056,6 +1058,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                     switchRegion(id);
                   }}
                   toolbarTarget={viewerToolbar}
+                  frameAround={pane3d}
                 />
               </>
             )}
@@ -1070,6 +1073,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                 toolbarTarget={viewerToolbar}
                 screenshotInToolbar
                 footer={false}
+                frameAround={pane3d}
                 overlay={
                   drawing && (
                     <div className="canvas-toolbar top">
