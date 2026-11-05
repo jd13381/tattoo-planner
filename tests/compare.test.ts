@@ -7,7 +7,7 @@ import { PLACEHOLDERS } from "../src/arm/inputs.ts";
 import { buildProfile } from "../src/arm/profile.ts";
 import { diffLayouts } from "../src/compare/diff.ts";
 import { compareSummary } from "../src/compare/summary.ts";
-import { saveLayout } from "../src/data/server/layoutsApi.ts";
+import { saveLayout } from "../server/layoutsApi.ts";
 import { moveElement, suggestVariantName } from "../src/editor/edit.ts";
 import type { Layout } from "../src/layout/schema.ts";
 import { classify } from "../src/layout/shapes.ts";

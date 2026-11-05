@@ -12,7 +12,7 @@ import {
   parseManifestText,
   resolveInside,
   updateAssetEntry,
-} from "../src/data/server/assetsApi.ts";
+} from "../server/assetsApi.ts";
 
 describe("imageContentType", () => {
   it("maps image extensions case-insensitively", () => {

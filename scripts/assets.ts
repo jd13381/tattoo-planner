@@ -9,8 +9,8 @@ import path from "node:path";
 import { parseEnv } from "node:util";
 import { MANIFEST_FILE } from "../src/assets/manifest.ts";
 import { ManifestError } from "../src/assets/manifestDoc.ts";
-import { resolveDataDir } from "../src/data/server/dataDir.ts";
-import { scanDataFolder } from "../src/data/server/scanFolder.ts";
+import { resolveDataDir } from "../server/dataDir.ts";
+import { scanDataFolder } from "../server/scanFolder.ts";
 import { DATA_DIR_VAR } from "../src/data/types.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..");

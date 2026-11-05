@@ -4,7 +4,7 @@
 import { readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { DATA_DIR_VAR, type DataFile, type DataListing } from "../types.ts";
+import { DATA_DIR_VAR, type DataFile, type DataListing } from "../src/data/types.ts";
 
 export function expandUser(p: string, home = os.homedir()): string {
   if (p === "~") return home;
