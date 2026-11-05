@@ -1,5 +1,7 @@
 # Arm vermessen und fotografieren
 
+> Hinweis: Der Planner hat jetzt einen geführten Assistenten (Einstellungen → Body & measurements → „Measure yourself“), der diese Messungen Schritt für Schritt abfragt und direkt speichert.
+
 <!-- Exception to the English-docs rule: Jan asked for this guide in German (2026-11-03). -->
 
 Anleitung für die Zahlen in `config/measurements.yaml` (PROJECT_BRIEF.md §13.1) und die Fotos für `arm-photos/` und `existing/` im Datenordner. Aus den Zahlen baut der Planner den 3D-Arm; die Fotos dienen zum Abgleich der Form und zum Platzieren des Anubis.

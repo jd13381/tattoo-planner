@@ -86,8 +86,8 @@ export function BodyPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
     <div className="arm-page body-page">
       {!arm.loaded.ok && (
         <p className="notice error arm-errors" role="alert">
-          <strong>config/measurements.yaml is invalid:</strong> {arm.loaded.error}. Showing the sample body;
-          fix the file before saving.
+          <strong>measurements.yaml is invalid:</strong> {arm.loaded.error}. Showing the sample body; fix the
+          file before saving.
         </p>
       )}
       <div className="arm-workspace" ref={setWorkspace}>
