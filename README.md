@@ -22,23 +22,22 @@ The plan to turn the planner into an open-source product (sample bodies, all bod
 
 ## Data stays out of git
 
-Code, docs and YAML configs live in this (private) repo. Every image, the ideas PDF and every export live in a Seafile folder that the planner finds through `TATTOO_DATA_DIR`. Images, PDFs and exports are rejected by `.gitignore`, by a pre-commit hook and by CI.
-
-Suggested layout of the data folder (PROJECT_BRIEF.md §12.3):
+Code and docs live in this (private) repo. Everything personal (layouts, measurements, projections, every image and export) lives in a **project folder** of your choice (`docs/adr/0012-project-folder.md`), for Jan a Seafile folder. Images, PDFs and exports are rejected by `.gitignore`, by a pre-commit hook and by CI.
 
 ```
-<TATTOO_DATA_DIR>/
-├── ideas.pdf        collected ideas
-├── manifest.yaml    asset catalogue (Phase 4)
-├── ideas/           images extracted from ideas.pdf earlier (no longer re-extracted)
-├── refs/            Instagram / Pinterest references
-├── cards/           MTG card art
-├── existing/        photos of existing tattoos
-├── arm-photos/      left arm from four sides, with tape measure
-├── edits/           reference images edited in the planner (Image studio)
-├── generated/       new images created in the planner (Image studio)
-└── exports/         generated PNG / PDF handouts (Phase 5)
+<project>/
+├── project.yaml       name, body (female | male), optional height_cm, schema version
+├── measurements.yaml  optional; your measurements (see Configuration)
+├── layouts/           layout variants, one YAML each
+├── projections/       calibrations of photos of existing tattoos
+├── manifest.yaml      image catalogue, kept by the planner
+├── images/            reference images
+├── photos/            body photos for projections
+├── edits/, generated/ Image studio results
+└── exports/           PDF / PNG handouts
 ```
+
+An older data folder (with `manifest.yaml` but no `project.yaml`, such as Jan's) still opens: its images in `refs/`, `cards/`, `existing/`, `arm-photos/` and `ideas/` keep working, and its layouts, projections and measurements keep coming from this repo's `config/` until you press **Move into project** in Settings → Project or run `npm run migrate -- <folder>`. Both copy `config/layouts/*`, `config/projections/*` and `config/measurements.yaml` into the folder (never overwriting) and write `project.yaml`; afterwards the repo's `config/` is no longer read for it.
 
 ## Setup
 
@@ -47,16 +46,20 @@ Requires Node ≥ 22.18 and npm.
 ```sh
 npm ci            # install (install scripts are disabled by .npmrc)
 npm run hooks     # enable the pre-commit guard (once per clone)
-cp .env.example .env
+npm run dev       # http://127.0.0.1:4320
 ```
 
-Then set the data folder in `.env`. Quote the path when it contains spaces; `~` is expanded:
+Without a project the planner opens a start screen: create a project (name, body, a folder picked in the in-browser folder dialog, which only shows folders inside your home folder) or open an existing one. The open project and the recent ones are remembered in `~/.config/tattoo-planner/config.json` (`$XDG_CONFIG_HOME/tattoo-planner/config.json` when that is set).
+
+To pin the planner to one folder instead (Jan's Seafile folder, CI), set `TATTOO_DATA_DIR` in the shell or in a git-ignored `.env` (`cp .env.example .env`); it wins over the remembered project, and switching or closing projects is then disabled. Quote the path when it contains spaces; `~` is expanded:
 
 ```sh
 TATTOO_DATA_DIR="~/Your Secure Cloud/<library>/tattoo-planner-data"
 ```
 
-A variable set in the shell wins over `.env`. The only other settings are optional and for generative edits in the Image studio: `TATTOO_OPENAI_API_KEY` and, rarely needed, `TATTOO_OPENAI_MODEL`, `TATTOO_OPENAI_FIDELITY`, `TATTOO_OPENAI_QUALITY` (see `.env.example`).
+The only other settings are optional and for generative edits in the Image studio: `TATTOO_OPENAI_API_KEY` and, rarely needed, `TATTOO_OPENAI_MODEL`, `TATTOO_OPENAI_FIDELITY`, `TATTOO_OPENAI_QUALITY` (see `.env.example`).
+
+Jan's move, once: `npm run migrate -- "~/Your Secure Cloud/<library>/tattoo-planner-data"` (or the button), then check Settings → Project.
 
 ## Usage
 
@@ -129,25 +132,26 @@ A second export of the same layout on the same day gets `-2`, then `-3`; nothing
 
 The PDF (A4, English): a cover with the layout's name as title, its description as subtitle, the date, the note that this is a sketch and the artist has creative freedom, and a legend of the element types; all four views (front = inner, back = outer, medial, lateral) at a glance with blockout and reference side by side; one page per view with the elements facing that side; the unwrap with cm grid in both modes; a table of every element (type, reference image, size in cm, position, style or pattern, `notes:` from the YAML); coverage per zone; what this layout leaves open (unset heights, missing images, placeholder measurements). All handout wording lives in `src/export/strings.ts`, ready for a German version. Give an element a `notes: "…"` line in the YAML to pass a remark to the artist.
 
-The dev server endpoint behind it (`src/export/server/exportsApi.ts`): `GET /api/exports` (enabled or why not), `GET /api/exports/<path>` (read a written file back), `POST /api/exports` (reserve a name), `PUT /api/exports/<base>.pdf` or `/<base>/<name>.png` (write one file; type, signature, size and path are checked; nothing outside `exports/`). Decisions: `docs/adr/0004-export.md`.
+The endpoint behind it (`server/exportsApi.ts`): `GET /api/exports` (enabled or why not), `GET /api/exports/<path>` (read a written file back), `POST /api/exports` (reserve a name), `PUT /api/exports/<base>.pdf` or `/<base>/<name>.png` (write one file; type, signature, size and path are checked; nothing outside `exports/`). Decisions: `docs/adr/0004-export.md`.
 
 ### Cataloguing images
 
 ```sh
-npm run assets:scan  # catalogue new images in cards/, refs/, existing/, arm-photos/ (Reload in the planner does the same)
+npm run assets:scan  # catalogue new images in images/, photos/ and the older folders (Reload in the planner does the same)
 ```
 
-It reads `TATTOO_DATA_DIR` (shell or `.env`) and writes only `manifest.yaml` in the data folder: an entry for every image no entry references yet, with an id from its path (`cards/rhonas.jpg` → `cards-rhonas`) and the kind from its folder (`card-art`, `reference`, `existing`, `arm-photo`). A text file with the same name next to an image (`refs/medusa.txt`) becomes its `source`. Running it again is safe: it only adds entries for new files. Your edits to `manifest.yaml` (ids, notes, tags, comments, order) are kept; a manifest with errors is never overwritten. Details: `docs/adr/0003-ideas-pdf-ingestion.md`.
+It scans the open project (`TATTOO_DATA_DIR`, else the remembered one) and writes only its `manifest.yaml`: an entry for every image no entry references yet, with an id from its path (`cards/rhonas.jpg` → `cards-rhonas`) and the kind from its folder (`images/` → `reference`, `photos/` → `arm-photo`; older folders: `cards/` → `card-art`, `refs/` → `reference`, `existing/` → `existing`, `arm-photos/` → `arm-photo`). A text file with the same name next to an image (`refs/medusa.txt`) becomes its `source`. Running it again is safe: it only adds entries for new files. Your edits to `manifest.yaml` (ids, notes, tags, comments, order) are kept; a manifest with errors is never overwritten. Details: `docs/adr/0003-ideas-pdf-ingestion.md`.
 
 The former `npm run ingest` (splitting `ideas.pdf` into images with mupdf) was removed: it was specific to one PDF and mupdf's AGPL licence does not fit an open-source product (`docs/product/roadmap.md` §3). Images it extracted into `ideas/` earlier keep working: they are ordinary manifest entries (`page` and `bbox` stay as they are).
 
-### Asset manifest and the dev server
+### Asset manifest and the server
 
-The dev server reads `<TATTOO_DATA_DIR>/manifest.yaml` (schema: `src/assets/manifest.ts`) and serves, on `127.0.0.1` only:
+The planner's server (`server/`, mounted by `npm run dev` and `npm run serve`) reads `<project>/manifest.yaml` (schema: `src/assets/manifest.ts`) and serves, on `127.0.0.1` only:
 
 - `GET /api/assets`: the manifest entries, each with `exists`; invalid entries become warnings instead of hiding the rest; no manifest yet = an empty list.
-- `GET /api/projections`, `PUT /api/projections/<name>`: the calibrations in `config/projections/` (text YAML, validated, comments kept).
-- `GET /api/assets/image/<id>`: the image of one manifest entry, nothing else. Only `png`, `jpg`/`jpeg`, `webp`, `gif` and `avif`; HEIC/HEIF answer 415 (export them as JPEG). Paths must be relative, without `..`, and stay inside the data folder after resolving symlinks.
+- `GET /api/projections`, `PUT /api/projections/<name>`: the calibrations in the project's `projections/` (text YAML, validated, comments kept).
+- `GET /api/assets/image/<id>`: the image of one manifest entry, nothing else. Only `png`, `jpg`/`jpeg`, `webp`, `gif` and `avif`; HEIC/HEIF answer 415 (export them as JPEG). Paths must be relative, without `..`, and stay inside the project folder after resolving symlinks.
+- `/api/project`: status (`none | legacy | project`, path, name, body, height, recent), `PATCH` (name, body, `height_cm`; comments kept), `POST open | create | close | migrate`, `GET browse?path=` (sub-folders for the folder dialog: inside the home folder only, no symlink escapes, no dot folders) and `GET`/`PUT measurements` (the raw text of `measurements.yaml`). Details in `server/projectApi.ts`.
 
 `v1-baseline.yaml` uses these asset ids: `anubis-photo` (must point at `arm-photos/anubis1_nr.JPG`, because the layout's crop is fitted to that photo), `rhonas-card` (the Rhonas card image from ideas.pdf; the layout's crop is fitted to the full card), `medusa-ref-01`, `skull-ref-01` and `pegasus-ref-01`. An id that is not in the manifest renders as a placeholder. The entry for the Anubis photo:
 
@@ -162,36 +166,43 @@ The dev server reads `<TATTOO_DATA_DIR>/manifest.yaml` (schema: `src/assets/mani
 
 Figures and existing tattoos take these optional fields (rules in `src/layout/imageFit.ts`):
 
-| Field                | Meaning                                                                                                                                                                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `crop`               | `{ x, y, w, h }`, 0–1 from the left/top edge of the image as stored (before turning). Overrides the asset's `crop` in the manifest; without either, the whole image.                                                                 |
-| `image_rotation_deg` | `90`, `180` or `270`: turns the cut-out clockwise, e.g. for a photo of the arm lying sideways.                                                                                                                                       |
-| `flip`               | `true` mirrors the image left-right (after turning).                                                                                                                                                                                 |
-| `feather_cm`         | soft edge of the cut-out in cm, default `1`; `0` for a hard edge.                                                                                                                                                                    |
-| `filter`             | `none`, `grayscale` or `hatching` (grayscale with an engraving line screen). Default: `grayscale` when the element's centre is on the forearm, `none` above the elbow. Photos are stretched so skin turns white.                     |
-| `projection`         | existing tattoos only: a calibration in `config/projections/` (e.g. `anubis`). The tattoo is then drawn from all its photos where they put it, and the fields above, `position` and `size_cm` only apply while that cannot be built. |
+| Field                | Meaning                                                                                                                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crop`               | `{ x, y, w, h }`, 0–1 from the left/top edge of the image as stored (before turning). Overrides the asset's `crop` in the manifest; without either, the whole image.                                                                        |
+| `image_rotation_deg` | `90`, `180` or `270`: turns the cut-out clockwise, e.g. for a photo of the arm lying sideways.                                                                                                                                              |
+| `flip`               | `true` mirrors the image left-right (after turning).                                                                                                                                                                                        |
+| `feather_cm`         | soft edge of the cut-out in cm, default `1`; `0` for a hard edge.                                                                                                                                                                           |
+| `filter`             | `none`, `grayscale` or `hatching` (grayscale with an engraving line screen). Default: `grayscale` when the element's centre is on the forearm, `none` above the elbow. Photos are stretched so skin turns white.                            |
+| `projection`         | existing tattoos only: a calibration in the project's `projections/` (e.g. `anubis`). The tattoo is then drawn from all its photos where they put it, and the fields above, `position` and `size_cm` only apply while that cannot be built. |
 
 Size: when `size_cm.w` is not set, the box takes the proportions of the upright cut-out (in every mode, so blockout, metrics and picture agree; until the image has loaded, or without a data folder, the old 0.55 × height is used). When both `h` and `w` are set, the image is fitted inside the box without distortion and centred.
 
 ## Configuration
 
-- `config/measurements.yaml`: measurements in cm (PROJECT_BRIEF.md §13.1). The top-level `arm: left` blocks are the left arm; optional `body: female | male` (sample body, default male), `height_cm` (scales every unmeasured value) and `regions:` with any subset of a region's keys (`src/body/inputs.ts` lists them). `null` or a missing key means not measured yet. How to measure and photograph the arm: `docs/measuring.md`.
-- `config/layouts/*.yaml`: layout variants (§13.2), starting with `v1-baseline.yaml`. Hand-editable; Git history is the design history.
-- `config/projections/*.yaml`: how photos of an existing tattoo map onto the arm (ADR 0006), edited in the Projection tab or by hand.
+All of these live in the project folder (for an older data folder not yet moved: in this repo's `config/`).
+
+- `project.yaml`: `version: 1`, `name`, `body: female | male` (the sample body), optional `height_cm`; edited in Settings → Project, unknown keys are kept. Body and height here win over the same keys in `measurements.yaml`.
+- `measurements.yaml`: measurements in cm (PROJECT_BRIEF.md §13.1). The top-level `arm: left` blocks are the left arm; optional `body` and `height_cm` (the place before `project.yaml`; used only where `project.yaml` says nothing) and `regions:` with any subset of a region's keys (`src/body/inputs.ts` lists them). `null` or a missing key means not measured yet; a project without the file uses the sample body. How to measure and photograph the arm: `docs/measuring.md`.
+- `layouts/*.yaml`: layout variants (§13.2), e.g. `v1-baseline.yaml`; a new project starts with an empty `first-sketch.yaml`. Hand-editable.
+- `projections/*.yaml`: how photos of an existing tattoo map onto the arm (ADR 0006), edited in the Projection tab or by hand.
 
 ## Development
 
-| Command             | What it does                                               |
-| ------------------- | ---------------------------------------------------------- |
-| `npm run dev`       | Vite dev server with the data-folder middleware            |
-| `npm test`          | Vitest unit tests                                          |
-| `npm run lint`      | ESLint and Prettier check                                  |
-| `npm run format`    | Prettier write                                             |
-| `npm run typecheck` | TypeScript project build check                             |
-| `npm run build`     | Static production bundle (without data-folder access)      |
-| `npm run check`     | lint, typecheck, tests and the binary guard over all files |
+| Command                       | What it does                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| `npm run dev`                 | Vite dev server with the planner's API (`server/`)                                |
+| `npm test`                    | Vitest unit tests                                                                 |
+| `npm run lint`                | ESLint and Prettier check                                                         |
+| `npm run format`              | Prettier write                                                                    |
+| `npm run typecheck`           | TypeScript project build check                                                    |
+| `npm run build`               | Static production bundle in `dist/`                                               |
+| `npm run serve -- [port]`     | serves `dist/` plus the API on 127.0.0.1 without Vite (run `npm run build` first) |
+| `npm run migrate -- <folder>` | moves the repo's `config/` into a project folder (see above)                      |
+| `npm run check`               | lint, typecheck, tests and the binary guard over all files                        |
 
-Layout: `src/body/` builds the body regions, sample bodies, placement, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures (blockout, reference, patterns), `src/layout/` holds the layout schema, shapes and image-fit rules, `src/assets/` the manifest schema and the asset browser, `src/viewer/` holds the 3D view and panels, `src/data/` resolves and lists the data folder and serves assets (`server/` runs in the dev server only), `src/export/` builds the handout and the PNGs (`server/` writes them into the data folder), `src/projection/` projects photos onto the skin (model, patch, calibration schema and the Projection tab), `src/edits/` edits reference images with built-in operations or GPT Image and creates new ones (prompts and rules, the Image studio tab, `server/` runs the generative jobs and keeps the sessions; the pixel operations live in `src/render/builtinOps.ts`), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
+`npm run serve` takes the port from its argument or `TATTOO_PORT` (default 4322; `0` picks a free one) and prints the URL; the desktop shell will reuse `startServer()` from `server/standalone.ts`.
+
+Layout: `src/body/` builds the body regions, sample bodies, placement, mesh and unwrap coordinates (plain TypeScript), `src/render/` paints textures (blockout, reference, patterns), `src/layout/` holds the layout schema, shapes and image-fit rules, `src/assets/` the manifest schema and the asset browser, `src/viewer/` holds the 3D view and panels, `server/` holds every request handler as plain Node modules (`createApi()` in `server/api.ts`, the project folder in `server/project/`, the Vite-free server in `server/standalone.ts`), `src/project/` the project schema, start screen, folder picker and project screen, `src/data/` the folder listing on the project screen, `src/export/` builds the handout and the PNGs, `src/projection/` projects photos onto the skin (model, patch, calibration schema and the Projection tab), `src/edits/` edits reference images with built-in operations or GPT Image and creates new ones (prompts and rules, the Image studio tab; `server/editsApi.ts` runs the generative jobs and keeps the sessions; the pixel operations live in `src/render/builtinOps.ts`), `src/config/` holds the config schemas, `scripts/check-binaries.mjs` is the pre-commit guard, `tests/` the unit tests.
 
 ### UI conventions
 

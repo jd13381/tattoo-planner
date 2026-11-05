@@ -430,7 +430,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
           <p>
             {listing.status === "unset" ? (
               <>
-                Reference images live in the data folder, and none is set up yet. Once it is, pick an image
+                Reference images live in the project folder, and none is open yet. Once it is, pick an image
                 here and touch it up with the built-in tools, or let GPT Image redraw it.
               </>
             ) : (
@@ -438,7 +438,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
             )}
           </p>
           <a className="button primary" href="#data">
-            Set up the data folder
+            Open a project
           </a>
         </section>
       </div>
@@ -822,7 +822,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
             type="button"
             className="ghost small-button"
             onClick={reload}
-            title="Look for new images in the data folder (as npm run assets:scan), then re-read manifest.yaml"
+            title="Look for new images in the project folder, then re-read manifest.yaml"
           >
             Reload
           </button>

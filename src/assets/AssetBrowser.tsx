@@ -120,7 +120,7 @@ export function AssetBrowser(props: Props) {
             type="button"
             className="ghost"
             onClick={onReload}
-            title="Look for new images in the data folder, then re-read manifest.yaml and the images"
+            title="Look for new images in the project folder, then re-read manifest.yaml and the images"
           >
             Reload
           </button>
