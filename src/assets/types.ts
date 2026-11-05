@@ -54,3 +54,8 @@ export function scanSummary(r: ScanReport): string {
 export function assetImageUrl(id: string): string {
   return `${ASSET_IMAGE_ENDPOINT}/${encodeURIComponent(id)}`;
 }
+
+/** PATCH (JSON { tags?, notes?, hidden? }): edit one manifest entry → the new AssetListing. */
+export function assetEntryUrl(id: string): string {
+  return `${ASSETS_ENDPOINT}/entries/${encodeURIComponent(id)}`;
+}

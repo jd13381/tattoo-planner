@@ -35,6 +35,8 @@ export const assetSchema = z.strictObject({
   bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
   /** Default cut-out used when an element shows this asset without its own crop. */
   crop: rectSchema.optional(),
+  /** Left out of the image pickers (Assets tab → Hide); the file and the entry stay. */
+  hidden: z.boolean().optional(),
 });
 export type Asset = z.infer<typeof assetSchema>;
 
