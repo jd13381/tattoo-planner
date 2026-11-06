@@ -5,7 +5,7 @@
 
 ## Decision
 
-**Profile.** The arm is a loft of elliptical cross-sections along a straight axis from the wrist crease (s = 0) to the shoulder point (s = length = elbow→wrist + shoulder→elbow). Each circumference from `measurements.yaml` is a station at a known s: fixed landmarks for wrist, forearm mid, elbow, 5 cm above the elbow and biceps mid; measured distances (`positions` block) for forearm max, armpit level and the shoulder tape. Between stations the circumference follows a monotone cubic spline (Fritsch–Carlson), so the arm never bulges where nobody measured a bulge. Overlapping positions are sorted and reported in the UI instead of folding the mesh.
+**Profile.** The arm is a loft of elliptical cross-sections along a straight axis from the wrist crease (s = 0) to the shoulder point (s = length = elbow→wrist + shoulder→elbow). Each circumference from `measurements.yaml` is a station at a known s: fixed landmarks for wrist, forearm mid, elbow, 5 cm above the elbow and biceps mid; measured distances (`positions` block) for forearm max, armpit level and the shoulder tape. Between stations the circumference follows a monotone cubic spline (Fritsch–Carlson; a monotone C2 spline since ADR 0022), so the arm never bulges where nobody measured a bulge. Overlapping positions are sorted and reported in the UI instead of folding the mesh.
 
 **Cross-sections.** Ellipses sized so their perimeter equals the measured circumference. The aspect ratio (width across / depth) is an anatomical assumption, not a measurement: 1.4 at the wrist, 1.2 mid forearm, 1.08 at the elbow, 1.0 at the shoulder. Vertices are placed by arc length, so equal steps around the ring are equal cm of skin.
 
