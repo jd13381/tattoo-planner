@@ -802,7 +802,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header, openRe
         type="button"
         className={`ghost icon-button active-star${isActive ? " on" : ""}`}
         onClick={() => void markActive()}
-        disabled={!savedVariant || readOnlyProject}
+        disabled={!savedVariant || readOnlyProject || !person}
         aria-pressed={isActive}
         aria-label={isActive ? "Active variant" : "Set as active variant"}
         title={
@@ -812,7 +812,9 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header, openRe
               ? `Active: Home shows ${name} on the ${REGIONS[region].label.toLowerCase()}`
               : readOnlyProject
                 ? "The sample is read-only"
-                : `Set as active: show ${name} on Home`
+                : !person
+                  ? "Move this folder into a project first (Settings → Project)"
+                  : `Set as active: show ${name} on Home`
         }
       >
         <StarIcon filled={isActive} />

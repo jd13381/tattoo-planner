@@ -71,7 +71,6 @@ export function StartScreen({ status }: { status: ProjectStatus | null }) {
             </p>
             <button
               type="button"
-              className="primary"
               onClick={() => void run(openSample)}
               disabled={busy || !status?.sampleAvailable}
             >

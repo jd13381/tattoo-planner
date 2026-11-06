@@ -4,6 +4,7 @@
 // `saveMeasurementsText` and `saveBodyChoice` are the only places that talk to the server.
 import { useSyncExternalStore } from "react";
 import { updateProject } from "../project/api.ts";
+import { takePersons } from "../project/personsStore.ts";
 import { measurementsText as initialText, projectStatus } from "../project/projectData.ts";
 import { PROJECT_ENDPOINT, type MeasurementsFile, type ProjectStatus } from "../project/schema.ts";
 
@@ -59,7 +60,10 @@ export async function saveMeasurementsText(next: string): Promise<void> {
   set({ text: body.text });
 }
 
-/** Writes body and height into project.yaml (only for a project folder, see bodyInProject). */
+/**
+ * Writes body and height into project.yaml (only for a project folder, see bodyInProject): the
+ * current person's, so the root person's top level or another person's entry.
+ */
 export async function saveBodyChoice(patch: {
   body?: NonNullable<ProjectStatus["body"]>;
   height_cm?: number | null;
@@ -69,4 +73,6 @@ export async function saveBodyChoice(patch: {
     ...(patch.height_cm !== undefined ? { height_cm: patch.height_cm } : {}),
   });
   set({ project: { body: p.body, height_cm: p.height_cm } });
+  // The current person's body and height (docs/adr/0017-persons.md): Home and the person chip.
+  takePersons(p);
 }
