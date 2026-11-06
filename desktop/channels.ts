@@ -7,4 +7,5 @@ export const CHANNELS = {
   getKeyStatus: "tattoo:key-status",
   setOpenAIKey: "tattoo:set-openai-key",
   clearOpenAIKey: "tattoo:clear-openai-key",
+  setTheme: "tattoo:set-theme",
 } as const;

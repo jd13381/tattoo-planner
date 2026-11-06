@@ -18,6 +18,7 @@ export const SETTINGS_SECTIONS = [
   { id: "body", label: "Body & measurements" },
   { id: "projection", label: "Projection" },
   { id: "image-generation", label: "Image generation" },
+  { id: "appearance", label: "Appearance" },
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["id"];

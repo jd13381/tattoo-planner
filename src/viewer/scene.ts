@@ -6,10 +6,11 @@ import { buildLoftMesh } from "../body/geometry.ts";
 import type { RegionProfile } from "../body/profile.ts";
 
 /**
- * The live viewer's canvas is transparent so the workspace gradient (CSS, .canvas-wrap) shows
- * through; screenshots are flattened onto this colour. The PDF export uses EXPORT_BACKGROUND.
+ * The live viewer's canvas is transparent so the workspace gradient (CSS, .canvas-wrap, which
+ * follows the theme) shows through; screenshots are flattened onto this colour, per theme. The PDF
+ * export uses EXPORT_BACKGROUND, the same in every theme.
  */
-export const VIEWER_BACKGROUND = "#111116";
+export const VIEWER_BACKGROUND = { dark: "#111116", light: "#dedee5" } as const;
 export const LIGHTS = {
   hemisphere: { sky: "#ffffff", ground: "#4a4440", intensity: 1.2 },
   key: { position: [60, 120, 90] as [number, number, number], intensity: 1.6 },

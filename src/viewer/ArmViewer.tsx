@@ -77,7 +77,8 @@ export function ArmViewer(props: Props) {
     flat.height = canvas.height;
     const ctx = flat.getContext("2d");
     if (!ctx) return;
-    ctx.fillStyle = VIEWER_BACKGROUND;
+    ctx.fillStyle =
+      VIEWER_BACKGROUND[document.documentElement.classList.contains("light") ? "light" : "dark"];
     ctx.fillRect(0, 0, flat.width, flat.height);
     ctx.drawImage(canvas, 0, 0);
     // Downloads go to the browser's download folder, never into the repo.

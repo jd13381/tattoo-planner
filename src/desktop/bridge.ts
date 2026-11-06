@@ -1,5 +1,6 @@
 // The desktop shell's preload bridge (desktop/preload.cts), as the page sees it: `window.tattooDesktop`
 // exists only in the desktop app. Types only plus one accessor, so the page and the preload agree.
+import type { Theme } from "../ui/theme.ts";
 
 export type PickPurpose = "open" | "create";
 export type PickOptions = { title: string; purpose: PickPurpose };
@@ -25,6 +26,10 @@ export type TattooDesktop = {
   /** Encrypts and stores the key; rejects with a readable message when it cannot. */
   setOpenAIKey: (key: string) => Promise<KeyStatus>;
   clearOpenAIKey: () => Promise<KeyStatus>;
+  /** The theme the window was opened with (kept in the app's settings folder). */
+  initialTheme?: Theme;
+  /** Stores the theme choice and repaints the native window background to match. */
+  setTheme?: (theme: Theme) => Promise<void>;
 };
 
 declare global {
