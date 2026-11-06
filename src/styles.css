@@ -1662,6 +1662,80 @@ th.cat-open::before {
   background: var(--border-strong);
 }
 
+/* Layout opened from Home: "‹ Home › person ›" in front of the region picker. */
+.layout-crumbs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+button.ghost.crumb-back {
+  gap: 4px;
+  padding: 0 8px 0 4px;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+button.ghost.crumb-back:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--border-hover);
+}
+
+.crumb-sep {
+  color: var(--faint);
+  padding: 0 1px;
+}
+
+.crumb-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.crumb-person-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+/* The house icon stands in for the label only where the top bar runs out of room (below). */
+.crumb-back .icon:nth-child(2) {
+  display: none;
+}
+
+/* Narrower windows: the person chip beside it already shows who, and Save drops its key hint (the
+ * tooltip has it), so the tabs keep their room. */
+@media (max-width: 1600px) {
+  .crumb-person {
+    display: none;
+  }
+  .app-header:has(.layout-crumbs) .kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 1360px) {
+  .crumb-back .icon:nth-child(2) {
+    display: inline;
+  }
+  .crumb-back-label {
+    display: none;
+  }
+  .app-header:has(.layout-crumbs) .tabs button {
+    padding: 0 6px;
+  }
+  /* The back button carries the house here. */
+  .app-header:has(.layout-crumbs) .tabs .icon {
+    display: none;
+  }
+  .app-header .header-sep:has(+ .layout-crumbs) {
+    display: none;
+  }
+}
+
 .select-wrap {
   position: relative;
   display: inline-flex;

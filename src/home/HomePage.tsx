@@ -28,6 +28,12 @@ type Props = {
   unsaved: boolean;
 };
 
+/** Turntable and picked view when Home last closed, so the way back from Layout looks the same. */
+const lastStage: { spin: boolean | null; view: HomeView } = {
+  spin: null,
+  view: { name: "front", request: 0 },
+};
+
 function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }
@@ -60,8 +66,12 @@ export function HomePage({ project, arm, onOpenRegion, onOpenProject, unsaved }:
   );
 
   const [hover, setHover] = useState<RegionId | null>(null);
-  const [spin, setSpin] = useState(() => !prefersReducedMotion());
-  const [view, setView] = useState<HomeView>({ name: "front", request: 0 });
+  const [spin, setSpin] = useState(() => lastStage.spin ?? !prefersReducedMotion());
+  const [view, setView] = useState<HomeView>(() => lastStage.view);
+  useEffect(() => {
+    lastStage.spin = spin;
+    lastStage.view = view;
+  }, [spin, view]);
   const stopSpin = useCallback(() => setSpin(false), []);
   const hovered = hover ? regions.find((r) => r.id === hover) : undefined;
   const planned = regions.some((r) => r.layout && r.layout.elements.length > 0);

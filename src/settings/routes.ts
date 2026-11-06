@@ -53,3 +53,14 @@ export function parseRoute(hash: string): Route {
 export function routeHash(r: Route): string {
   return r.tab === "settings" ? `settings/${r.section}` : r.tab;
 }
+
+/**
+ * Home opens a region in the Layout tab as a new history entry marked with this state, so the
+ * browser's Back (and the Layout tab's "‹ Home") return to Home. Tab clicks replace the entry instead.
+ */
+export const FROM_HOME_STATE = { from: "home" } as const;
+
+/** Whether a history entry's state is the one Home pushed when it opened a region. */
+export function isFromHome(state: unknown): boolean {
+  return typeof state === "object" && state !== null && (state as { from?: unknown }).from === "home";
+}
