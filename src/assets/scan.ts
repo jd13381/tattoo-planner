@@ -17,17 +17,19 @@ export const SCAN_FOLDERS: Readonly<Record<string, string>> = {
 };
 
 /**
+/**
  * The kind a scanned file gets, by its path; null when the scan leaves it alone. Rules: never inside
- * dot folders (.trash, .trash-pending); photos/existing/ → existing; photos/ → arm-photo;
- * persons/<id>/photos/ the same for that person; otherwise by the top-level folder (SCAN_FOLDERS).
- * Images loose in the project root are not catalogued.
+ * dot folders (.trash, .trash-pending); photos/existing/ → existing; photos/ → arm-photo; a person's
+ * persons/<id>/photos/ and persons/<id>/existing/ (docs/adr/0017-persons.md) the same way; otherwise
+ * by the top-level folder (SCAN_FOLDERS). Images loose in the project root are not catalogued.
  */
 export function scanKind(file: string): string | null {
   const parts = file.split("/");
   if (parts.length < 2 || parts.some((p) => p.startsWith("."))) return null;
   let rest = parts;
   if (parts[0] === PERSONS_FOLDER) {
-    if (parts.length < 4 || !PERSON_ID.test(parts[1]!) || parts[2] !== "photos") return null;
+    if (parts.length < 4 || !PERSON_ID.test(parts[1]!)) return null;
+    if (parts[2] !== "photos" && parts[2] !== "existing") return null;
     rest = parts.slice(2);
   }
   if (rest[0] === "photos" && rest.length > 2 && rest[1] === "existing") return "existing";
@@ -60,7 +62,7 @@ export function assetIdFromPath(file: string): string {
 }
 
 /** Folders the planner fills itself (images extracted from ideas.pdf in the past, kept edits, new images, exports): never scanned. */
-export const MANAGED_FOLDERS = ["ideas", "edits", "generated", "exports", PERSONS_FOLDER];
+export const MANAGED_FOLDERS = ["ideas", "edits", "generated", "exports"];
 
 export type ScanResult = {
   candidates: Asset[];

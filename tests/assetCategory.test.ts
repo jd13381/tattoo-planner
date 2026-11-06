@@ -55,6 +55,8 @@ describe("personOf and folders", () => {
   it("gives photos a person and the library none", () => {
     expect(personOf(e("arm-photos/front.JPG", "arm-photo"), "measuring")).toBe("me");
     expect(personOf(e("persons/anna/photos/x.jpg", "arm-photo"), "existing")).toBe("anna");
+    expect(categoryOf(e("persons/anna/existing/rose.jpg", "existing"))).toBe("existing");
+    expect(personOf(e("persons/anna/existing/rose.jpg", "existing"), "existing")).toBe("anna");
     expect(personOf(e("photos/x.jpg", "arm-photo", { person: "bob" }), "existing")).toBe("bob");
     expect(personOf(e("images/a.png", "reference", { person: "bob" }), "reference")).toBeNull();
     expect(personPath("persons/Bad_Id/x.png")).toBeNull();

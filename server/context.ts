@@ -9,7 +9,7 @@ import { resolveDataDir } from "./dataDir.ts";
 import { SAMPLE_FOLDER } from "./project/sample.ts";
 import { ProjectStore } from "./project/store.ts";
 import { userConfigFile } from "./project/userConfig.ts";
-import { settingsFromEnv, type Env, type KeyProvider } from "./settings.ts";
+import { SAVED_KEY_FILE, settingsFromEnv, type Env, type KeyProvider } from "./settings.ts";
 import { defaultTrasher, systemTrasher } from "./trash.ts";
 
 /** The checkout's git-ignored .env merged under the shell environment (the shell wins), as Vite does. */
@@ -43,20 +43,27 @@ export function createContext({
   openaiKey,
   trashItem,
 }: ContextOptions): ApiContext {
+  const config = configFile ?? userConfigFile(env, home);
   const legacyConfigDir = path.join(root, "config");
   // Resolved against the app folder, never the working directory: in the desktop app that is app.asar.
   const bundledSample = path.join(root, SAMPLE_FOLDER);
   const projects = new ProjectStore({
     envDir: resolveDataDir(env, root, home),
-    configFile: configFile ?? userConfigFile(env, home),
+    configFile: config,
     home,
     legacyConfigDir: existsSync(legacyConfigDir) ? legacyConfigDir : null,
     sampleDir: sampleDir !== undefined ? sampleDir : existsSync(bundledSample) ? bundledSample : null,
   });
+  // A key saved in Settings when run from a checkout lives next to the user config; the desktop app
+  // keeps its key in the Keychain instead (docs/adr/0016-openai-key-check.md).
+  const settings = settingsFromEnv(env, openaiKey, {
+    file: openaiKey ? null : path.join(path.dirname(config), SAVED_KEY_FILE),
+    configFile: config,
+  });
   return {
     projects,
     home,
-    settings: settingsFromEnv(env, openaiKey),
+    settings,
     trash: trashItem ? systemTrasher(trashItem) : defaultTrasher(process.platform, home),
   };
 }

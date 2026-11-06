@@ -17,7 +17,7 @@ import {
 } from "react";
 import { desktopBridge } from "../desktop/bridge.ts";
 import { getProject } from "../project/api.ts";
-import { personHeading, useCurrentPerson } from "../project/persons.ts";
+import { personHeading, useCurrentPerson } from "./person.ts";
 import { UndoToast, type UndoToastMessage } from "../ui/UndoToast.tsx";
 import { ActionError, commitDelete, importFile, runBatch, undoAction } from "./actions.ts";
 import {
@@ -71,6 +71,7 @@ import {
   UNDO_MS,
   type AssetInfo,
   type DeleteRefusal,
+  type PersonRef,
   type TrashMode,
 } from "./types.ts";
 import { parseTags } from "./usage.ts";
@@ -512,7 +513,7 @@ export function AssetsPage() {
           <ul>{nav("all")}</ul>
           <h3 className="assets-nav-head">Library</h3>
           <ul>{LIBRARY_SECTIONS.map(nav)}</ul>
-          <h3 className="assets-nav-head">{personHeading(currentPerson)}</h3>
+          <h3 className="assets-nav-head">{personHeading(currentPerson, persons.length > 1)}</h3>
           <ul>{PERSON_SECTIONS.map(nav)}</ul>
           <h3 className="assets-nav-head">Smart albums</h3>
           <ul>{SMART_SECTIONS.map(nav)}</ul>
@@ -786,7 +787,7 @@ function HideButton(props: { assets: AssetInfo[]; disabled: boolean; onHide: (hi
 /** "Move to …": a section, for photos per person when the project has several. */
 function MoveSelect(props: {
   disabled: boolean;
-  persons: { id: string; name: string | null; implicit: boolean }[];
+  persons: PersonRef[];
   current?: AssetInfo;
   onMove: (category: AssetCategory, person: string | null) => void;
 }) {
@@ -794,7 +795,7 @@ function MoveSelect(props: {
   for (const c of MOVE_TARGETS) {
     if (isPersonCategory(c) && props.persons.length > 1)
       for (const p of props.persons)
-        options.push({ value: `${c}:${p.id}`, label: `${CATEGORY_LABELS[c]} · ${personHeading(p)}` });
+        options.push({ value: `${c}:${p.id}`, label: `${CATEGORY_LABELS[c]} · ${personHeading(p, true)}` });
     else options.push({ value: `${c}:`, label: CATEGORY_LABELS[c] });
   }
   const now = props.current
@@ -882,7 +883,7 @@ function AssetDetail(props: {
   uses: AssetUse[];
   usageKnown: boolean;
   readOnly: boolean;
-  persons: { id: string; name: string | null; implicit: boolean }[];
+  persons: PersonRef[];
   busy: boolean;
   onOpen: (id: string) => void;
   onHide: (hide: boolean) => void;
@@ -986,7 +987,7 @@ function AssetDetail(props: {
         {owner && props.persons.length > 1 && (
           <>
             <dt>Person</dt>
-            <dd>{personHeading(owner)}</dd>
+            <dd>{personHeading(owner, true)}</dd>
           </>
         )}
         {pose && (

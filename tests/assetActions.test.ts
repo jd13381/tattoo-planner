@@ -161,7 +161,7 @@ describe("asset actions (Jan's legacy folder)", () => {
       "skull-1": ["generated", null],
     });
     expect(l.trash).toBe("system");
-    expect(l.persons).toEqual([{ id: "me", name: null, implicit: true }]);
+    expect(l.persons).toEqual([{ id: "me", name: "Me", implicit: true }]);
     const usage = ((await (await api("api/assets/usage")).json()) as UsageListing).usage;
     expect(usage.medusa).toEqual([
       { kind: "layout", person: "me", layout: "v1-baseline", element: "medusa" },

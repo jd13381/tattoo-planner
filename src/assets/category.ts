@@ -2,7 +2,7 @@
 // into one category, derived at read time from its fields, folder and use; an explicit `category`
 // field wins. Derived values are never written back, so a manifest that is only read stays
 // byte-identical. Framework-free, used by the server (listing, import) and the UI (sidebar, pickers).
-import { DEFAULT_PERSON_ID, PERSON_ID, PERSONS_FOLDER } from "../project/persons.ts";
+import { ROOT_PERSON_ID, PERSON_ID, PERSONS_FOLDER } from "../project/persons.ts";
 import type { Asset } from "./manifest.ts";
 import { fileKey } from "./manifestDoc.ts";
 
@@ -68,7 +68,7 @@ function under(file: string, ...folders: string[]): boolean {
 /**
  * The entry's category. Order: explicit `category`; `derived_from` (a kept edit); generated/ or the
  * tag generated; kind background or backgrounds/; then photos: photos/measuring/ → measuring,
- * photos/existing/ or kind existing → existing; a body photo (kind arm-photo, photos/, arm-photos/)
+ * photos/existing/, existing/ (also persons/<id>/existing/) or kind existing → existing; a body photo (kind arm-photo, photos/, arm-photos/)
  * → existing when a projection uses the file, else measuring; everything else is an idea.
  * `projectionFiles` holds fileKey()s of every projection photo (all persons).
  */
@@ -80,7 +80,7 @@ export function categoryOf(entry: Entry, projectionFiles?: ReadonlySet<string>):
   const own = personPath(entry.file);
   const rest = own ? own.rest : norm(entry.file);
   if (under(rest, "photos/measuring")) return "measuring";
-  if (under(rest, "photos/existing") || entry.kind === "existing") return "existing";
+  if (under(rest, "photos/existing", "existing") || entry.kind === "existing") return "existing";
   if (own || entry.kind === "arm-photo" || under(rest, "photos", "arm-photos")) {
     return projectionFiles?.has(fileKey(entry.file)) ? "existing" : "measuring";
   }
@@ -94,7 +94,7 @@ export function categoryOf(entry: Entry, projectionFiles?: ReadonlySet<string>):
 export function personOf(
   entry: Entry,
   category: AssetCategory,
-  defaultPerson: string = DEFAULT_PERSON_ID,
+  defaultPerson: string = ROOT_PERSON_ID,
 ): string | null {
   if (!isPersonCategory(category)) return null;
   if (entry.person) return entry.person;
@@ -105,7 +105,7 @@ export function personOf(
 export function folderFor(
   category: AssetCategory,
   person: string | null,
-  defaultPerson: string = DEFAULT_PERSON_ID,
+  defaultPerson: string = ROOT_PERSON_ID,
 ): string {
   switch (category) {
     case "reference":

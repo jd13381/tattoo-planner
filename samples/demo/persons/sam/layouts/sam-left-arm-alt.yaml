@@ -1,0 +1,15 @@
+# A second variant of Sam's left arm: "Set as active" in the Layout tab shows it on Home instead.
+name: sam-left-arm-alt
+region: arm-left
+description: "Compass instead of the mountains, the rest kept lighter"
+elements:
+  - id: compass
+    type: figure
+    asset: compass
+    position: { u: 0.00, v: 0.30 } # outer forearm
+    size_cm: { h: 10 }
+  - id: fern
+    type: figure
+    asset: fern
+    position: { u: 0.50, v: 0.68 } # inner upper arm
+    size_cm: { h: 14 }

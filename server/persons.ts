@@ -1,11 +1,9 @@
-// The persons of the open project, as the Assets API needs them (docs/adr/0020-asset-structure.md).
-// A seam for the persons work: today the implicit person (the top-level layouts/ and projections/,
-// or the app's config/ for an old data folder) plus every valid persons/<id>/ folder. When the
-// persons API lands, only this function changes.
-import { readdir } from "node:fs/promises";
+// The persons of the open project as the Assets API needs them (docs/adr/0020-asset-structure.md):
+// each person's layouts/ and projections/ folders, so references count every person's use of an image.
+// The list itself is the store's (docs/adr/0017-persons.md).
 import path from "node:path";
-import { DEFAULT_PERSON_ID, PERSON_ID, PERSONS_FOLDER, type PersonRef } from "../src/project/persons.ts";
-import { readProjectFile } from "./project/folder.ts";
+import type { PersonRef } from "../src/assets/types.ts";
+import { ROOT_PERSON_DEFAULT_NAME, ROOT_PERSON_ID, type PersonInfo } from "../src/project/persons.ts";
 import type { ProjectPaths } from "./project/store.ts";
 
 export type PersonDirs = PersonRef & {
@@ -13,56 +11,43 @@ export type PersonDirs = PersonRef & {
   projectionsDir: string | null;
 };
 
-/** Names given in project.yaml's optional `persons:` list ({ id, name }), by id. */
-async function personNames(dir: string): Promise<Map<string, string>> {
-  const r = await readProjectFile(dir).catch(() => null);
-  const list = r?.ok ? (r.project as { persons?: unknown }).persons : undefined;
-  const names = new Map<string, string>();
-  if (Array.isArray(list))
-    for (const p of list as { id?: unknown; name?: unknown }[])
-      if (typeof p?.id === "string" && typeof p.name === "string") names.set(p.id, p.name);
-  return names;
-}
-
-/** Every person of the project; the implicit one first. Empty when no project is open. */
-export async function projectPersons(paths: ProjectPaths): Promise<PersonDirs[]> {
-  if (!paths.dir) return [];
-  const names = await personNames(paths.dir);
-  const out: PersonDirs[] = [
-    {
-      id: DEFAULT_PERSON_ID,
-      name: names.get(DEFAULT_PERSON_ID) ?? null,
-      implicit: true,
-      layoutsDir: paths.layoutsDir,
-      projectionsDir: paths.projectionsDir,
-    },
-  ];
-  let entries: { name: string; isDirectory(): boolean }[] = [];
-  try {
-    entries = await readdir(path.join(paths.dir, PERSONS_FOLDER), { withFileTypes: true });
-  } catch {
-    // no persons/ folder: only the implicit person
-  }
-  for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!e.isDirectory() || !PERSON_ID.test(e.name) || e.name === DEFAULT_PERSON_ID) continue;
-    const base = path.join(paths.dir, PERSONS_FOLDER, e.name);
-    out.push({
-      id: e.name,
-      name: names.get(e.name) ?? e.name,
-      implicit: false,
-      layoutsDir: path.join(base, "layouts"),
-      projectionsDir: path.join(base, "projections"),
-    });
-  }
-  return out;
+/**
+ * Every person of the project with their folders; the root person first when the project has no
+ * persons list. `paths` are the current person's; a legacy folder (no persons) keeps the app's config/.
+ * Empty when no project is open.
+ */
+export function projectPersons(paths: ProjectPaths, persons: readonly PersonInfo[]): PersonDirs[] {
+  const dir = paths.dir;
+  if (!dir) return [];
+  if (persons.length === 0)
+    return [
+      {
+        id: ROOT_PERSON_ID,
+        name: ROOT_PERSON_DEFAULT_NAME,
+        implicit: true,
+        layoutsDir: paths.layoutsDir,
+        projectionsDir: paths.projectionsDir,
+      },
+    ];
+  return persons.map((p) => {
+    const current = p.id === paths.person;
+    const base = p.folder ? path.join(dir, ...p.folder.split("/")) : dir;
+    return {
+      id: p.id,
+      name: p.name,
+      implicit: p.root,
+      layoutsDir: current ? paths.layoutsDir : path.join(base, "layouts"),
+      projectionsDir: current ? paths.projectionsDir : path.join(base, "projections"),
+    };
+  });
 }
 
 /** The persons of a folder opened without the store (tests, the sample): top-level folders only. */
 export function folderPersons(dir: string): PersonDirs[] {
   return [
     {
-      id: DEFAULT_PERSON_ID,
-      name: null,
+      id: ROOT_PERSON_ID,
+      name: ROOT_PERSON_DEFAULT_NAME,
       implicit: true,
       layoutsDir: path.join(dir, "layouts"),
       projectionsDir: path.join(dir, "projections"),

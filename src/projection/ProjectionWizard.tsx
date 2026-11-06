@@ -47,7 +47,7 @@ import {
   type WizardStep,
 } from "./wizard.ts";
 import { EdgesArt, FacingThumb, MarksArt, TurnArt } from "./wizardArt.tsx";
-import { useCurrentPerson } from "../project/persons.ts";
+import { useCurrentPerson } from "../assets/person.ts";
 
 const PREVIEW_PX_PER_CM = 10;
 const TEXTURE_PX_PER_CM = 12;
@@ -563,6 +563,8 @@ function PhotoPicker(props: {
   const visible = (assets ?? []).filter(
     (a) =>
       !a.hidden &&
+      // Photos of other persons stay with them (docs/adr/0017-persons.md); the library is shared.
+      (a.effectivePerson === null || a.effectivePerson === person.id) &&
       (text === "" || `${a.id} ${a.file} ${a.tags.join(" ")}`.toLowerCase().includes(text.toLowerCase())),
   );
   // The current person's tattoo photos first, then their measuring photos (a new tattoo photo is

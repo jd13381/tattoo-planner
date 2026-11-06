@@ -7,6 +7,7 @@ import { editsHandler } from "./editsApi.ts";
 import { exportsHandler } from "./exportsApi.ts";
 import { sendError, type Handler, type Middleware } from "./http.ts";
 import { layoutsHandler } from "./layoutsApi.ts";
+import { openaiKeyHandler } from "./openaiKeyApi.ts";
 import { projectPersons } from "./persons.ts";
 import { projectHandler } from "./projectApi.ts";
 import { projectionsHandler } from "./projectionsApi.ts";
@@ -48,7 +49,7 @@ export function createApi(context: ApiContext): Api {
   const pending = new PendingDeletes(context.trash ?? defaultTrasher());
   const assets = assetsHandler({
     dir,
-    persons: async () => projectPersons(await paths()),
+    persons: async () => projectPersons(await paths(), await context.projects.persons()),
     sessions: (folder) => edits.sessionAssets(folder),
     pending,
   });
@@ -57,6 +58,7 @@ export function createApi(context: ApiContext): Api {
     ["/api/assets", assets],
     ["/api/exports", exportsHandler(dir)],
     ["/api/edits", edits.handle],
+    ["/api/openai-key", openaiKeyHandler(context.settings.keys)],
     ["/api/layouts", layoutsHandler(async () => (await paths()).layoutsDir)],
     ["/api/project", projectHandler(context.projects, context.home)],
     ["/api/projections", projectionsHandler(async () => (await paths()).projectionsDir)],

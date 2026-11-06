@@ -22,6 +22,7 @@ import {
   type BuiltinParams,
 } from "./builtin.ts";
 import { CATEGORY_LABELS, type AssetCategory } from "../assets/category.ts";
+import { useResolvedTheme } from "../ui/useTheme.ts";
 import { showInStudio } from "./edit.ts";
 import { encodePng, loadPixels } from "./pixelsDom.ts";
 import {
@@ -106,15 +107,18 @@ function useEditOverview(): { overview: EditOverview | null; error: string | nul
 type Backdrop = "light" | "dark";
 const BACKDROP_KEY = "tattoo-planner:studio-backdrop";
 
-/** Dark by default (the whole planner is dark); Light stays one click away for black line work. */
+/** The theme's backdrop until one is picked; the other stays one click away (black line work). */
 function useBackdrop(): [Backdrop, (b: Backdrop) => void] {
-  const [backdrop, setBackdrop] = useState<Backdrop>(() => {
+  const themed = useResolvedTheme();
+  const [picked, setBackdrop] = useState<Backdrop | null>(() => {
     try {
-      return localStorage.getItem(BACKDROP_KEY) === "light" ? "light" : "dark";
+      const v = localStorage.getItem(BACKDROP_KEY);
+      return v === "light" || v === "dark" ? v : null;
     } catch {
-      return "dark";
+      return null;
     }
   });
+  const backdrop = picked ?? themed;
   const set = useCallback((b: Backdrop) => {
     setBackdrop(b);
     try {

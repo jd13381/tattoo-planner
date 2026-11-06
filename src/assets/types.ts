@@ -1,5 +1,4 @@
 // Contract between the dev-server asset middleware (Node) and the browser UI.
-import type { PersonRef } from "../project/persons.ts";
 import type { AssetCategory } from "./category.ts";
 import type { Asset } from "./manifest.ts";
 import type { EntryPatch } from "./manifestDoc.ts";
@@ -17,6 +16,14 @@ export type AssetInfo = Asset & {
   effectiveCategory: AssetCategory;
   /** The person a photo belongs to; null for the shared library. */
   effectivePerson: string | null;
+};
+
+/** A person of the project as the Assets tab shows them (docs/adr/0017-persons.md). */
+export type PersonRef = {
+  id: string;
+  name: string;
+  /** The root person ("me"): photos in the top-level folders, no `person` field needed. */
+  implicit: boolean;
 };
 
 /**

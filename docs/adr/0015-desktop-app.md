@@ -39,6 +39,6 @@
 ## Consequences
 
 - The installed app keeps its project choice separate from `npm run dev` (`~/.config/tattoo-planner/`); the same folders open in both.
-- Unsigned releases show macOS's "cannot be opened" warning once (README, "Desktop app"); auto-update is not possible until the app is signed.
+- Unsigned releases show macOS's "cannot be opened" warning once (README, "Start"); auto-update is not possible until the app is signed.
 - An ad-hoc signed new version may ask once for Keychain access to the stored key.
 - Not verified on a Mac in this step (the work ran in a Linux container): the DMG build, the `.icns` conversion, the Keychain, the native folder dialog and Finder. The Linux build of the same configuration was packed and started (window, API, project creation, WebGL, CSP, IPC, blocked remote requests).

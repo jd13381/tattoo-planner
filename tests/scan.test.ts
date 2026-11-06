@@ -41,6 +41,7 @@ describe("assets:scan", () => {
     expect(scanKind("persons/anna/photos/existing/a.jpg")).toBe("existing");
     expect(scanKind("persons/anna/photos/b.jpg")).toBe("arm-photo");
     expect(scanKind("persons/anna/layouts/x.png")).toBeNull();
+    expect(scanKind("persons/anna/existing/rose.jpg")).toBe("existing");
     expect(scanKind("persons/Bad_Id/photos/b.jpg")).toBeNull();
     expect(scanKind("backgrounds/paper.png")).toBe("background");
     expect(scanKind("photos/.trash/x.png")).toBeNull();
@@ -52,6 +53,6 @@ describe("assets:scan", () => {
       ".trash/2026/images/old.png",
     ]);
     expect(candidates.map((c) => c.id)).toEqual(["persons-anna-photos-a"]);
-    expect(outside).toEqual([]);
+    expect(outside).toEqual(["persons/anna/notes/b.png"]);
   });
 });

@@ -32,29 +32,6 @@ export function pickableAssets(assets: readonly AssetInfo[], keep?: string): Ass
   return assets.filter((a) => !a.hidden || a.id === keep);
 }
 
-/**
- * The asset `dir` steps before (-1) or after (+1) `current` among the pickable images of the same
- * section (category; manifest order, wrapping round), for the quick previous / next arrows. Without
- * a current asset, `category` picks the list. Null when there is nothing to step to.
- */
-export function stepAsset(
-  assets: readonly AssetInfo[],
-  current: string | undefined,
-  dir: 1 | -1,
-  category?: string,
-): AssetInfo | null {
-  const now = current ? assets.find((a) => a.id === current) : undefined;
-  const k = now?.effectiveCategory ?? category;
-  const list = pickableAssets(assets, current).filter(
-    (a) => a.exists && (k === undefined || a.effectiveCategory === k),
-  );
-  if (list.length === 0) return null;
-  const i = now ? list.findIndex((a) => a.id === now.id) : -1;
-  if (i < 0) return dir === 1 ? list[0]! : list[list.length - 1]!;
-  if (list.length === 1) return null;
-  return list[(i + dir + list.length) % list.length]!;
-}
-
 /** What decides which images a sidebar section of the Assets tab shows. */
 export type SectionContext = {
   /** Null while the usage is loading: Unused is empty then. */

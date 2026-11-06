@@ -1,6 +1,7 @@
 // Debug texture for checking UV distortion: a cm grid on the unwrap (PROJECT_BRIEF.md §14, Phase 2).
 // Pure line model + a thin canvas painter, so the model can be tested without a browser.
 import type { RegionProfile } from "../body/profile.ts";
+import { MAIN_LINES } from "../body/regions.ts";
 import { screenSign } from "../body/uv.ts";
 import { wrapDelta } from "../layout/shapes.ts";
 
@@ -34,22 +35,40 @@ export function gridLines(profile: RegionProfile, stepCm = 1, majorEvery = 5, ce
     });
   }
 
-  // Lengthwise lines every stepCm from the outer centre line, clipped to the local circumference.
-  const maxK = Math.floor(profile.maxCircumference / 2 / stepCm);
-  for (let k = -maxK; k <= maxK; k++) {
-    if (k === 0) continue;
-    const x = k * stepCm;
-    let current: { x: number; y: number }[] = [];
-    const flush = () => {
-      if (current.length > 1)
-        lines.push({ points: current, weight: k % majorEvery === 0 ? "major" : "minor" });
-      current = [];
-    };
-    for (let y = 0; y <= L + 1e-9; y += ROW_STEP_CM) {
-      if (Math.abs(x) <= half(y)) current.push({ x, y });
-      else flush();
+  // Lengthwise lines every stepCm, measured along the ring from the nearer of the region's two main
+  // centre lines (MAIN_LINES: outer/inner on limbs, front/back on the torso), each family clipped to its
+  // half of the ring. A line then keeps its distance in cm from that centre line all the way along,
+  // so it runs parallel to it on the 3D body. Measuring every line from the texture centre instead let
+  // lines a quarter ring away drift by a quarter of every change in circumference (the S-shaped lines
+  // on the torso's front and back). The two families meet on the other two centre lines, which are
+  // drawn as axes anyway.
+  for (const anchor of MAIN_LINES[profile.kind]) {
+    const d = wrapDelta(anchor - centerU);
+    const maxK = Math.floor(profile.maxCircumference / 4 / stepCm);
+    for (let k = -maxK; k <= maxK; k++) {
+      if (k === 0) continue;
+      const offset = k * stepCm;
+      let current: { x: number; y: number }[] = [];
+      const flush = () => {
+        if (current.length > 1)
+          lines.push({ points: current, weight: k % majorEvery === 0 ? "major" : "minor" });
+        current = [];
+      };
+      for (let y = 0; y <= L + 1e-9; y += ROW_STEP_CM) {
+        const c = profile.circumferenceAt(y);
+        if (Math.abs(offset) > c / 4) {
+          flush();
+          continue;
+        }
+        // Wrap into the row; a line that crosses the seam continues on the other edge.
+        let x = d * c + offset;
+        x -= c * Math.round(x / c);
+        const prev = current[current.length - 1];
+        if (prev && Math.abs(x - prev.x) > c / 2) flush();
+        current.push({ x, y });
+      }
+      flush();
     }
-    flush();
   }
 
   // The four centre lines (u = 0, 0.25, 0.5, 0.75: outer, lateral, inner, medial on arms) as offsets

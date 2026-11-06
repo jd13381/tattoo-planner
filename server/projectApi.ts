@@ -10,6 +10,12 @@
 //   GET   /api/project/browse?path=    → BrowseListing: sub-folders, inside the home folder only
 //   GET   /api/project/measurements    → MeasurementsFile: the raw text of measurements.yaml or null
 //   PUT   /api/project/measurements    body { text } → MeasurementsFile (validated, written as given)
+// Persons (docs/adr/0017-persons.md); body, height, active variants and measurements above are the
+// current person's:
+//   POST   /api/project/persons              body { name, body, height_cm? } → ProjectStatus (shows them)
+//   PATCH  /api/project/persons/<id>         body { name?, body?, height_cm? } → ProjectStatus
+//   DELETE /api/project/persons/<id>         → RemovePersonResult (their folder goes to the trash)
+//   POST   /api/project/persons/<id>/select  → ProjectStatus: show that person (allowed in the sample)
 import { parseMeasurements } from "../src/config/loadMeasurements.ts";
 import type { MeasurementsFile } from "../src/project/schema.ts";
 import { HttpError, isCrossSite, readJson, send, sendError, subPath, type Handler } from "./http.ts";
@@ -35,6 +41,20 @@ export function projectHandler(store: ProjectStore, home: string): Handler {
       if (isCrossSite(req.headers)) throw new HttpError(403, "cross-site request refused");
       if (method === "PATCH" && sub === "/")
         return send(res, 200, await store.update(await readJson(req, 10_000)));
+      const person = /^\/persons\/([^/]+)(\/select)?$/.exec(sub);
+      if (person) {
+        const id = decodeURIComponent(person[1]!);
+        if (person[2]) {
+          if (method !== "POST") throw new HttpError(405, "method not allowed");
+          return send(res, 200, await store.selectPerson(id));
+        }
+        if (method === "PATCH")
+          return send(res, 200, await store.updatePerson(id, await readJson(req, 10_000)));
+        if (method === "DELETE") return send(res, 200, await store.removePerson(id));
+        throw new HttpError(405, "method not allowed");
+      }
+      if (method === "POST" && sub === "/persons")
+        return send(res, 200, await store.addPerson(await readJson(req, 10_000)));
       if (method === "PUT" && sub === "/measurements") {
         const body = (await readJson(req, 200_000)) as { text?: unknown } | null;
         if (typeof body?.text !== "string") throw new HttpError(400, "expected { text }");

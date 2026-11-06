@@ -15,6 +15,8 @@ import {
 } from "./api.ts";
 import { useFolderPicker } from "./FolderPicker.tsx";
 import { projectStatus } from "./projectData.ts";
+import { PeoplePanel } from "./PeoplePanel.tsx";
+import { getPersons } from "./personsStore.ts";
 import { NewProjectForm } from "./StartScreen.tsx";
 import { BODIES, BODY_LABELS, type Body, type MigrationReport, type ProjectStatus } from "./schema.ts";
 
@@ -197,6 +199,8 @@ export function ProjectPage() {
         />
       )}
 
+      {status.status === "project" && !migration && <PeoplePanel readOnly={sample} />}
+
       <FolderContents />
       {dialog}
     </div>
@@ -270,8 +274,8 @@ function ProjectDetails(props: {
         </div>
       </div>
       <p className="field-hint">
-        Body and height scale the sample body wherever you have not measured; measurements are in Body &amp;
-        measurements.
+        Body and height are {getPersons().current?.name ?? "the shown person"}&apos;s (see People below); they
+        scale the sample body wherever nobody measured. Measurements are in Body &amp; measurements.
       </p>
     </form>
   );

@@ -2,6 +2,8 @@
 // by the server (server/projectApi.ts) and the browser. Framework-free.
 import { z } from "zod";
 import { BODY_IDS, type BodyId } from "../body/samples.ts";
+import { REGION_IDS } from "../body/regions.ts";
+import { activeSchema, personsSchema, type PersonInfo } from "./persons.ts";
 
 export const PROJECT_FILE = "project.yaml";
 export const PROJECT_VERSION = 1;
@@ -33,15 +35,32 @@ export const projectSchema = z.looseObject({
   name: projectNameSchema,
   body: z.enum(BODIES),
   height_cm: heightSchema.nullable().optional(),
+  /** The root person's active layout variant per region (docs/adr/0017-persons.md). */
+  active: activeSchema.optional(),
+  /** Further persons (docs/adr/0017-persons.md); missing = the root person only. */
+  persons: personsSchema.optional(),
 });
 
 export type ProjectMeta = z.infer<typeof projectSchema>;
 
-/** PATCH /api/project: the fields the project screen edits; height_cm null removes it. */
+/**
+ * PATCH /api/project: the fields the project screen edits; height_cm null removes it. `name` is the
+ * project's; body, height and active belong to the current person (docs/adr/0017-persons.md).
+ * `active` sets the active variant of each region named (null: back to the first variant).
+ */
 export const projectPatchSchema = z.strictObject({
   name: projectNameSchema.optional(),
   body: z.enum(BODIES).optional(),
   height_cm: heightSchema.nullable().optional(),
+  active: z
+    .partialRecord(
+      z.enum(REGION_IDS),
+      z
+        .string()
+        .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
+        .nullable(),
+    )
+    .optional(),
 });
 
 export type ProjectPatch = z.infer<typeof projectPatchSchema>;
@@ -63,8 +82,13 @@ export type ProjectStatus = {
   status: ProjectState;
   path: string | null;
   name: string | null;
+  /** The current person's body and height (the root person's are project.yaml's top level). */
   body: Body | null;
   height_cm: number | null;
+  /** Everyone in the project (docs/adr/0017-persons.md); empty without a project.yaml. */
+  persons: PersonInfo[];
+  /** The id of the person whose body, layouts, measurements and photos the app shows; null: none. */
+  person: string | null;
   recent: RecentProject[];
   /** The folder is fixed by the planner's start-up settings: it cannot be switched or closed here. */
   locked: boolean;
@@ -112,6 +136,23 @@ export type BrowseListing = {
   folders: { name: string; path: string; kind: FolderKind }[];
   truncated: boolean;
 };
+
+/** POST /api/project/persons: a new person (besides the root person). */
+export const newPersonSchema = z.strictObject({
+  name: z.string(),
+  body: z.enum(BODIES),
+  height_cm: heightSchema.nullable().optional(),
+});
+
+/** PATCH /api/project/persons/<id>. */
+export const personPatchSchema = z.strictObject({
+  name: z.string().optional(),
+  body: z.enum(BODIES).optional(),
+  height_cm: heightSchema.nullable().optional(),
+});
+
+/** DELETE /api/project/persons/<id>: where the person's folder went (null: it had none). */
+export type RemovePersonResult = { project: ProjectStatus; movedTo: string | null };
 
 /** GET /api/project/measurements: the raw text of measurements.yaml, null when there is none. */
 export type MeasurementsFile = { text: string | null };

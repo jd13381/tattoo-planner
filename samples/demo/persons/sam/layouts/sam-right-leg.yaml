@@ -1,0 +1,16 @@
+# Sam's sample right leg. u = around the leg (0 front, 0.25 lateral, 0.5 back, 0.75 medial),
+# v = along it (0 ankle, 1 hip).
+name: sam-right-leg
+region: leg-right
+description: "Wave on the outer thigh with a starfield around it"
+elements:
+  - id: wave
+    type: figure
+    asset: wave
+    position: { u: 0.25, v: 0.70 } # outer thigh
+    size_cm: { h: 12, w: 15 }
+  - id: stars
+    type: filler
+    pattern: starfield
+    region: { u: [0.1, 0.4], v: [0.55, 0.88] }
+    density: 0.35
