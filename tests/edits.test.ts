@@ -256,11 +256,11 @@ assets:
 });
 
 describe("showInStudio", () => {
-  it("hides arm photos and photos of existing tattoos", () => {
+  it("hides measuring photos and offers photos of existing tattoos", () => {
     expect(showInStudio({ kind: "reference", file: "refs/medusa.png" })).toBe(true);
     expect(showInStudio({ kind: "idea", file: "generated/dreieck-1.png" })).toBe(true);
     expect(showInStudio({ kind: "arm-photo", file: "arm-photos/front.JPG" })).toBe(false);
-    expect(showInStudio({ kind: "existing", file: "existing/anubis.jpg" })).toBe(false);
+    expect(showInStudio({ kind: "existing", file: "existing/anubis.jpg" })).toBe(true);
     // By folder too, whatever the kind says.
     expect(showInStudio({ kind: "reference", file: "Arm-Photos/anubis1_nr.JPG" })).toBe(false);
   });
@@ -268,6 +268,7 @@ describe("showInStudio", () => {
   it("follows the catalogue section and leaves hidden images out", () => {
     const photo = { kind: "reference", file: "images/x.png" };
     expect(showInStudio({ ...photo, effectiveCategory: "measuring" })).toBe(false);
+    expect(showInStudio({ ...photo, effectiveCategory: "existing" })).toBe(true);
     expect(showInStudio({ ...photo, effectiveCategory: "background" })).toBe(true);
     expect(showInStudio({ ...photo, effectiveCategory: "edit", hidden: true })).toBe(false);
   });
