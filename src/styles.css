@@ -7459,7 +7459,7 @@ button.swatch-button.on {
   font-size: var(--fs-sm);
 }
 
-/* Settings → Image generation: the desktop app's key form (docs/adr/0015-desktop-app.md). */
+/* Settings → Image generation: the key form (docs/adr/0015-desktop-app.md, 0016-openai-key-check.md). */
 .key-form {
   display: flex;
   flex-wrap: wrap;
@@ -7473,6 +7473,66 @@ button.swatch-button.on {
   font-family: var(--font-mono);
 }
 
-.key-form + .field-hint {
-  margin: -8px 24px 12px;
+/* Key check: the Test key button with the latest result next to it. */
+.key-check-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin: 0 24px 14px;
+}
+
+.key-check-row > button {
+  flex: none;
+}
+
+.key-check-row .field-hint {
+  margin: 0;
+  min-height: 0;
+}
+
+.field-hint.ok {
+  color: var(--ok);
+}
+
+.field-hint.key-error {
+  margin: -6px 24px 12px;
+}
+
+.key-switch {
+  margin: 8px 18px 0;
+}
+
+/* The app-level notice after a failed startup check of the OpenAI key: floats under the top bar. */
+.notice.key-notice {
+  position: fixed;
+  top: calc(var(--header-h) + var(--s-2));
+  right: var(--s-3);
+  z-index: 55;
+  width: min(460px, calc(100vw - 2 * var(--s-3)));
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 10px var(--s-3) 10px 32px;
+  /* The tint over an opaque base: the notice floats over the workspace. */
+  background: linear-gradient(var(--warn-soft), var(--warn-soft)), var(--chrome);
+  box-shadow:
+    inset 0 0 0 1px var(--warn-line),
+    var(--shadow-2);
+}
+
+.notice.key-notice::before {
+  top: 12px;
+}
+
+.notice.error.key-notice {
+  background: linear-gradient(var(--danger-soft), var(--danger-soft)), var(--chrome);
+  box-shadow:
+    inset 0 0 0 1px var(--danger-line),
+    var(--shadow-2);
+}
+
+.key-notice-actions {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: 2px;
 }

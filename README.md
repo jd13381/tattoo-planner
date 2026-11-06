@@ -35,7 +35,7 @@ On the start screen, **Open sample project** shows a ready-made, read-only proje
 
 ## Your project and privacy
 
-A project is one folder you choose (YAML files and images: layouts, measurements, the image catalogue, exports). The planner's server listens on `127.0.0.1` only; there is no account, cloud storage or telemetry. Only a generative image edit that you start sends the image and your instruction to OpenAI, with your key. Details: [docs/privacy.md](docs/privacy.md).
+A project is one folder you choose (YAML files and images: layouts, measurements, the image catalogue, exports). The planner's server listens on `127.0.0.1` only; there is no account, cloud storage or telemetry. Only a generative image edit that you start sends the image and your instruction to OpenAI, with your key; with a key set, the planner also checks it once at start (no images, can be switched off). Details: [docs/privacy.md](docs/privacy.md).
 
 ## Documentation
 

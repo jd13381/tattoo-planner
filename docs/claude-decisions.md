@@ -366,3 +366,16 @@ Research and benchmark preparation only (`docs/research/local-image-models.md`, 
 - **Timings include model load and quantisation** (one CLI process per job, as a planner engine would run it); a 256 px warm-up keeps downloads out. Peak memory is macOS `time -l` "peak memory footprint", plus swap growth from `vm.swapusage`. _Alternative:_ a long-running Python process with the model kept loaded (faster per image, but needs the memory permanently).
 - **Results go to `~/tattoo-benchmark-results`**; the script refuses an output folder inside the repo, and `__pycache__/` is git-ignored.
 - **Unverified:** no number has been measured on an M4 with 16 GB; the FLUX 3 Klein Hugging Face repository name in the README and the licences marked [S] need checking on the model cards (huggingface.co was not reachable from the cloud session).
+
+### Key (2026-11-06 test notes)
+
+Jan's note: set and check the GPT key in Settings; report a broken key at startup with what it means. ADR 0016. Format: decision; _Alternative_; _Change_.
+
+- **A key entered in Settings when run from git is saved by the server in `~/.config/tattoo-planner/openai-key`** (plain text, 0600, atomic), never in `.env`. _Alternative:_ rewrite `.env` (risks Jan's hand-edited file and its key). _Change:_ `OpenAIKeys` in `server/settings.ts`.
+- **Precedence: Keychain (desktop) > saved in Settings > `.env`/shell.** Removing the saved key falls back to `.env`, which is shown as "not used while this one is set". _Alternative:_ `.env` wins (then a key typed in the UI would silently do nothing for Jan). _Change:_ `OpenAIKeys.current()`.
+- **The check is `GET /v1/models/<image model>`**: authenticated, free, no data; 403/404 count as "no access to the image model". Missing credit is only caught when OpenAI answers 429 there. _Alternative:_ a tiny paid image request. _Change:_ `src/edits/keyCheck.ts`.
+- **Save refuses only a key OpenAI rejects (401)**; offline, no model access or no credit still save, with the result shown ("Saved. …"). Offline must not block entering a key. _Alternative:_ save only valid keys. _Change:_ `PUT /api/openai-key`, desktop save path in `ImageGenerationSettings.tsx`.
+- **In the desktop app the page checks a new key through the local server first** (`POST /api/openai-key/test { key }`), then stores it through the bridge as before; the server's key file is off there. _Alternative:_ a new IPC call that checks in the main process (duplicate of the server logic). _Change:_ `ImageGenerationSettings.tsx`, `createContext`.
+- **Startup check: once per server run, cached per key**, asked by the page on mount; the switch is `openaiStartupCheck` in `config.json` (default on). _Change:_ `server/openaiKeyApi.ts`.
+- **The notice floats under the top bar** (fixed, dismissible, `sessionStorage` per check) instead of a strip in the flow, because the workspaces are sized to `100dvh − header`. `valid` and `rate-limited` show nothing; `network`/`error` read "could not check … does not mean the key is broken". Later checks from Settings only clear it, so Test key on the Settings page does not re-raise it. _Change:_ `src/settings/KeyCheckNotice.tsx`, `.key-notice` in `styles.css`.
+- **Shell vs `.env` source** is told apart by comparing with `process.env` (both are merged before the server sees them). _Change:_ `OpenAIKeys.envKey()`.

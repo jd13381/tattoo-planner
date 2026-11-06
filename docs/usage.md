@@ -29,7 +29,7 @@ Every file is YAML or an image; the YAML files stay hand-editable and keep their
 
 ## Image generation (bring your own key)
 
-The Image studio's generative engine uses OpenAI's GPT Image with **your own API key**. It is optional: everything else works without it. Create a key at [platform.openai.com](https://platform.openai.com/api-keys) and add some credit under Billing. In the desktop app, enter it in **Settings → Image generation**: it is stored encrypted with the macOS Keychain and only ever sent to OpenAI. A planner run from git reads it from `.env` as `TATTOO_OPENAI_API_KEY` (see [Settings for git users](development.md#settings-for-git-users)). Each variant shows a rough cost (a few cents).
+The Image studio's generative engine uses OpenAI's GPT Image with **your own API key**. It is optional: everything else works without it. Create a key at [platform.openai.com](https://platform.openai.com/api-keys) and add some credit under Billing. Enter it in **Settings → Image generation**, which checks it right away (valid, rejected, no access to the image model, no credit, offline): the desktop app stores it encrypted with the macOS Keychain, a planner run from git in `~/.config/tattoo-planner/openai-key` (owner-only). A key in `.env` as `TATTOO_OPENAI_API_KEY` keeps working (see [Settings for git users](development.md#settings-for-git-users)); a key entered in Settings wins over it, and `.env` is never changed. The key is only ever sent to OpenAI. At each start the planner checks the key once and says so if it stopped working (switch off in the same place). Each variant shows a rough cost (a few cents).
 
 ## Using the planner
 

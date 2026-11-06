@@ -24,7 +24,7 @@ The planner opens the project you last chose. To pin it to one folder instead (J
 TATTOO_DATA_DIR="~/Your Secure Cloud/<library>/tattoo-planner-data"
 ```
 
-The only other settings are optional and for generative edits in the Image studio: `TATTOO_OPENAI_API_KEY` and, rarely needed, `TATTOO_OPENAI_MODEL`, `TATTOO_OPENAI_FIDELITY`, `TATTOO_OPENAI_QUALITY` (see `.env.example`). In the desktop app the key is entered in Settings → Image generation instead.
+The only other settings are optional and for generative edits in the Image studio: `TATTOO_OPENAI_API_KEY` and, rarely needed, `TATTOO_OPENAI_MODEL`, `TATTOO_OPENAI_FIDELITY`, `TATTOO_OPENAI_QUALITY` (see `.env.example`). The key can also be entered in Settings → Image generation (saved in `~/.config/tattoo-planner/openai-key`, wins over `.env`, which is never changed).
 
 ## Older data folders and `npm run migrate` (Jan's workflow)
 
