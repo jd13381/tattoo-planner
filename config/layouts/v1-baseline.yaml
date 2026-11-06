@@ -4,7 +4,7 @@
 name: v1-baseline
 description: "Rhonas outer forearm, skull at elbow, Medusa upper arm, Pegasus inner upper arm"
 elements:
-  # Anubis from the photo arm-photos/anubis1_nr.JPG (manifest id anubis-photo, see README).
+  # Anubis from the photo arm-photos/anubis1_nr.JPG (manifest id anubis-photo, see docs/jans-sleeve.md).
   # Size from measurements.yaml (26 × 12 cm). v = 0.203 puts its lowest point 2 cm above the wrist
   # crease: centre 2 + 26 / 2 = 15 cm of the 74 cm arm. crop, image_rotation_deg and feather_cm were
   # fitted by Claude on anubis1_nr.JPG (arm lies sideways, wrist on the right); adjust freely.

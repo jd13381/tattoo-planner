@@ -20,7 +20,8 @@ async function dataDir(): Promise<string> {
   // The same project the planner opens: TATTOO_DATA_DIR (shell or .env), else the remembered one.
   const { projects } = createContext({ env: readEnv(ROOT), root: ROOT });
   const dir = (await projects.paths()).dir;
-  if (!dir) throw new UsageError(`no project is open and ${DATA_DIR_VAR} is not set; see README.md.`);
+  if (!dir)
+    throw new UsageError(`no project is open and ${DATA_DIR_VAR} is not set; see docs/development.md.`);
   if (!existsSync(dir)) throw new UsageError(`project folder not found: ${dir}`);
   return dir;
 }

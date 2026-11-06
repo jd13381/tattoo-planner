@@ -1,10 +1,11 @@
-// "Change image": a panel with the asset grid and a search field, opened next to the button that
-// asked for it (the element panel or the floating button on the 2D editor). Click an image to
+// "Change image": a large panel with the asset grid and a search field (sized to the window,
+// src/assets/pickerPlacement.ts), opened next to the button that asked for it (the element panel or the floating button on the 2D editor). Click an image to
 // assign it; Esc, a click outside or the close button closes the panel. Rendered into <body> so
 // the scrolling inspector and the clipped editor do not cut it off.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { facets, filterAssets, NO_FILTER, pickableAssets, type AssetFilter } from "./filter.ts";
+import { pickerBox } from "./pickerPlacement.ts";
 import { assetImageUrl, type AssetInfo, type AssetListing } from "./types.ts";
 
 type Props = {
@@ -19,18 +20,8 @@ type Props = {
   onClose: () => void;
 };
 
-const PANEL_W = 380;
-const PANEL_H = 460;
-const MARGIN = 8;
-
-/** Left/top of the panel: left of the anchor when there is room (the inspector sits on the right), else right of it. */
-function placement(r: DOMRect): { left: number; top: number } {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  let left = r.left - PANEL_W - MARGIN;
-  if (left < MARGIN) left = Math.min(vw - PANEL_W - MARGIN, r.right + MARGIN);
-  const top = Math.min(Math.max(MARGIN, r.top - 40), vh - PANEL_H - MARGIN);
-  return { left: Math.max(MARGIN, left), top: Math.max(MARGIN, top) };
+function placement(r: DOMRect) {
+  return pickerBox(r, window.innerWidth, window.innerHeight);
 }
 
 export function ImagePicker({ listing, current, elementId, anchor, onPick, onClose }: Props) {
@@ -158,7 +149,7 @@ export function ImagePicker({ listing, current, elementId, anchor, onPick, onClo
       role="dialog"
       aria-label={`Image for ${elementId}`}
       className="image-picker popover"
-      style={{ left: pos.left, top: pos.top, width: PANEL_W, maxHeight: PANEL_H }}
+      style={{ left: pos.left, top: pos.top, width: pos.width, maxHeight: pos.height }}
     >
       <div className="image-picker-head">
         <p className="popover-title">
