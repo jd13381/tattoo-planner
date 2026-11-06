@@ -2,17 +2,16 @@
 // region from one or more photos, one question per step, with the model's skin grid on the photo as
 // live feedback. The state and every rule live in wizard.ts and layoutLink.ts; this file only draws.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { fileKey } from "../assets/manifestDoc.ts";
 import { assetImageUrl, type AssetInfo } from "../assets/types.ts";
 import { requestImage, useAssetImages, useAssetListing } from "../assets/useAssets.ts";
 import type { RegionProfile } from "../body/profile.ts";
 import { REGION_IDS, REGIONS, type RegionId } from "../body/regions.ts";
-import type { HeaderSlots } from "../editor/LayoutPage.tsx";
 import { parseLayout } from "../layout/yamlDoc.ts";
 import { useLayouts, type WorkingLayout } from "../layout/useLayouts.ts";
 import type { AssetImage } from "../render/reference.ts";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
+import { useEscape } from "../ui/useEscape.ts";
 import { ArmViewer } from "../viewer/ArmViewer.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
 import { layoutTarget, linkProjection } from "./layoutLink.ts";
@@ -65,7 +64,6 @@ type Props = {
   editName: string | null;
   openLayout: WorkingLayout | null;
   onDirty?: (dirty: boolean) => void;
-  header?: HeaderSlots;
   onClose: () => void;
   onAdvanced: (name: string) => void;
   onAnother: () => void;
@@ -77,7 +75,7 @@ const partName = (r: RegionId) => REGIONS[r].label.toLowerCase();
 const limbWord = (r: RegionId) => ({ arm: "arm", leg: "leg", torso: "body" })[REGIONS[r].kind];
 
 export function ProjectionWizard(props: Props) {
-  const { arm, pose, editName, openLayout, onDirty, header } = props;
+  const { arm, pose, editName, openLayout, onDirty } = props;
   const { files, calibrations } = useProjections();
   const editing = editName ? (calibrations.get(editName) ?? null) : null;
   const [initial] = useState<WizardDraft>(() => (editing ? fromCalibration(editing) : newDraft()));
@@ -200,51 +198,53 @@ export function ProjectionWizard(props: Props) {
 
   const isNew = !draft.base;
   const title = isNew ? "Add existing tattoo" : `Edit ${draft.description || draft.name}`;
-  const actions = (
-    <>
-      <span className="header-sep" aria-hidden="true" />
-      <span className="wizard-title">{title}</span>
-      {!isNew && (
-        <button
-          type="button"
-          className="ghost"
-          onClick={() => props.onAdvanced(draft.name)}
-          disabled={dirty}
-          title={dirty ? "Save first; Advanced opens the saved file" : "Every number of the calibration"}
-        >
-          Advanced
-        </button>
-      )}
-      <button
-        type="button"
-        className="ghost"
-        onClick={() => {
-          if (dirty && !window.confirm("Leave without saving? The answers so far are lost.")) return;
-          props.onClose();
-        }}
-      >
-        {dirty ? "Cancel" : "Close"}
-      </button>
-    </>
-  );
+  // "Cancel" while leaving would lose something (unsaved answers, or a new tattoo not saved yet),
+  // "Close" once everything is saved. Only unsaved answers ask first.
+  const unsavedNew = isNew && saveState.kind !== "saved";
+  const leave = () => {
+    if (dirty && !window.confirm("Leave without saving? The answers so far are lost.")) return;
+    props.onClose();
+  };
+  useEscape(leave);
 
   return (
     <div className="wizard-page">
-      {header?.actions ? (
-        createPortal(actions, header.actions)
-      ) : (
-        <div className="toolbar projection-topbar">
-          <span className="spacer" />
-          {actions}
-        </div>
-      )}
-      <StepRail
-        steps={steps}
-        index={index}
-        reachable={reachable}
-        onSelect={(i) => setStep(steps[i]!)}
-        draft={draft}
-      />
+      <div className="toolbar wizard-bar">
+        <h1 className="wizard-title" title={title}>
+          {title}
+        </h1>
+        <StepRail
+          steps={steps}
+          index={index}
+          reachable={reachable}
+          onSelect={(i) => setStep(steps[i]!)}
+          draft={draft}
+        />
+        {!isNew && (
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => props.onAdvanced(draft.name)}
+            disabled={dirty}
+            title={dirty ? "Save first; Advanced opens the saved file" : "Every number of the calibration"}
+          >
+            Advanced
+          </button>
+        )}
+        <button
+          type="button"
+          className={dirty || unsavedNew ? "" : "ghost"}
+          onClick={leave}
+          aria-keyshortcuts="Escape"
+          title={
+            dirty
+              ? "Back to the list of existing tattoos without saving (Esc)"
+              : "Back to the list of existing tattoos (Esc)"
+          }
+        >
+          {dirty || unsavedNew ? "Cancel" : "Close"}
+        </button>
+      </div>
       <div className="wizard-body">
         <section className="wizard-stage" aria-label="Work area">
           <Stage

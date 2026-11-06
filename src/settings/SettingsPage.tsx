@@ -3,7 +3,6 @@
 // measurements per region, the measuring wizard), the existing tattoos (list, guided setup and the
 // Advanced calibration page), the image-generation status and the appearance (theme).
 import type { ReactNode } from "react";
-import type { HeaderSlots } from "../editor/LayoutPage.tsx";
 import type { WorkingLayout } from "../layout/useLayouts.ts";
 import { ProjectionSettings } from "../projection/ProjectionSettings.tsx";
 import { ProjectPage } from "../project/ProjectPage.tsx";
@@ -23,14 +22,13 @@ type Props = {
   openLayout?: WorkingLayout | null;
   /** Sections with unsaved edits get a dot in the side navigation. */
   unsaved?: Partial<Record<SettingsSection, boolean>>;
-  header?: HeaderSlots;
 };
 
 /** Sections whose page is a full-bleed workspace (a 3D view filling the height). */
 const WORKSPACES: ReadonlySet<SettingsSection> = new Set(["body", "projection"]);
 
 export function SettingsPage(props: Props) {
-  const { section, onSection, arm, pose, onProjectionDirty, openLayout, unsaved, header } = props;
+  const { section, onSection, arm, pose, onProjectionDirty, openLayout, unsaved } = props;
   let body: ReactNode;
   switch (section) {
     case "project":
@@ -40,15 +38,7 @@ export function SettingsPage(props: Props) {
       body = <BodyPage arm={arm} pose={pose} />;
       break;
     case "projection":
-      body = (
-        <ProjectionSettings
-          arm={arm}
-          pose={pose}
-          onDirty={onProjectionDirty}
-          openLayout={openLayout}
-          header={header}
-        />
-      );
+      body = <ProjectionSettings arm={arm} pose={pose} onDirty={onProjectionDirty} openLayout={openLayout} />;
       break;
     case "image-generation":
       body = <ImageGenerationSettings />;

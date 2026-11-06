@@ -1912,16 +1912,13 @@ button.canvas-action:active:not(:disabled) {
 
 /* The Layout tab is a full-bleed workspace under the top bar: tool rail | 2D editor | 3D view,
  * with every control in a floating panel. Errors (rare) push the workspace down. */
+/* Errors float over the top of the workspace (relative), so they never push it down. */
 .layout-page {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: calc(100dvh - var(--header-h));
   min-height: 560px;
-}
-
-/* Errors float over the top of the workspace, so they never push it down. */
-.layout-page {
-  position: relative;
 }
 
 .layout-errors {
@@ -3385,59 +3382,69 @@ button.field-reset:disabled {
   color: var(--danger);
 }
 
-.wizard {
+/* The measuring wizard ("Measure yourself", MeasureWizard.tsx). Its classes are mw-* so they never
+ * meet the projection wizard's .wizard-* rules (the two once shared .wizard-body, and the projection
+ * wizard's two-column grid squeezed this one-column panel into overlapping text). One column:
+ * diagram, step title and instruction, tips, then the entry card with its status line. */
+.measure-wizard {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
-.wizard-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 8px 0 12px;
+.mw-head {
+  border-bottom: 0;
 }
 
-.wizard-title {
+.mw-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mw-count {
+  flex: none;
   font-size: var(--fs-2xs);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
 }
 
-.wizard-progress {
+.mw-progress {
+  flex: none;
   height: 2px;
   background: var(--border);
 }
 
-.wizard-progress > i {
+.mw-progress > i {
   display: block;
   height: 100%;
   background: var(--accent);
   transition: width 0.2s ease;
 }
 
-.wizard-body {
+.mw-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-3) var(--s-4);
+  overflow-wrap: break-word;
 }
 
-.wizard-count {
-  margin: 0 0 4px;
-  font-size: var(--fs-2xs);
+.mw-scroll > * {
+  flex: none;
+  min-width: 0;
 }
 
 .measure-diagram {
   display: block;
   width: 100%;
   max-height: 230px;
-  margin: 0 0 6px;
+  margin: 0;
   border-radius: var(--r-md);
   background: var(--field-bg);
 }
@@ -3494,60 +3501,100 @@ button.field-reset:disabled {
   opacity: 0.8;
 }
 
-.wizard-label {
-  margin: 4px 0 4px;
-  font-size: var(--fs-lg);
+.mw-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
 }
 
-.wizard-instruction {
-  margin: 0 0 10px;
+.mw-label {
+  margin: 0;
+  font-size: var(--fs-lg);
+  line-height: 1.3;
+}
+
+.mw-instruction {
+  margin: 0;
   color: var(--muted);
   font-size: var(--fs-md);
   line-height: 1.5;
 }
 
-.wizard-tips {
-  margin: 0 0 10px;
-  padding-left: 16px;
-  color: var(--faint);
+.mw-tips {
+  margin: 0;
+  padding: var(--s-2) var(--s-3) var(--s-2) calc(var(--s-3) + 14px);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--muted);
   font-size: var(--fs-xs);
   line-height: 1.5;
 }
 
-.wizard-body-choice {
+.mw-tips li + li {
+  margin-top: var(--s-1);
+}
+
+/* The entry card: sample body (first step), the value in cm and what happens without one. */
+.mw-entry-card {
   display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.mw-field {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
+  gap: var(--s-1) var(--s-2);
+  margin: 0;
+}
+
+.mw-field-name {
+  flex: 1 0 auto;
+  min-width: 0;
   font-size: var(--fs-sm);
   color: var(--muted);
 }
 
-.wizard-body-choice select {
-  flex: 1;
-  height: 26px;
+.mw-field select {
+  flex: 1 1 160px;
+  max-width: 240px;
+  min-width: 0;
+  height: var(--control-h);
 }
 
-.wizard-entry {
-  display: flex;
+.mw-value {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex: none;
 }
 
-.wizard-entry input {
-  width: 120px;
+.mw-value input {
+  width: 112px;
   height: var(--control-h-lg);
   padding: 0 10px;
   text-align: right;
   font: 600 var(--fs-lg) var(--font-mono);
 }
 
-.wizard-fallback {
-  margin: 6px 0 0;
-  font-size: var(--fs-xs);
+.mw-value input::-webkit-inner-spin-button,
+.mw-value input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-.wizard-nav {
+.mw-status {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.mw-nav {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3555,21 +3602,21 @@ button.field-reset:disabled {
   border-top: 1px solid var(--border);
 }
 
-.wizard-summary {
+.mw-summary {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--fs-sm);
 }
 
-.wizard-summary tr {
+.mw-summary tr {
   cursor: pointer;
 }
 
-.wizard-summary tr:hover {
+.mw-summary tr:hover {
   background: var(--hover);
 }
 
-.wizard-summary th {
+.mw-summary th {
   padding: 4px 6px 4px 0;
   text-align: left;
   font-size: var(--fs-sm);
@@ -3579,19 +3626,19 @@ button.field-reset:disabled {
   color: var(--muted);
 }
 
-.wizard-summary td {
+.mw-summary td {
   padding: 4px 0 4px 6px;
   text-align: right;
   white-space: nowrap;
   font-size: var(--fs-xs);
 }
 
-.wizard-summary tr.changed th {
+.mw-summary tr.changed th {
   color: var(--text);
   font-weight: 600;
 }
 
-.wizard-summary tr.changed td:last-child {
+.mw-summary tr.changed td:last-child {
   color: var(--accent-text);
 }
 
@@ -4168,6 +4215,7 @@ button.link.cmp-summary-line:hover:not(:disabled) {
   gap: 6px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .projection-errors {
@@ -5435,6 +5483,7 @@ button.ref-badge:disabled {
 
 /* Labels on the canvas: small caps like the float titles. */
 .tile-label {
+  white-space: nowrap;
   font-size: var(--fs-2xs);
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -5800,10 +5849,6 @@ button.family-item.current {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fs-2xs);
-}
-
-.tile-label {
-  white-space: nowrap;
 }
 
 button.tile-image,
@@ -6491,18 +6536,35 @@ canvas.builtin-preview {
   min-height: 560px;
 }
 
+/* The wizard's own bar: title, the steps, Advanced and Cancel / Close at the right end, next to the
+ * work rather than in the app's top bar (2026-11-06 test notes). */
+.wizard-bar {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
 .wizard-title {
+  flex: 0 1 auto;
+  min-width: 6ch;
+  max-width: 32ch;
+  margin: 0;
+  font-size: var(--fs-md);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 32ch;
 }
 
 .wizard-rail {
-  flex: none;
-  border-bottom: 1px solid var(--border);
-  padding: 6px 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 0 2px var(--s-2);
+  border-left: 1px solid var(--border);
   overflow-x: auto;
 }
 
