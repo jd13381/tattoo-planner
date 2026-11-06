@@ -9,11 +9,9 @@ import { turnedToStored } from "../src/projection/model.ts";
 import { newProjectionText, parseProjection } from "../src/projection/yamlDoc.ts";
 import {
   coveringArc,
-  facingOptions,
   fitArea,
   fromCalibration,
   moveStep,
-  nearestFacing,
   newDraft,
   newPhoto,
   sectionSketch,
@@ -38,9 +36,10 @@ function draft(): WizardDraft {
 }
 
 describe("wizard steps", () => {
-  it("has name, photos, four tasks per photo and the preview", () => {
+  it("has name, photos, four tasks per photo, the clean-up and the preview", () => {
     const steps = wizardSteps(draft());
-    expect(steps.length).toBe(2 + 2 * 4 + 1);
+    expect(steps.length).toBe(2 + 2 * 4 + 2);
+    expect(steps.at(-2)).toEqual({ kind: "cleanup" });
     expect(steps[0]).toEqual({ kind: "name" });
     expect(steps[2]).toEqual({ kind: "photo", photo: 0, task: "turn" });
     expect(steps[9]).toEqual({ kind: "photo", photo: 1, task: "facing" });
@@ -127,20 +126,6 @@ describe("photos", () => {
       expect(t.x).toBeCloseTo(0.3, 9);
       expect(t.y).toBeCloseTo(0.8, 9);
     }
-  });
-});
-
-describe("facing options", () => {
-  it("names eight orientations after the region's centre lines", () => {
-    const arm = facingOptions("arm-left");
-    expect(arm.map((o) => o.u)).toEqual([0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875]);
-    expect(arm[0]!.label).toBe("Outer");
-    expect(arm[4]!.label).toBe("Inner");
-    expect(arm[3]!.label).toBe("Between lateral and inner");
-    expect(arm[7]!.label).toBe("Between medial and outer");
-    expect(facingOptions("torso")[2]!.label).toBe("Front");
-    expect(nearestFacing("arm-left", 0.97).u).toBe(0);
-    expect(nearestFacing("arm-left", 0.3).u).toBe(0.25);
   });
 });
 

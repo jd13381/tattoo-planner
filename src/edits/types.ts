@@ -159,6 +159,10 @@ export function jobUrl(id: string, action?: "keep" | "discard" | "cancel" | "inp
 }
 
 /** One-click instructions for GPT Image; Jan can edit the text before running it. */
+/** Clean-up of a tattoo photo for a projection (docs/adr/0023): the ink alone, in place. */
+export const INK_ONLY_INSTRUCTION =
+  "Keep only the tattoo ink, exactly where it is. Remove the skin, its shadows and highlights, hair and the body's shape and everything around it: white or transparent background. Do not move, redraw, straighten or complete any line; keep the image's size and framing.";
+
 export const EDIT_PRESETS: readonly { label: string; instruction: string }[] = [
   {
     label: "Simplify",
@@ -169,6 +173,10 @@ export const EDIT_PRESETS: readonly { label: string; instruction: string }[] = [
     label: "Remove an object",
     instruction:
       "Remove the … and fill the area behind it so it matches the rest of the image. Change nothing else.",
+  },
+  {
+    label: "Tattoo ink only",
+    instruction: INK_ONLY_INSTRUCTION,
   },
   {
     label: "Remove text / watermark",

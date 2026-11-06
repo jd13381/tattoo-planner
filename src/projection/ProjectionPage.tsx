@@ -29,7 +29,7 @@ import { photoStatus, type ListingState, type PhotoStatus } from "./photoStatus.
 import type { PhotoCalibration, ProjectionCalibration } from "./schema.ts";
 import { projectionRegion, projectionSchema } from "./schema.ts";
 import { farLabel, startLabel } from "./wizard.ts";
-import { patchFor, photoAssets, saveProjection, useProjections } from "./useProjections.ts";
+import { patchFor, photoAssets, saveProjection, sourceAssetIds, useProjections } from "./useProjections.ts";
 import { previewCanvases } from "./preview.ts";
 
 /** Preview resolution: coarse enough to rebuild while dragging, fine enough to judge seams. */
@@ -232,7 +232,9 @@ function ProjectionEditor(props: {
   const infos = useMemo(() => (draft ? photoAssets(draft, assetMap) : []), [draft, assetMap]);
   useEffect(() => {
     for (const info of infos) if (info?.exists) requestImage(info.id);
-  }, [infos]);
+    // Edited versions the patch reads instead of the photos (docs/adr/0023).
+    if (draft) for (const id of sourceAssetIds(draft, assetMap)) requestImage(id);
+  }, [infos, draft, assetMap]);
 
   // The preview follows the draft a moment later, so dragging stays smooth.
   const [previewCal, setPreviewCal] = useState<ProjectionCalibration | null>(null);

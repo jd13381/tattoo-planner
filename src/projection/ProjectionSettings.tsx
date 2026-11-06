@@ -1,7 +1,7 @@
 // Settings → Projection (docs/adr/0014-guided-projection.md): the existing tattoos brought onto the body
 // from photos. A list with each tattoo's photo, body part and state; "Add existing tattoo" and "Edit"
 // open the guided wizard, "Advanced" the full calibration page (ProjectionPage.tsx).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fileKey } from "../assets/manifestDoc.ts";
 import type { AssetInfo } from "../assets/types.ts";
 import { assetImageUrl } from "../assets/types.ts";
@@ -13,9 +13,13 @@ import { layoutsShowing } from "./layoutLink.ts";
 import { ProjectionPage } from "./ProjectionPage.tsx";
 import { ProjectionWizard } from "./ProjectionWizard.tsx";
 import { projectionRegion, type ProjectionCalibration } from "./schema.ts";
+import { clearParkedWizard, parkedWizard, type ParkedWizard } from "./studioLink.ts";
 import { useProjections } from "./useProjections.ts";
 
-type View = { kind: "list" } | { kind: "wizard"; name: string | null } | { kind: "advanced"; name: string };
+type View =
+  | { kind: "list" }
+  | { kind: "wizard"; name: string | null; parked?: ParkedWizard }
+  | { kind: "advanced"; name: string };
 
 type Props = {
   arm: ArmState;
@@ -25,7 +29,12 @@ type Props = {
 };
 
 export function ProjectionSettings({ arm, pose, onDirty, openLayout }: Props) {
-  const [view, setView] = useState<View>({ kind: "list" });
+  // Back from the Image studio (docs/adr/0023): the wizard opens again with its answers.
+  const [view, setView] = useState<View>(() => {
+    const p = parkedWizard();
+    return p ? { kind: "wizard", name: p.editName, parked: p } : { kind: "list" };
+  });
+  useEffect(() => clearParkedWizard(), []);
   const toList = () => {
     onDirty?.(false);
     setView({ kind: "list" });
@@ -44,6 +53,7 @@ export function ProjectionSettings({ arm, pose, onDirty, openLayout }: Props) {
         onClose={toList}
         onAdvanced={(name) => setView({ kind: "advanced", name })}
         onAnother={() => setView({ kind: "wizard", name: null })}
+        parked={view.parked ?? null}
       />
     );
   return (

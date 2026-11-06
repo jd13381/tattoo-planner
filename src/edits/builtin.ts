@@ -13,12 +13,13 @@ import {
   threshold,
   type Pixels,
 } from "../render/builtinOps.ts";
+import { inkOnlyImage } from "../render/inkOnly.ts";
 
 /** How the built-in engine is named in a job's tools and a saved image's notes. */
 export const BUILTIN_TOOL = "built-in";
 
 export type BuiltinOpId =
-  "remove-background" | "threshold" | "levels" | "grayscale" | "invert" | "rotate" | "flip";
+  "remove-background" | "tattoo-ink" | "threshold" | "levels" | "grayscale" | "invert" | "rotate" | "flip";
 
 export type ParamSpec =
   | {
@@ -61,6 +62,24 @@ export const BUILTIN_OPS: readonly BuiltinOp[] = [
         step: 1,
         default: 2,
         unit: "px",
+      },
+    ],
+  },
+  {
+    id: "tattoo-ink",
+    label: "Tattoo ink only",
+    hint: "For a photo of a tattoo: evens out the skin's light and shadow and keeps only the ink, on a transparent background. A dark background next to the skin may stay as a grey seam (outside the outline a projection ignores it). Size and framing stay, so a projection can use it in place of the photo.",
+    params: [
+      { key: "strength", label: "Strength", kind: "range", min: 0, max: 100, step: 1, default: 50 },
+      {
+        key: "color",
+        label: "Colour",
+        kind: "choice",
+        options: [
+          { value: 0, label: "Black and grey" },
+          { value: 1, label: "Keep colour" },
+        ],
+        default: 0,
       },
     ],
   },
@@ -140,6 +159,14 @@ export function applyBuiltin(
   switch (id) {
     case "remove-background":
       return removeBackground(img, { tolerance: p.tolerance!, featherPx: p.feather! * pxScale });
+    case "tattoo-ink":
+      // The skin is estimated over 6 % of the shorter side: wider than lines, narrower than the body's
+      // shading. A share of the image, so the small preview matches the full-size result.
+      return inkOnlyImage(img, {
+        strength: p.strength! / 100,
+        radiusShare: 0.06,
+        keepColor: p.color === 1,
+      });
     case "threshold":
       return threshold(img, { level: p.level!, smoothPx: p.smooth! * pxScale });
     case "levels":
@@ -165,8 +192,10 @@ export function describeStep(id: BuiltinOpId, params: Partial<BuiltinParams> = {
     const label = choice?.kind === "choice" ? choice.options.find((o) => o.value === p.turns)?.label : "";
     return `Rotate ${label ?? ""}`.trim();
   }
-  const parts = op.params.map(
-    (s) => `${s.label.toLowerCase()} ${p[s.key]}${s.kind === "range" && s.unit ? ` ${s.unit}` : ""}`,
+  const parts = op.params.map((s) =>
+    s.kind === "choice"
+      ? (s.options.find((o) => o.value === p[s.key])?.label.toLowerCase() ?? "")
+      : `${s.label.toLowerCase()} ${p[s.key]}${s.unit ? ` ${s.unit}` : ""}`,
   );
   return parts.length > 0 ? `${op.label} (${parts.join(", ")})` : op.label;
 }
