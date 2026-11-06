@@ -67,10 +67,23 @@ import {
   type UV as SkinUV,
 } from "./nudge.ts";
 import { RegionTextureSource } from "./RegionTextures.tsx";
+import { CATALOGUE_ERROR, STANDARD_BACKGROUNDS } from "../assets/useStandardBackgrounds.ts";
+import {
+  addLayer,
+  deleteLayer,
+  duplicateLayer,
+  moveLayerTo as moveBackground,
+  removeShape,
+  setLayer,
+} from "./backgroundOps.ts";
+import { AddLayerMenu, LayerList, LayerPanel, type BackgroundTool } from "./LayersPanel.tsx";
+import { patternInfo } from "../render/backgrounds/catalogue.ts";
+import type { MotifDisplay } from "../render/reference.ts";
+import type { BackgroundLayer, BackgroundSource } from "../layout/schema.ts";
 import { SaveAsForm } from "./SaveAsForm.tsx";
 import { formatKeys, isEditableTarget, SHORTCUTS, type ShortcutAction } from "./shortcuts.ts";
 import { applyStroke, type UV } from "./stroke.ts";
-import { EDITOR_HINT, UnwrapEditor } from "./UnwrapEditor.tsx";
+import { BACKGROUND_HINT, EDITOR_HINT, UnwrapEditor } from "./UnwrapEditor.tsx";
 import { currentPlatform, useLayoutShortcuts } from "./useLayoutShortcuts.ts";
 
 // "cm grid" is gone from the switch: Blockout with Grid on shows the same grid with the layout.
@@ -83,9 +96,10 @@ const MODES: { id: RenderMode; label: string }[] = [
 const DEBUG = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug");
 
 const HINTS: Record<RenderMode, string | undefined> = {
-  blockout: "Dark grey: figures, light grey: fillers, striped: bands, red: lines, outlined: existing tattoo.",
+  blockout:
+    "Dark grey: figures, light grey: background layers, striped: bands, red: lines, outlined: existing tattoo.",
   reference:
-    "Reference images cut to their boxes (grayscale on the forearm by default), patterns for fillers and bands, lines on top.",
+    "Reference images cut to their boxes (grayscale on the forearm by default), background layers under the motifs, patterns for bands, lines on top.",
   grid: undefined,
 };
 
@@ -98,7 +112,6 @@ const METRICS_PX_PER_CM = 6;
 const ADD_TOOLS: { type: ElementType; label: string; icon: ReactNode }[] = [
   { type: "figure", label: "Figure", icon: <FigureIcon /> },
   { type: "existing", label: "Existing tattoo", icon: <ExistingIcon /> },
-  { type: "filler", label: "Filler", icon: <FillerIcon /> },
   { type: "band", label: "Band", icon: <BandIcon /> },
 ];
 
@@ -153,7 +166,24 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [noticesOpen, setNoticesOpen] = useState(false);
-  const [sideTab, setSideTab] = useState<"elements" | "assets">("elements");
+  const [sideTab, setSideTab] = useState<"elements" | "layers" | "assets">("elements");
+  // Background layers (docs/adr/0019): the Background view edits them with the motifs dimmed.
+  const [view, setView] = useState<"motifs" | "background">("motifs");
+  const [showMotifs, setShowMotifs] = useState(true);
+  const [selLayer, setSelLayer] = useState<number | null>(null);
+  const [bgTool, setBgTool] = useState<BackgroundTool>("select");
+  const [brushCm, setBrushCm] = useState(1);
+  const [selShape, setSelShape] = useState<number | null>(null);
+  // Former fillers read as background layers when the variant was opened (written so on save).
+  const [converted, setConverted] = useState<string[]>([]);
+  const inBackground = view === "background";
+  const motifs2d: MotifDisplay = !showMotifs ? "hide" : inBackground ? "dim" : "show";
+  const motifs3d: MotifDisplay = showMotifs ? "show" : "hide";
+  const enterView = (v: "motifs" | "background") => {
+    setView(v);
+    setSideTab(v === "background" ? "layers" : "elements");
+    if (v === "background") setDrawing(false);
+  };
   const [fitRequest, setFitRequest] = useState(0);
   // Cursor and zoom of the 2D editor change on every pointer move: only the status bar re-renders.
   const [cursor] = useState(() => createValueStore<SkinUV | null>(null));
@@ -180,7 +210,10 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
     setLastByRegion((m) => ({ ...m, [fileReg]: fileName }));
     setName(fileName);
     setSelected(null);
+    setSelLayer(null);
+    setSelShape(null);
     setSaveError(null);
+    setConverted(r.ok ? (r.converted ?? []) : []);
     if (r.ok) {
       setHistory(createHistory(r.layout));
       setSavedJson(JSON.stringify(r.layout));
@@ -256,29 +289,44 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
         pxPerCm: PX_PER_CM,
         grid,
         existing: anubisSize,
-        selected: selected ?? undefined,
+        selected: inBackground ? undefined : (selected ?? undefined),
         aspects,
         sources,
+        motifs: motifs3d,
       }),
     );
     return { canvas, ms };
-  }, [profile, mode, layout, grid, selected, aspects, sources]);
+  }, [profile, mode, layout, grid, selected, aspects, sources, motifs3d, inBackground]);
 
   // Editor image: centred on the chosen line.
   const editorImage = useMemo(() => {
-    if (centerU === 0) return texture;
+    if (centerU === 0 && motifs2d === motifs3d) return texture;
     const canvas = document.createElement("canvas");
     renderUnwrap(canvas, profile, mode, layout, {
       pxPerCm: PX_PER_CM,
       grid,
       existing: anubisSize,
-      selected: selected ?? undefined,
+      selected: inBackground ? undefined : (selected ?? undefined),
       centerU,
       aspects,
       sources,
+      motifs: motifs2d,
     });
     return canvas;
-  }, [texture, centerU, profile, mode, layout, grid, selected, aspects, sources]);
+  }, [
+    texture,
+    centerU,
+    profile,
+    mode,
+    layout,
+    grid,
+    selected,
+    aspects,
+    sources,
+    motifs2d,
+    motifs3d,
+    inBackground,
+  ]);
 
   const metrics = useMemo(
     () =>
@@ -363,6 +411,64 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const setElement = (index: number, el: LayoutElement, key?: string) =>
     commit((l) => ({ ...l, elements: l.elements.map((e, i) => (i === index ? el : e)) }), key);
 
+  // Background layers: one undo history with the elements.
+  const layers = layout?.backgrounds ?? [];
+  const selLayerObj: BackgroundLayer | undefined = selLayer !== null ? layers[selLayer] : undefined;
+  const setLayerAt = (i: number, b: BackgroundLayer, key?: string) => commit((l) => setLayer(l, i, b), key);
+  const applyLayers = (edit: (l: Layout) => { layout: Layout; selected: number | null }) => {
+    if (!layout) return;
+    const r = edit(layout);
+    if (r.layout !== layout) commit(() => r.layout);
+    setSelLayer(r.selected);
+    setSelShape(null);
+  };
+  const onAddLayer = (source: BackgroundSource) => {
+    applyLayers((l) => addLayer(l, source));
+    enterView("background");
+  };
+  const labelOf = (n: string) =>
+    patternInfo(n)?.label ?? STANDARD_BACKGROUNDS.find((s) => s.name === n)?.label;
+  const layerIssues = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const b of layout?.backgrounds ?? []) {
+      const s = b.source;
+      if ("image" in s) {
+        const info = assetMap?.get(s.image);
+        const img = sources.images.get(s.image);
+        if (!assetMap) out.set(b.id, `${s.image}: no project images available`);
+        else if (!info) out.set(b.id, `${s.image}: not in the project's images`);
+        else if (!info.exists) out.set(b.id, `${s.image}: file missing`);
+        else if (img?.status === "error") out.set(b.id, `${s.image}: ${img.message}`);
+      } else if ("standard" in s && !STANDARD_BACKGROUNDS.some((x) => x.name === s.standard))
+        out.set(b.id, `unknown standard background ${s.standard}: nothing is drawn`);
+      if ((b.cover ?? "region") === "area" && !b.shapes?.length && !b.mask?.length)
+        out.set(b.id, "empty area: draw a shape or paint with the brush (or switch to Whole region)");
+    }
+    return out;
+  }, [layout, assetMap, sources]);
+
+  // Background view tool keys (M rect, E ellipse, P polygon, B brush, X eraser; V is the select tool).
+  useEffect(() => {
+    if (!inBackground || !active) return;
+    const keys: Record<string, BackgroundTool> = {
+      m: "rect",
+      e: "ellipse",
+      p: "polygon",
+      b: "brush",
+      x: "eraser",
+    };
+    const on = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || isEditableTarget(e.target)) return;
+      const t = keys[e.key.toLowerCase()];
+      if (t) {
+        e.preventDefault();
+        setBgTool(t);
+      }
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [inBackground, active]);
+
   const addElement = (type: ElementType) => {
     if (!layout) return;
     // Each new element lands a little beside the previous one instead of on top of it.
@@ -397,6 +503,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
       setName(target.name);
       setHistory((h) => (h ? reset(h, target) : createHistory(target)));
       setSavedJson(JSON.stringify(target));
+      setConverted([]);
       toast.show(target.name === name ? `Saved ${target.name}` : `Saved as a new variant: ${target.name}`);
       return true;
     } catch (e) {
@@ -559,15 +666,31 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
       case "help":
         return setHelpOpen((o) => !o);
       case "tool":
+        if (inBackground && a.tool === "select") return setBgTool("select");
+        if (inBackground) enterView("motifs");
         // The brush draws on the region view only.
         if (a.tool === "draw") setView3d("region");
         return setDrawing(a.tool === "draw" ? (d) => !d : false);
       case "deselect":
+        if (inBackground) {
+          if (selShape !== null) setSelShape(null);
+          else setSelLayer(null);
+          return;
+        }
         if (pickerAnchor) setPickerAnchor(null);
         else if (drawing) setDrawing(false);
         else if (helpOpen) setHelpOpen(false);
         else setSelected(null);
         return;
+    }
+    if (inBackground) {
+      // Delete removes the selected shape of the selected layer; the layer itself goes with its button.
+      if (a.type === "delete" && selLayer !== null && selLayerObj && selShape !== null) {
+        if (selLayerObj.locked) return toast.show(`${selLayerObj.id} is locked`, "info");
+        setLayerAt(selLayer, removeShape(selLayerObj, selShape));
+        setSelShape(null);
+      }
+      return;
     }
     if (selected === null || !sel) return;
     switch (a.type) {
@@ -629,6 +752,22 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
     })),
     ...(flagged.length > 0
       ? [{ key: "height", text: <>Height not set, shown at 10 cm: {flagged.join(", ")}.</> }]
+      : []),
+    ...(converted.length > 0
+      ? [
+          {
+            key: "converted",
+            text: (
+              <>
+                Fillers are background layers now: {converted.join(", ")}. The file keeps the old form until
+                you save the variant.
+              </>
+            ),
+          },
+        ]
+      : []),
+    ...(CATALOGUE_ERROR
+      ? [{ key: "catalogue", text: <>Standard backgrounds catalogue cannot be read: {CATALOGUE_ERROR}</> }]
       : []),
   ];
   // Id errors of the selected element show under its id field; everything else floats as a notice.
@@ -879,12 +1018,25 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
             ))}
             <button
               type="button"
+              className="tool"
+              aria-pressed={inBackground}
+              aria-label="Background layers: edit the layers under the motifs"
+              onClick={() => enterView(inBackground ? "motifs" : "background")}
+            >
+              <FillerIcon />
+              <span className="tip" aria-hidden="true">
+                Background layers (under the motifs)
+              </span>
+            </button>
+            <button
+              type="button"
               className="tool draw-tool"
               aria-pressed={drawing}
               aria-label="Line: draw on the 3D view"
               aria-keyshortcuts="R"
               onClick={() => {
                 setView3d("region");
+                if (inBackground) enterView("motifs");
                 setDrawing((d) => !d);
               }}
             >
@@ -963,6 +1115,18 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
               onZoom={zoom.set}
               fitRequest={fitRequest}
               hint={false}
+              background={
+                inBackground
+                  ? {
+                      layer: selLayerObj ?? null,
+                      tool: bgTool,
+                      brushCm,
+                      selectedShape: selShape,
+                      onSelectShape: setSelShape,
+                      onChange: (b, gesture) => selLayer !== null && setLayerAt(selLayer, b, gesture),
+                    }
+                  : undefined
+              }
               selectionAction={
                 canChangeImage ? (
                   <button
@@ -979,6 +1143,31 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
               }
             />
             <div className="float float-bar ws-2d-bar">
+              <span
+                className="segmented"
+                role="group"
+                aria-label="Edit"
+                title="Motifs: figures, bands and lines. Background: the layers under them (motifs dimmed)."
+              >
+                <button
+                  type="button"
+                  className={!inBackground ? "active" : ""}
+                  aria-pressed={!inBackground}
+                  onClick={() => enterView("motifs")}
+                >
+                  Motifs
+                </button>
+                <button
+                  type="button"
+                  className={inBackground ? "active" : ""}
+                  aria-pressed={inBackground}
+                  onClick={() => enterView("background")}
+                  title={BACKGROUND_HINT}
+                >
+                  Background
+                </button>
+              </span>
+              <span className="toolbar-sep" aria-hidden="true" />
               <span className="segmented" role="group" aria-label="Mode" title={HINTS[mode]}>
                 {MODES.map((m) => (
                   <button
@@ -1138,6 +1327,20 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                 </button>
               </span>
               <span className="toolbar-sep" aria-hidden="true" />
+              <label
+                className="inline switch-label"
+                title="Show the motifs over the background layers, or the background alone"
+              >
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className="switch"
+                  checked={showMotifs}
+                  onChange={(e) => setShowMotifs(e.target.checked)}
+                />
+                Motifs
+              </label>
+              <span className="toolbar-sep" aria-hidden="true" />
               <div ref={setViewerToolbar} className="viewer-tools" />
             </div>
             {view3d === "region" && profile.kind === "arm" && (
@@ -1157,10 +1360,23 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                     aria-selected={sideTab === "elements"}
                     aria-controls="side-panel-elements"
                     className="panel-tab"
-                    onClick={() => setSideTab("elements")}
+                    onClick={() => enterView("motifs")}
                   >
                     <LayersIcon />
                     Elements <span className="count">{layout.elements.length}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    id="side-tab-layers"
+                    aria-selected={sideTab === "layers"}
+                    aria-controls="side-panel-layers"
+                    className="panel-tab"
+                    onClick={() => enterView("background")}
+                    title="Background layers under the motifs (opens the Background view)"
+                  >
+                    <FillerIcon />
+                    Layers <span className="count">{layers.length}</span>
                   </button>
                   <button
                     type="button"
@@ -1175,7 +1391,9 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                     Assets {assetCount !== null && <span className="count">{assetCount}</span>}
                   </button>
                   <span className="spacer" />
-                  {sideTab === "elements" ? (
+                  {sideTab === "layers" ? (
+                    <AddLayerMenu standard={STANDARD_BACKGROUNDS} images={allAssets} onAdd={onAddLayer} />
+                  ) : sideTab === "elements" ? (
                     <span
                       className="faint xs"
                       title="The list shows the top layer first; drag a row to change the order."
@@ -1199,7 +1417,20 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                   id={`side-panel-${sideTab}`}
                   aria-labelledby={`side-tab-${sideTab}`}
                 >
-                  {sideTab === "elements" ? (
+                  {sideTab === "layers" ? (
+                    <LayerList
+                      layers={layers}
+                      selected={selLayer}
+                      onSelect={(i) => {
+                        setSelLayer(i);
+                        setSelShape(null);
+                      }}
+                      onChange={(i, b) => setLayerAt(i, b)}
+                      onMove={(from, to) => applyLayers((l) => moveBackground(l, from, to))}
+                      issues={layerIssues}
+                      labelOf={labelOf}
+                    />
+                  ) : sideTab === "elements" ? (
                     <ElementList
                       heading={false}
                       elements={layout.elements}
@@ -1226,7 +1457,43 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                 </div>
               </section>
               <div className="float inspector">
-                {sel && selected !== null ? (
+                {inBackground ? (
+                  selLayerObj && selLayer !== null ? (
+                    <LayerPanel
+                      layer={selLayerObj}
+                      index={selLayer}
+                      count={layers.length}
+                      standard={STANDARD_BACKGROUNDS}
+                      images={allAssets}
+                      issue={layerIssues.get(selLayerObj.id)}
+                      onChange={(b) => setLayerAt(selLayer, b, typingKey(`bg${selLayer}`))}
+                      onDelete={() => {
+                        applyLayers((l) => deleteLayer(l, selLayer));
+                        toast.show(`Deleted ${selLayerObj.id} (${keyHint("Mod+Z")} to undo)`, "info");
+                      }}
+                      onDuplicate={() => applyLayers((l) => duplicateLayer(l, selLayer))}
+                      tool={bgTool}
+                      onTool={setBgTool}
+                      brushCm={brushCm}
+                      onBrushCm={setBrushCm}
+                      selectedShape={selShape}
+                      onSelectShape={setSelShape}
+                    />
+                  ) : (
+                    <section className="panel variant-panel">
+                      <div className="panel-head inspector-head">
+                        <h2>Background</h2>
+                        <span className="faint">layers under the motifs</span>
+                      </div>
+                      <p className="muted small">
+                        {layers.length === 0
+                          ? "Add a layer (Layers → + Add layer): a standard background such as clouds, stars or smoke, a line pattern, or a tileable image from the project."
+                          : "Select a layer in the list to edit it. Each layer covers the whole region or an area you draw or paint; motifs on top cover it."}
+                      </p>
+                      <p className="faint small">{BACKGROUND_HINT}</p>
+                    </section>
+                  )
+                ) : sel && selected !== null ? (
                   <ElementPanel
                     element={sel}
                     asset={selAsset}

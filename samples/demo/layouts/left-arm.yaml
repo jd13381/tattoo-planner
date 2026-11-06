@@ -3,6 +3,15 @@
 name: left-arm
 region: arm-left
 description: "Compass on the outer forearm, moon and stars on the inner upper arm, wave band at the wrist"
+# Background layers lie under every element (bottom layer first); motifs on top cover them.
+backgrounds:
+  - id: stars
+    source: { standard: stars }
+    cover: area
+    shapes:
+      - { kind: span, u: [0.36, 0.64], v: [0.6, 0.9] }
+    feather_cm: 1.5
+    gap_cm: 0.3
 elements:
   - id: compass
     type: figure
@@ -15,11 +24,6 @@ elements:
     position: { u: 0.50, v: 0.74 } # inner upper arm
     size_cm: { h: 9 }
     red_accents: true
-  - id: stars
-    type: filler
-    pattern: starfield
-    region: { u: [0.38, 0.62], v: [0.62, 0.88] }
-    density: 0.4
   - id: wrist-band
     type: band
     pattern: meander

@@ -1,7 +1,8 @@
 // Reference mode (PROJECT_BRIEF.md §10.1 F6, §11.3): the layout drawn with its reference images.
 // Figures and existing tattoos show their cut-out image inside their box, multiplied onto the skin
-// (white paper and pale skin vanish); fillers and bands are procedural patterns clipped exactly to
+// (white paper and pale skin vanish); bands are procedural patterns clipped exactly to
 // their shape; red lines lie on top of everything (§4.3). Missing images show a labelled placeholder.
+// Background layers (docs/adr/0019) go first, under every element, with the elements knocked out.
 //
 // Elements are drawn row by row: each texture row is as wide as the local circumference, so a box
 // is copied one pixel row at a time to where that row puts it, and whatever crosses the inner seam
@@ -23,6 +24,9 @@ import { BLOCKOUT_COLORS } from "./blockout.ts";
 import { cpu2d, cpuCanvas } from "./cpuCanvas.ts";
 import { OVERLAY_GRID_STYLE, paintGrid } from "./cmGrid.ts";
 import { lineScreen, processPixels } from "./imageOps.ts";
+import { visibleLayers } from "../layout/areas.ts";
+import { unwrapRows } from "./backgrounds/composite.ts";
+import { paintBackgrounds, type BackgroundSources } from "./backgrounds/paint.ts";
 import { getPattern, seedFromId } from "./patterns/index.ts";
 import { rowRange, screenX, shapeMask, wrapStrip } from "./unwrapRows.ts";
 
@@ -39,7 +43,12 @@ export type ReferenceSources = {
   aspects: ElementAspects;
   /** Existing tattoos projected from several photos (docs/adr/0006), by element id. */
   patches?: ElementPatches;
+  /** Standard backgrounds and their catalogue images (docs/adr/0019); none = procedural only. */
+  standard?: Pick<BackgroundSources, "standard" | "standardImage">;
 };
+
+/** How the motifs (every element) are drawn: the Background view dims or hides them. */
+export type MotifDisplay = "show" | "dim" | "hide";
 
 export type ReferenceOptions = {
   pxPerCm: number;
@@ -47,7 +56,12 @@ export type ReferenceOptions = {
   grid: boolean;
   existing?: ExistingSize;
   sources: ReferenceSources;
+  /** Default "show". */
+  motifs?: MotifDisplay;
 };
+
+/** Opacity of the motifs in the Background view's "dim" display. */
+export const DIM_MOTIFS = 0.3;
 
 const INK = "#1d1b19";
 const SLEEVE_RED = "rgb(198, 40, 40)";
@@ -67,13 +81,29 @@ export function missingReason(el: FigureLike, sources: ReferenceSources): string
   return null;
 }
 
+/** Background sources from the reference sources: project images by id, catalogue when given. */
+export function backgroundSources(sources: ReferenceSources): BackgroundSources {
+  return {
+    image: (id) => {
+      const img = sources.images.get(id);
+      return img?.status === "ready" ? img : null;
+    },
+    standard: sources.standard?.standard ?? new Map(),
+    standardImage: sources.standard?.standardImage ?? (() => null),
+  };
+}
+
+/** One element's drawing, done once on the texture and once (as plain coverage) on the knockout. */
+type Draw = (target: CanvasRenderingContext2D, knockout: boolean) => void;
+
 export function renderReference(
   ctx: CanvasRenderingContext2D,
   profile: RegionProfile,
   layout: Layout,
   opts: ReferenceOptions,
-): void {
+): Map<string, string> {
   const { pxPerCm: ppc, centerU, sources } = opts;
+  const motifs = opts.motifs ?? "show";
   const W = ctx.canvas.width;
   const H = ctx.canvas.height;
   const L = profile.length;
@@ -90,6 +120,7 @@ export function renderReference(
 
   const lines: Shape[] = [];
   const lineColors: string[] = [];
+  const draws: Draw[] = [];
   for (const el of layout.elements) {
     const r = resolveElement(
       el,
@@ -98,30 +129,63 @@ export function renderReference(
       sources.aspects.get(el.id),
       sources.patches?.get(el.id),
     );
-    if (isFigureLike(el) && r.shape.kind === "patch") {
-      drawPatch(ctx, profile, r.shape.patch, el.filter === "hatching", opts);
-    } else if (isFigureLike(el) && r.shape.kind === "box") {
-      drawFigure(ctx, profile, el, r.shape, opts);
-    } else if (el.type === "filler" || el.type === "band") {
-      drawPattern(
-        ctx,
-        profile,
-        el.id,
-        el.pattern,
-        el.type === "filler" ? (el.density ?? 0.3) : 1,
-        r.shape,
-        opts,
+    const shape = r.shape;
+    if (isFigureLike(el) && shape.kind === "patch") {
+      draws.push((t, knock) => drawPatch(t, profile, shape.patch, el.filter === "hatching", opts, knock));
+    } else if (isFigureLike(el) && shape.kind === "box") {
+      draws.push((t, knock) => drawFigure(t, profile, el, shape, opts, knock));
+    } else if (el.type === "band") {
+      draws.push((t, knock) =>
+        knock
+          ? fillMask(t, shapeMask(shape, profile, ppc, centerU), "#000", 1)
+          : drawPattern(t, profile, el.id, el.pattern, 1, shape, opts),
       );
     } else if (el.type === "line") {
-      lines.push(r.shape);
+      lines.push(shape);
       lineColors.push(!el.color || el.color === "red" ? SLEEVE_RED : el.color);
     }
+  }
+
+  // Background layers under every motif (docs/adr/0019); the motifs knock them out.
+  let missing = new Map<string, string>();
+  if (visibleLayers(layout).length > 0) {
+    const g = unwrapRows(profile, ppc, centerU);
+    let knockout: Float32Array | null = null;
+    if (motifs !== "hide" && draws.length > 0) {
+      const kc = cpu2d(scratchCanvas(W, H));
+      for (const d of draws) d(kc, true);
+      const a = kc.getImageData(0, 0, W, H).data;
+      knockout = new Float32Array(W * H);
+      for (let k = 0; k < W * H; k++) knockout[k] = a[k * 4 + 3]! / 255;
+    }
+    const img = ctx.getImageData(0, 0, W, H);
+    missing = paintBackgrounds(img.data, layout, profile, g, backgroundSources(sources), knockout);
+    ctx.putImageData(img, 0, 0);
+  }
+
+  if (motifs === "show") for (const d of draws) d(ctx, false);
+  else if (motifs === "dim" && draws.length > 0) {
+    const under = ctx.getImageData(0, 0, W, H);
+    for (const d of draws) d(ctx, false);
+    const over = ctx.getImageData(0, 0, W, H);
+    for (let k = 0; k < over.data.length; k++)
+      over.data[k] = under.data[k]! + (over.data[k]! - under.data[k]!) * DIM_MOTIFS;
+    ctx.putImageData(over, 0, 0);
   }
 
   if (opts.grid) paintGrid(ctx, profile, ppc, OVERLAY_GRID_STYLE, { background: false, centerU });
 
   // Red as the bracket (§4.3): lines on top of everything, whatever their layer.
-  lines.forEach((shape, k) => fillMask(ctx, shapeMask(shape, profile, ppc, centerU), lineColors[k]!, 0.9));
+  if (motifs !== "hide")
+    lines.forEach((shape, k) =>
+      fillMask(
+        ctx,
+        shapeMask(shape, profile, ppc, centerU),
+        lineColors[k]!,
+        motifs === "dim" ? 0.9 * DIM_MOTIFS : 0.9,
+      ),
+    );
+  return missing;
 }
 
 type BoxShape = Extract<Shape, { kind: "box" }>;
@@ -132,6 +196,8 @@ function drawFigure(
   el: FigureLike,
   box: BoxShape,
   opts: ReferenceOptions,
+  /** Draw plain coverage (source-over) for the background knockout. */
+  knockout = false,
 ) {
   const reason = missingReason(el, opts.sources);
   const asset = el.asset ? opts.sources.assets?.get(el.asset) : undefined;
@@ -146,7 +212,7 @@ function drawFigure(
     upright = placeholder(el.id, reason ?? "", box, opts.pxPerCm);
   }
   const local = rotated(upright, box.rot);
-  ctx.globalCompositeOperation = blend;
+  ctx.globalCompositeOperation = knockout ? "source-over" : blend;
   blitRows(ctx, profile, local, box, opts);
   ctx.globalCompositeOperation = "source-over";
 }
@@ -219,6 +285,7 @@ function drawPatch(
   patch: ProjectedPatch,
   hatching: boolean,
   opts: ReferenceOptions,
+  knockout = false,
 ) {
   const src = patchCanvas(patch, hatching, profile.mirrored);
   const ppc = opts.pxPerCm;
@@ -226,7 +293,7 @@ function drawPatch(
   const L = profile.length;
   const [first, last] = rowRange(profile, ppc, patch.v0 * L, patch.v1 * L);
   const uc = (patch.u0 + patch.u1) / 2;
-  ctx.globalCompositeOperation = "multiply";
+  ctx.globalCompositeOperation = knockout ? "source-over" : "multiply";
   for (let j = first; j <= last; j++) {
     const v = (L - (j + 0.5) / ppc) / L;
     const r = Math.floor(((patch.v1 - v) / (patch.v1 - patch.v0)) * patch.height);

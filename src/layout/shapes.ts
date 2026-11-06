@@ -5,6 +5,7 @@ import type { RegionProfile } from "../body/profile.ts";
 import { screenSign, uToCm, wrapU } from "../body/uv.ts";
 import { footprintBounds, patchCovers, type ProjectedPatch } from "../projection/patch.ts";
 import type { ElementAspects } from "./imageFit.ts";
+import { layerCovers, resolveLayer, visibleLayers } from "./areas.ts";
 import type { Layout, LayoutElement } from "./schema.ts";
 
 /** Sizes used when a figure has no size yet; the UI lists every element that uses one. */
@@ -130,18 +131,6 @@ export function resolveElement(
         flags,
       };
     }
-    case "filler":
-      return {
-        element: el,
-        shape: {
-          kind: "region",
-          u0: el.region.u[0],
-          u1: el.region.u[1],
-          y0: el.region.v[0] * L,
-          y1: el.region.v[1] * L,
-        },
-        flags,
-      };
     case "band":
       return { element: el, shape: { kind: "band", y: el.v * L, half: el.width_cm / 2 }, flags };
     case "line":
@@ -232,13 +221,20 @@ export function nextInCycle<T>(items: readonly T[], current: T | null | undefine
 }
 
 export const OUTSIDE = 255;
+/** Skin under a visible background layer and no element (docs/adr/0019). */
+export const BACKGROUND = 254;
+/** Highest element cell value: elements beyond it share it. */
+const MAX_ELEMENT = BACKGROUND - 1;
 
 export type Classification = {
   pxPerCm: number;
   centerU: number;
   width: number;
   height: number;
-  /** Per pixel, row 0 = shoulder: 0 = open skin, i + 1 = topmost element i, OUTSIDE = not skin. */
+  /**
+   * Per pixel, row 0 = shoulder: 0 = open skin, i + 1 = topmost element i, BACKGROUND = only a
+   * background layer, OUTSIDE = not skin.
+   */
   cells: Uint8Array;
   resolved: ResolvedElement[];
 };
@@ -264,9 +260,11 @@ export function classify(
   const height = Math.ceil(profile.length * pxPerCm);
   const sign = screenSign(profile);
   const cells = new Uint8Array(width * height);
+  const layers = visibleLayers(layout).map((b) => resolveLayer(b, profile));
   for (let j = 0; j < height; j++) {
     const y = profile.length - (j + 0.5) / pxPerCm;
     const c = profile.circumferenceAt(y);
+    const rowLayers = layers.filter((r) => y >= r.y0 && y <= r.y1);
     for (let i = 0; i < width; i++) {
       const sx = (i + 0.5) / pxPerCm - profile.maxCircumference / 2;
       const x = sign * sx; // towards u = 0.25 positive
@@ -276,10 +274,11 @@ export function classify(
         const u = wrapU(centerU + x / c);
         for (let k = resolved.length - 1; k >= 0; k--) {
           if (hits(resolved[k]!.shape, u, y, c)) {
-            value = Math.min(k + 1, OUTSIDE - 1);
+            value = Math.min(k + 1, MAX_ELEMENT);
             break;
           }
         }
+        if (value === 0 && rowLayers.some((r) => layerCovers(r, u, y, c))) value = BACKGROUND;
       }
       cells[j * width + i] = value;
     }

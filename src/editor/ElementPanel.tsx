@@ -1,7 +1,7 @@
 import { AssetThumb } from "../assets/AssetBrowser.tsx";
 import { ArrowDownIcon, ArrowUpIcon, DuplicateIcon, LockIcon, TrashIcon, WarnIcon } from "../ui/icons.tsx";
 import type { ReactNode } from "react";
-import { BAND_PATTERNS, FILLER_PATTERNS } from "../render/patterns/index.ts";
+import { BAND_PATTERNS } from "../render/patterns/index.ts";
 import { colorToHex, LINE_SWATCHES } from "./edit.ts";
 import type { AssetInfo } from "../assets/types.ts";
 import { FULL_IMAGE } from "../layout/imageFit.ts";
@@ -239,53 +239,6 @@ export function ElementPanel({
             </div>
             {/* style and red_accents stay in the YAML but are left out here (not used for drawing). */}
             <ImageFields el={el} asset={asset} autoFilter={autoFilter} locked={locked} onChange={onChange} />
-          </>
-        )}
-        {el.type === "filler" && (
-          <>
-            <h3 className="props-head">Position</h3>
-            <label>
-              u from{" "}
-              {num(el.region.u[0], (n) =>
-                onChange({ ...el, region: { ...el.region, u: [n ?? 0, el.region.u[1]] } }),
-              )}
-            </label>
-            <label>
-              u to{" "}
-              {num(el.region.u[1], (n) =>
-                onChange({ ...el, region: { ...el.region, u: [el.region.u[0], n ?? 0] } }),
-              )}
-            </label>
-            <label>
-              v from{" "}
-              {num(el.region.v[0], (n) =>
-                onChange({ ...el, region: { ...el.region, v: [n ?? 0, el.region.v[1]] } }),
-              )}
-            </label>
-            <label>
-              v to{" "}
-              {num(el.region.v[1], (n) =>
-                onChange({ ...el, region: { ...el.region, v: [el.region.v[0], n ?? 0] } }),
-              )}
-            </label>
-            {cm}
-            <h3 className="props-head">Style</h3>
-            <label>
-              pattern
-              <PatternSelect
-                value={el.pattern}
-                options={FILLER_PATTERNS}
-                disabled={locked}
-                onChange={(pattern) => onChange({ ...el, pattern })}
-              />
-            </label>
-            <label>
-              density{" "}
-              {num(el.density, (density) => onChange({ ...el, density: density ?? undefined }), {
-                step: 0.05,
-                nullable: true,
-              })}
-            </label>
           </>
         )}
         {el.type === "band" && (
