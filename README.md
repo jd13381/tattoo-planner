@@ -21,10 +21,11 @@ npm run dev         # http://127.0.0.1:4320, in a current Chrome, Edge or Firefo
 
 **DMG (macOS):** download it from the repository's GitHub Releases (Apple Silicon: `arm64`, Intel: `x64`) and drag **Tattoo Planner** into Applications. The app is not signed yet: on the first start right-click it → **Open** → **Open** (or System Settings → Privacy & Security → **Open Anyway**). Build the DMGs yourself with `npm run dist:mac`.
 
-On the start screen, **Open sample project** shows a ready-made, read-only project; or create your own project folder.
+On the start screen, **Explore the sample** shows a ready-made, read-only project with two people; or create your own project folder.
 
 ## What it does
 
+- **Home:** the whole body of the current person with every region's active layout on a turntable; click a region to edit it. A project can hold **several people** (for example you and your partner), each with their own body, measurements, layouts and photos, sharing one idea library.
 - **Body regions:** left and right arm, left and right leg, torso, on a female or male sample body; your own measurements (optional, with a measuring wizard) adjust it.
 - **Layout editor:** figures (reference images), existing tattoos, pattern fillers, bands and freehand lines on a 2D unwrap; drag, resize, rotate, layer, undo. The 3D view follows every change, also with the elbow bent and as a full body.
 - **Blockout and reference modes**, a cm grid, and **coverage** per zone (how much skin stays open).

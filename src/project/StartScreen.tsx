@@ -63,26 +63,25 @@ export function StartScreen({ status }: { status: ProjectStatus | null }) {
           />
         </section>
         <div className="start-side">
+          <section className="panel start-card start-sample" aria-label="Sample project">
+            <h2>Explore the sample</h2>
+            <p className="muted small">
+              Two people with placeholder motifs on arms, legs and torso: the quickest way to see what the
+              planner does. It opens read-only; save it as a new project to change it.
+            </p>
+            <button
+              type="button"
+              onClick={() => void run(openSample)}
+              disabled={busy || !status?.sampleAvailable}
+            >
+              Explore the sample
+            </button>
+          </section>
           <section className="panel start-card" aria-label="Open project">
             <h2>Open project</h2>
             <p className="muted small">Choose a folder you used with the planner before.</p>
             <button type="button" onClick={() => void openPicked()} disabled={disabled}>
               Choose folder…
-            </button>
-          </section>
-          <section className="panel start-card" aria-label="Sample project">
-            <h2>Sample project</h2>
-            <p className="muted small">
-              A ready-made project with a few placeholder motifs on arms, legs and torso. It opens read-only;
-              save it as a new project to change it.
-            </p>
-            <button
-              type="button"
-              className="primary"
-              onClick={() => void run(openSample)}
-              disabled={disabled || !status?.sampleAvailable}
-            >
-              Open sample project
             </button>
           </section>
           {recent.length > 0 && (

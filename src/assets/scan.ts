@@ -14,6 +14,18 @@ export const SCAN_FOLDERS: Readonly<Record<string, string>> = {
   "arm-photos": "arm-photo",
 };
 
+/**
+ * A person's own photo folders (docs/adr/0017-persons.md): persons/<id>/photos/ (body photos) and
+ * persons/<id>/existing/ (existing tattoos). Their layouts and projections are YAML, never scanned.
+ */
+const PERSON_SCAN_FOLDERS: Readonly<Record<string, string>> = { photos: "arm-photo", existing: "existing" };
+
+function personFolderKind(file: string): string | undefined {
+  const parts = file.split("/");
+  if (parts[0] !== "persons" || parts.length < 4) return undefined;
+  return Object.hasOwn(PERSON_SCAN_FOLDERS, parts[2]!) ? PERSON_SCAN_FOLDERS[parts[2]!] : undefined;
+}
+
 /** Formats the browser can show; other image files are reported but not catalogued. */
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif", "avif"];
 export const UNSUPPORTED_IMAGE_EXTENSIONS = ["heic", "heif", "tif", "tiff", "bmp", "psd"];
@@ -56,7 +68,7 @@ export function scanCandidates(files: string[]): ScanResult {
   const outside: string[] = [];
   for (const file of [...files].sort()) {
     const top = file.split("/")[0]!;
-    const kind = file.includes("/") ? SCAN_FOLDERS[top] : undefined;
+    const kind = file.includes("/") ? (SCAN_FOLDERS[top] ?? personFolderKind(file)) : undefined;
     const ext = extension(file);
     if (!kind) {
       const managed = file.includes("/") && MANAGED_FOLDERS.includes(top);

@@ -2,8 +2,11 @@ import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AssetsPage } from "./assets/AssetsPage.tsx";
 import { ComparePage } from "./compare/ComparePage.tsx";
 import { ImageEditPage } from "./edits/ImageEditPage.tsx";
-import { LayoutPage, type HeaderSlots } from "./editor/LayoutPage.tsx";
+import { LayoutPage, type HeaderSlots, type LayoutRequest } from "./editor/LayoutPage.tsx";
+import { HomePage } from "./home/HomePage.tsx";
 import type { WorkingLayout } from "./layout/useLayouts.ts";
+import { discardingChanges } from "./project/api.ts";
+import { PersonMenu } from "./project/PersonSwitcher.tsx";
 import type { ProjectStatus } from "./project/schema.ts";
 import {
   DEFAULT_SECTION,
@@ -40,6 +43,8 @@ export function App({ project }: { project: ProjectStatus }) {
   const [noticesSlot, setNoticesSlot] = useState<HTMLDivElement | null>(null);
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
   const header: HeaderSlots = { notices: noticesSlot, actions: actionsSlot };
+  // Home opens a region's layout in the Layout tab.
+  const [layoutRequest, setLayoutRequest] = useState<LayoutRequest | null>(null);
 
   const setRoute = (r: Route) => {
     setRouteState(r);
@@ -70,7 +75,10 @@ export function App({ project }: { project: ProjectStatus }) {
   const anyUnsaved = Object.values(unsaved).some(Boolean);
   useEffect(() => {
     if (!anyUnsaved) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    // Switching person asks in the page first (src/project/PersonSwitcher.tsx), then reloads.
+    const warn = (e: BeforeUnloadEvent) => {
+      if (!discardingChanges()) e.preventDefault();
+    };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [anyUnsaved]);
@@ -124,11 +132,24 @@ export function App({ project }: { project: ProjectStatus }) {
         </nav>
         <span className="spacer" />
         <div className="header-slot" ref={setNoticesSlot} />
+        <PersonMenu unsaved={anyUnsaved} onManage={() => setRoute({ tab: "settings", section: "project" })} />
         <ProjectChip project={project} onOpen={() => setRoute({ tab: "settings", section: "project" })} />
         <div className="header-slot" ref={setActionsSlot} />
       </header>
       <KeyCheckNotice onOpenSettings={() => setRoute({ tab: "settings", section: "image-generation" })} />
       <main className="page">
+        <TabPanel id="home" open={tab === "home"}>
+          <HomePage
+            project={project}
+            arm={arm}
+            unsaved={anyUnsaved}
+            onOpenProject={() => setRoute({ tab: "settings", section: "project" })}
+            onOpenRegion={(region, variant) => {
+              setLayoutRequest((r) => ({ region, variant, nonce: (r?.nonce ?? 0) + 1 }));
+              setTab("layout");
+            }}
+          />
+        </TabPanel>
         {/* The Layout tab stays mounted (hidden), so unsaved edits survive a look at another tab. */}
         <TabPanel id="layout" open={tab === "layout"} keepMounted>
           <LayoutPage
@@ -137,6 +158,7 @@ export function App({ project }: { project: ProjectStatus }) {
             onWorking={setWorking}
             active={tab === "layout"}
             header={header}
+            openRequest={layoutRequest}
           />
         </TabPanel>
         {/* The Image studio stays mounted too: the picked image, the prompt and the version on view
@@ -170,7 +192,7 @@ export function App({ project }: { project: ProjectStatus }) {
 }
 
 /** Tabs whose page is a full-bleed workspace (no page padding, fills the viewport under the top bar). */
-const FULL_BLEED: ReadonlySet<TabId> = new Set(["layout", "compare", "images", "settings"]);
+const FULL_BLEED: ReadonlySet<TabId> = new Set(["home", "layout", "compare", "images", "settings"]);
 
 function TabPanel(props: { id: TabId; open: boolean; keepMounted?: boolean; children: ReactNode }) {
   const { id, open, keepMounted, children } = props;
@@ -198,7 +220,7 @@ function ProjectChip({ project, onOpen }: { project: ProjectStatus; onOpen: () =
         onClick={onOpen}
         title="Changes cannot be saved here. Open to save the sample as a new project."
       >
-        Sample project (read-only)
+        Sample (read-only)
       </button>
     );
   const legacy = project.status === "legacy";

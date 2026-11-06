@@ -20,6 +20,8 @@ import { turnedSize } from "./model.ts";
 import type { ProjectedPatch } from "./patch.ts";
 import { CanvasHost, PhotoEditor, PhotoPlaceholder } from "./PhotoEditor.tsx";
 import { photoStatus, type ListingState } from "./photoStatus.ts";
+import { visibleToPerson } from "../project/persons.ts";
+import { projectStatus } from "../project/projectData.ts";
 import { previewCanvases } from "./preview.ts";
 import type { PhotoCalibration, ProjectionCalibration } from "./schema.ts";
 import { patchFor, saveProjection, useProjections } from "./useProjections.ts";
@@ -563,6 +565,8 @@ function PhotoPicker(props: {
   const visible = (assets ?? []).filter(
     (a) =>
       !a.hidden &&
+      // Photos of other persons stay with them (docs/adr/0017-persons.md).
+      visibleToPerson(a.file, projectStatus?.person ?? "me") &&
       (text === "" || `${a.id} ${a.file} ${a.tags.join(" ")}`.toLowerCase().includes(text.toLowerCase())),
   );
   const photos = visible.filter((a) => PHOTO_KINDS.includes(a.kind));

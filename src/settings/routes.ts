@@ -3,6 +3,7 @@
 
 /** The main tabs, in the order of the top bar. */
 export const TABS = [
+  { id: "home", label: "Home" },
   { id: "layout", label: "Layout" },
   { id: "images", label: "Image studio" },
   { id: "compare", label: "Compare" },
@@ -25,7 +26,8 @@ export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["id"];
 
 export type Route = { tab: Exclude<TabId, "settings"> } | { tab: "settings"; section: SettingsSection };
 
-export const DEFAULT_ROUTE: Route = { tab: "layout" };
+/** The app opens on Home (docs/adr/0018-home.md): the whole body of the current person. */
+export const DEFAULT_ROUTE: Route = { tab: "home" };
 export const DEFAULT_SECTION: SettingsSection = "project";
 
 /** Tabs that became Settings sections: old bookmarks (#arm, #projection, #data) still work. */
@@ -35,7 +37,7 @@ const LEGACY: Record<string, SettingsSection> = {
   data: "project",
 };
 
-/** The route for a location hash ("#settings/body", "compare", ""); unknown hashes open Layout. */
+/** The route for a location hash ("#settings/body", "compare", ""); unknown hashes open Home. */
 export function parseRoute(hash: string): Route {
   const [head = "", sub = ""] = hash.replace(/^#/, "").split("/");
   if (head === "settings") {

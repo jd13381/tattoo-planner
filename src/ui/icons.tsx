@@ -202,5 +202,37 @@ export const MonitorIcon = () => (
 export const MoonIcon = () => (
   <Pro size={14}>
     <path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" />
+/** Active layout variant (Layout tab, Home); `filled` when it is the active one. */
+export const StarIcon = ({ filled = false }: { filled?: boolean }) => (
+  <Pro size={14}>
+    <path
+      d="M12 3.8l2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-4 5.6-.8z"
+      fill={filled ? "currentColor" : "none"}
+    />
+  </Pro>
+);
+
+export const PlusIcon = () => (
+  <Pro size={14}>
+    <path d="M12 5v14M5 12h14" />
+  </Pro>
+);
+
+/** Turntable on Home: play / pause the slow rotation. */
+export const PlayIcon = () => (
+  <Pro size={13}>
+    <path d="M8 5.5v13l10.5-6.5z" />
+  </Pro>
+);
+
+export const PauseIcon = () => (
+  <Pro size={13}>
+    <path d="M9 5.5v13M15 5.5v13" />
+  </Pro>
+);
+
+export const ArrowRightIcon = () => (
+  <Pro size={13}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
   </Pro>
 );
