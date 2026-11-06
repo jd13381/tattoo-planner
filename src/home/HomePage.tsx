@@ -342,7 +342,7 @@ function PeopleSection(props: {
             <PersonAvatar person={p} />
             <span className="person-card-text">
               <span className="person-card-name">{p.name}</span>
-              <span className="faint small">{bodyLine(p)}</span>
+              <span className="faint small">{bodyLine(p, false)}</span>
             </span>
           </button>
         ))}
@@ -360,7 +360,7 @@ function PeopleSection(props: {
           </span>
           <span className="person-card-text">
             <span className="person-card-name">Add person</span>
-            <span className="faint small">Own body &amp; layouts</span>
+            <span className="faint small">Own body, layouts</span>
           </span>
         </button>
       </div>

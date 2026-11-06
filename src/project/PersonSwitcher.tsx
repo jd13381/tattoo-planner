@@ -23,10 +23,10 @@ export function PersonAvatar({ person, size = "md" }: { person: PersonInfo; size
   );
 }
 
-/** "Female body · 168 cm" */
-export function bodyLine(p: PersonInfo): string {
+/** "Female body · 168 cm" (without the height where room is short). */
+export function bodyLine(p: PersonInfo, withHeight = true): string {
   const body = p.body ? `${BODY_LABELS[p.body]} body` : "Sample body";
-  return p.height_cm ? `${body} · ${p.height_cm} cm` : body;
+  return withHeight && p.height_cm ? `${body} · ${p.height_cm} cm` : body;
 }
 
 /** Shows another person; with unsaved edits only after `confirmed`. */
