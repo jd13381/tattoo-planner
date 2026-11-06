@@ -183,3 +183,38 @@ export const SwapIcon = () => (
     <path d="M7 4L3.5 7.5 7 11M3.5 7.5h14M17 13l3.5 3.5L17 20M20.5 16.5h-14" />
   </Pro>
 );
+
+/** Active layout variant (Layout tab, Home); `filled` when it is the active one. */
+export const StarIcon = ({ filled = false }: { filled?: boolean }) => (
+  <Pro size={14}>
+    <path
+      d="M12 3.8l2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-4 5.6-.8z"
+      fill={filled ? "currentColor" : "none"}
+    />
+  </Pro>
+);
+
+export const PlusIcon = () => (
+  <Pro size={14}>
+    <path d="M12 5v14M5 12h14" />
+  </Pro>
+);
+
+/** Turntable on Home: play / pause the slow rotation. */
+export const PlayIcon = () => (
+  <Pro size={13}>
+    <path d="M8 5.5v13l10.5-6.5z" />
+  </Pro>
+);
+
+export const PauseIcon = () => (
+  <Pro size={13}>
+    <path d="M9 5.5v13M15 5.5v13" />
+  </Pro>
+);
+
+export const ArrowRightIcon = () => (
+  <Pro size={13}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </Pro>
+);

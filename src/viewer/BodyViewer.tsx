@@ -114,11 +114,13 @@ export function BodyViewer({ body, textures, active, onPick, toolbarTarget, fram
   );
 }
 
-function RegionMesh(props: {
+export function RegionMesh(props: {
   geometry: BufferGeometry;
   placement: Placement;
   texture?: RegionTexture;
   highlight: boolean;
+  /** Emissive tint of a highlighted region (Home uses a cooler one). */
+  highlightColor?: string;
   onClick: (e: ThreeEvent<MouseEvent>) => void;
   onOver: (e: ThreeEvent<PointerEvent>) => void;
   onOut: () => void;
@@ -131,7 +133,7 @@ function RegionMesh(props: {
     [texture?.canvas, texture?.version],
   );
   useEffect(() => () => map?.dispose(), [map]);
-  const emissive = highlight ? "#5a2a18" : "#000000";
+  const emissive = highlight ? (props.highlightColor ?? "#5a2a18") : "#000000";
   return (
     <mesh
       geometry={geometry}

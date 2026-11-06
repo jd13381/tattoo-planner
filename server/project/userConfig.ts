@@ -57,8 +57,7 @@ export function rememberedPerson(config: UserConfig, dir: string): string | null
 
 export function withRememberedPerson(config: UserConfig, dir: string, id: string | null): UserConfig {
   const old = config.currentPerson;
-  const entries =
-    typeof old === "object" && old !== null && !Array.isArray(old) ? Object.entries(old) : [];
+  const entries = typeof old === "object" && old !== null && !Array.isArray(old) ? Object.entries(old) : [];
   const kept = entries.filter(([k]) => k !== dir);
   return { ...config, currentPerson: Object.fromEntries(id === null ? kept : [...kept, [dir, id]]) };
 }

@@ -327,8 +327,9 @@ export class ProjectStore {
 
   close(): Promise<ProjectStatus> {
     return this.serial(async () => {
-      // Leaving the sample returns to the fixed folder, so that works even when locked.
-      if (this.locked && this.readOnly) {
+      // Leaving the sample returns to the project open before it (the remembered or the fixed
+      // folder; the start screen when there was none), so that works even when locked.
+      if (this.readOnly) {
         this.sampleOpen = false;
         this.samplePerson = null;
         return this.status();

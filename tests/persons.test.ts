@@ -319,6 +319,13 @@ describe("persons in the project store", () => {
     expect((await s.openSample()).person).toBe("me");
   });
 
+  it("leaves the sample back to the project that was open before it", async () => {
+    const s = store();
+    await s.open(dir);
+    await s.openSample();
+    expect(await s.close()).toMatchObject({ status: "project", path: dir, sample: false });
+  });
+
   it("refuses persons for an older data folder", async () => {
     const legacy = path.join(home, "legacy");
     await mkdir(legacy);

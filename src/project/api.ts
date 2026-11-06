@@ -51,6 +51,22 @@ export function reloadForProject(): void {
   window.location.reload();
 }
 
+let discarding = false;
+
+/** Whether the page is reloading after the user agreed to drop unsaved edits (App's unload guard). */
+export function discardingChanges(): boolean {
+  return discarding;
+}
+
+/**
+ * Reloads after the user already agreed in the page to drop unsaved edits (switching person): the
+ * browser's own "leave page?" question would ask twice, and the desktop app would just not reload.
+ */
+export function reloadDiscardingChanges(): void {
+  discarding = true;
+  window.location.reload();
+}
+
 /** One line per file of a migration, for the project screen. */
 export function migrationLines(r: MigrationReport): string[] {
   return [
