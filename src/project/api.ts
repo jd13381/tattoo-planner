@@ -7,6 +7,7 @@ import {
   type MigrationReport,
   type ProjectPatch,
   type ProjectStatus,
+  type RemovePersonResult,
   type SaveSampleResult,
 } from "./schema.ts";
 
@@ -58,3 +59,14 @@ export function migrationLines(r: MigrationReport): string[] {
     ...r.skipped.map((f) => `Kept ${f} (already in the folder, not replaced)`),
   ];
 }
+
+// Persons (docs/adr/0017-persons.md). Adding, selecting and removing change whose data every tab
+// shows, so the caller reloads the page afterwards (reloadForProject).
+export const addPerson = (fields: { name: string; body: Body; height_cm?: number | null }) =>
+  call<ProjectStatus>("POST", "/persons", fields);
+export const updatePerson = (id: string, patch: { name?: string; body?: Body; height_cm?: number | null }) =>
+  call<ProjectStatus>("PATCH", `/persons/${encodeURIComponent(id)}`, patch);
+export const removePerson = (id: string) =>
+  call<RemovePersonResult>("DELETE", `/persons/${encodeURIComponent(id)}`);
+export const selectPerson = (id: string) =>
+  call<ProjectStatus>("POST", `/persons/${encodeURIComponent(id)}/select`, {});
