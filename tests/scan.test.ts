@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assetSchema } from "../src/assets/manifest.ts";
-import { assetIdFromPath, scanCandidates } from "../src/assets/scan.ts";
+import { assetIdFromPath, scanCandidates, scanKind } from "../src/assets/scan.ts";
 
 describe("assets:scan", () => {
   it("derives ids from paths", () => {
@@ -32,5 +32,26 @@ describe("assets:scan", () => {
     for (const c of candidates) expect(assetSchema.parse(c)).toEqual(c);
     expect(unsupported).toEqual(["existing/anubis.HEIC"]);
     expect(outside).toEqual(["loose.png", "new/pegasus.jpg"]);
+  });
+
+  it("knows the new sub-folders, persons and backgrounds, and skips dot folders", () => {
+    expect(scanKind("photos/measuring/front.jpg")).toBe("arm-photo");
+    expect(scanKind("photos/existing/rose.jpg")).toBe("existing");
+    expect(scanKind("photos/side.jpg")).toBe("arm-photo");
+    expect(scanKind("persons/anna/photos/existing/a.jpg")).toBe("existing");
+    expect(scanKind("persons/anna/photos/b.jpg")).toBe("arm-photo");
+    expect(scanKind("persons/anna/layouts/x.png")).toBeNull();
+    expect(scanKind("persons/Bad_Id/photos/b.jpg")).toBeNull();
+    expect(scanKind("backgrounds/paper.png")).toBe("background");
+    expect(scanKind("photos/.trash/x.png")).toBeNull();
+    expect(scanKind(".trash-pending/abc/files/images/a.png")).toBeNull();
+    expect(scanKind("loose.png")).toBeNull();
+    const { candidates, outside } = scanCandidates([
+      "persons/anna/photos/a.jpg",
+      "persons/anna/notes/b.png",
+      ".trash/2026/images/old.png",
+    ]);
+    expect(candidates.map((c) => c.id)).toEqual(["persons-anna-photos-a"]);
+    expect(outside).toEqual([]);
   });
 });

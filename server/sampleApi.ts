@@ -43,6 +43,7 @@ export async function sampleAssets(sampleDir: string): Promise<AssetListing> {
   if (listing.status !== "ok") return listing;
   return {
     ...listing,
+    readOnly: true,
     assets: listing.assets.map((a) => (placeholderPng(a.file) ? { ...a, exists: true } : a)),
   };
 }

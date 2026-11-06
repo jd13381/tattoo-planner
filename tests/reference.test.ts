@@ -144,8 +144,30 @@ describe("image operations", () => {
 describe("placeholders", () => {
   const el = { id: "skull", type: "figure", position: { u: 0, v: 0.5 }, size_cm: { h: 10 } } as const;
   const assets = new Map([
-    ["skull-ref", { id: "skull-ref", file: "refs/s.jpg", kind: "reference", tags: [], exists: true }],
-    ["gone", { id: "gone", file: "refs/g.jpg", kind: "reference", tags: [], exists: false }],
+    [
+      "skull-ref",
+      {
+        id: "skull-ref",
+        file: "refs/s.jpg",
+        kind: "reference",
+        tags: [],
+        exists: true,
+        effectiveCategory: "reference" as const,
+        effectivePerson: null,
+      },
+    ],
+    [
+      "gone",
+      {
+        id: "gone",
+        file: "refs/g.jpg",
+        kind: "reference",
+        tags: [],
+        exists: false,
+        effectiveCategory: "reference" as const,
+        effectivePerson: null,
+      },
+    ],
   ]);
 
   it("names the reason an image is not shown", () => {

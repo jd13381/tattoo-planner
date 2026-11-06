@@ -1,18 +1,38 @@
 // Catalogue images that Jan drops into the data folder (ADR 0003): every image in a known folder that
 // no manifest entry references yet becomes a new entry with an id derived from its path.
+import { PERSON_ID, PERSONS_FOLDER } from "../project/persons.ts";
 import type { Asset } from "./manifest.ts";
 
-/** Folders that `assets:scan` looks at, and the kind their images get. */
+/** Top-level folders that `assets:scan` looks at, and the kind their images get. */
 export const SCAN_FOLDERS: Readonly<Record<string, string>> = {
-  // A project's folders (docs/adr/0012-project-folder.md) …
+  // A project's folders (docs/adr/0012-project-folder.md, docs/adr/0020-asset-structure.md) …
   images: "reference",
   photos: "arm-photo",
+  backgrounds: "background",
   // … and those of the older data folder, which stay valid.
   cards: "card-art",
   refs: "reference",
   existing: "existing",
   "arm-photos": "arm-photo",
 };
+
+/**
+ * The kind a scanned file gets, by its path; null when the scan leaves it alone. Rules: never inside
+ * dot folders (.trash, .trash-pending); photos/existing/ → existing; photos/ → arm-photo;
+ * persons/<id>/photos/ the same for that person; otherwise by the top-level folder (SCAN_FOLDERS).
+ * Images loose in the project root are not catalogued.
+ */
+export function scanKind(file: string): string | null {
+  const parts = file.split("/");
+  if (parts.length < 2 || parts.some((p) => p.startsWith("."))) return null;
+  let rest = parts;
+  if (parts[0] === PERSONS_FOLDER) {
+    if (parts.length < 4 || !PERSON_ID.test(parts[1]!) || parts[2] !== "photos") return null;
+    rest = parts.slice(2);
+  }
+  if (rest[0] === "photos" && rest.length > 2 && rest[1] === "existing") return "existing";
+  return SCAN_FOLDERS[rest[0]!] ?? null;
+}
 
 /** Formats the browser can show; other image files are reported but not catalogued. */
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif", "avif"];
@@ -40,7 +60,7 @@ export function assetIdFromPath(file: string): string {
 }
 
 /** Folders the planner fills itself (images extracted from ideas.pdf in the past, kept edits, new images, exports): never scanned. */
-export const MANAGED_FOLDERS = ["ideas", "edits", "generated", "exports"];
+export const MANAGED_FOLDERS = ["ideas", "edits", "generated", "exports", PERSONS_FOLDER];
 
 export type ScanResult = {
   candidates: Asset[];
@@ -56,7 +76,7 @@ export function scanCandidates(files: string[]): ScanResult {
   const outside: string[] = [];
   for (const file of [...files].sort()) {
     const top = file.split("/")[0]!;
-    const kind = file.includes("/") ? SCAN_FOLDERS[top] : undefined;
+    const kind = scanKind(file);
     const ext = extension(file);
     if (!kind) {
       const managed = file.includes("/") && MANAGED_FOLDERS.includes(top);

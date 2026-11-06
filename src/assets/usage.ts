@@ -1,23 +1,26 @@
-// Where each asset is used: which elements of which saved layout show it. Pure, for the Assets tab.
-import { isFigureLike } from "../layout/imageFit.ts";
-import { parseLayout } from "../layout/yamlDoc.ts";
+// Where each asset is used in saved layouts. The full picture (projections, kept edits, studio
+// sessions, every person) lives in references.ts; this keeps the older layout-only helper.
+import { parse } from "yaml";
+import { layoutAssetRefs } from "./references.ts";
+
+export { assetReferences, describeUse, isInUse, usageBadge } from "./references.ts";
 
 export type AssetUse = { layout: string; element: string };
 
-/**
- * Asset id → the layouts and element ids that reference it, in layout order. Layout files that do
- * not parse are skipped (the Layout tab reports them).
- */
+/** Asset id → the layouts and element ids that reference it, in layout order. Unparsable files are skipped. */
 export function assetUsage(layouts: readonly { name: string; text: string }[]): Map<string, AssetUse[]> {
   const out = new Map<string, AssetUse[]>();
   for (const file of layouts) {
-    const r = parseLayout(file.text);
-    if (!r.ok) continue;
-    for (const el of r.layout.elements) {
-      if (!isFigureLike(el) || !el.asset) continue;
-      const list = out.get(el.asset) ?? [];
-      list.push({ layout: file.name, element: el.id });
-      out.set(el.asset, list);
+    let doc: unknown;
+    try {
+      doc = parse(file.text);
+    } catch {
+      continue;
+    }
+    for (const ref of layoutAssetRefs(doc)) {
+      const list = out.get(ref.asset) ?? [];
+      list.push({ layout: file.name, element: ref.element });
+      out.set(ref.asset, list);
     }
   }
   return out;

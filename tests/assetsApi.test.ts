@@ -128,7 +128,12 @@ describe("listAssets and findAssetImage", () => {
   it("is unset without a folder and empty without a manifest", async () => {
     expect(await listAssets(null)).toEqual({ status: "unset" });
     const empty = await mkdtemp(path.join(os.tmpdir(), "tattoo-empty-"));
-    expect(await listAssets(empty)).toEqual({ status: "ok", assets: [], manifestFound: false, warnings: [] });
+    expect(await listAssets(empty)).toMatchObject({
+      status: "ok",
+      assets: [],
+      manifestFound: false,
+      warnings: [],
+    });
     await rm(empty, { recursive: true });
     expect(await listAssets(path.join(root, "nope"))).toMatchObject({ status: "error" });
   });

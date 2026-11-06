@@ -2,21 +2,18 @@
 // planner's Reload buttons (POST /api/assets/scan). Only adds manifest entries; Jan's entries,
 // comments and edits stay as they are, and an unchanged manifest is not rewritten.
 import { existsSync } from "node:fs";
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { MANIFEST_FILE } from "../src/assets/manifest.ts";
 import { mergeManifest } from "../src/assets/manifestDoc.ts";
 import { scanCandidates } from "../src/assets/scan.ts";
 import type { ScanReport } from "../src/assets/types.ts";
 import { listDataFiles } from "./dataDir.ts";
+import { withManifestLock, writeAtomic } from "./manifestLock.ts";
 
-/** Serialises scans of this process, so two quick Reloads do not race on manifest.yaml. */
-let lock: Promise<unknown> = Promise.resolve();
-
+/** Serialised with every other manifest write of this process, so two quick Reloads do not race. */
 export function scanDataFolder(dir: string): Promise<ScanReport> {
-  const run = lock.then(() => scanNow(dir));
-  lock = run.catch(() => undefined);
-  return run;
+  return withManifestLock(() => scanNow(dir));
 }
 
 async function scanNow(dir: string): Promise<ScanReport> {
@@ -35,11 +32,7 @@ async function scanNow(dir: string): Promise<ScanReport> {
   const file = path.join(dir, MANIFEST_FILE);
   const original = existsSync(file) ? await readFile(file, "utf8") : null;
   const result = mergeManifest(original?.trim() ? original : null, candidates, {});
-  if (result.changed) {
-    const tmp = `${file}.tmp-${process.pid}`;
-    await writeFile(tmp, result.text, "utf8");
-    await rename(tmp, file);
-  }
+  if (result.changed) await writeAtomic(file, result.text);
   return {
     found: candidates.length,
     added: result.added,

@@ -22,6 +22,16 @@ export const assetSchema = z.strictObject({
   /** Path relative to the data folder, forward slashes. */
   file: z.string().min(1),
   kind: z.string().min(1),
+  /**
+   * Section of the Assets tab (src/assets/category.ts). Optional: without it the section follows
+   * from kind, folder and use. Unknown values are kept and treated as if the field were missing.
+   */
+  category: z.string().min(1).optional(),
+  /** Person a measuring or tattoo photo belongs to (persons of a project); default the implicit one. */
+  person: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]*$/)
+    .optional(),
   /** Id of the original this image was edited from (kept edits, ADR 0007). */
   derived_from: z
     .string()

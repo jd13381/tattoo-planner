@@ -8,6 +8,8 @@ const a = (id: string, kind: string, tags: string[], extra: Partial<AssetInfo> =
   kind,
   tags,
   exists: true,
+  effectiveCategory: kind === "existing" ? "existing" : kind === "arm-photo" ? "measuring" : "reference",
+  effectivePerson: null,
   ...extra,
 });
 

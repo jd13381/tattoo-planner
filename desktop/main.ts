@@ -209,6 +209,8 @@ async function main() {
     root: APP_ROOT,
     configFile: path.join(userData, "config.json"),
     openaiKey: () => keys.get(),
+    // "Move to Trash" in the Assets tab: the system Trash, with Put Back.
+    trashItem: (file) => shell.trashItem(file),
   });
   const dist = path.join(APP_ROOT, "dist");
   if (!(await staticFile(dist, "/"))) {

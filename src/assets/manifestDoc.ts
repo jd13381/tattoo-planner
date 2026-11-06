@@ -33,6 +33,8 @@ const KEY_ORDER: (keyof Asset)[] = [
   "id",
   "file",
   "kind",
+  "category",
+  "person",
   "derived_from",
   "source",
   "notes",
@@ -155,21 +157,70 @@ export function mergeManifest(
   const text = doc.toString({ lineWidth: 0, flowCollectionPadding: false });
   const check = manifestSchema.safeParse(parseDocument(text).toJS());
   if (!check.success) throw new ManifestError(`merge produced an invalid manifest: ${issues(check.error)}`);
-  return { text, changed: text !== original, added, updated };
+  // Only new entries: append them as text, so everything already there stays byte for byte.
+  const appended =
+    original !== null && updated.length === 0
+      ? appendEntries(original, assets.items.slice(-added.length) as YAMLMap[], text)
+      : null;
+  return { text: appended ?? text, changed: (appended ?? text) !== original, added, updated };
+}
+
+/**
+ * `original` with `nodes` written after its last entry, in the indentation of the existing entries.
+ * Null when that is not possible (flow or empty list) or would not give the same data as `expected`.
+ */
+function appendEntries(original: string, nodes: YAMLMap[], expected: string): string | null {
+  const doc = parseDocument(original);
+  const seq = doc.get("assets", true);
+  if (!isSeq(seq) || seq.flow || seq.items.length === 0) return null;
+  const last = seq.items.at(-1) as YAMLMap | undefined;
+  const end = last?.range?.[2];
+  if (end === undefined) return null;
+  const lineStart = original.lastIndexOf("\n", last!.range![0] - 1) + 1;
+  const indent = /^(\s*)-/.exec(original.slice(lineStart, last!.range![0]))?.[1];
+  if (indent === undefined) return null;
+  const tmp = parseDocument("assets: []\n");
+  const list = new YAMLSeq();
+  list.items = nodes.map((n) => n.clone());
+  tmp.set("assets", list);
+  const body = tmp
+    .toString({ lineWidth: 0, flowCollectionPadding: false })
+    .split("\n")
+    .slice(1)
+    .map((l) => (l.trim() === "" ? "" : l.startsWith("  ") ? indent + l.slice(2) : l))
+    .join("\n")
+    .replace(/^\n+/, "")
+    .replace(/\n+$/, "\n");
+  const head = original.slice(0, end);
+  const text = `${head}${head.endsWith("\n") ? "" : "\n"}\n${body}${original.slice(end)}`;
+  try {
+    const same =
+      JSON.stringify(parseDocument(text).toJS()) === JSON.stringify(parseDocument(expected).toJS());
+    return same ? text : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Fields of one entry that the Assets tab edits. `null` / empty removes the field. */
-export type EntryPatch = { tags?: string[]; notes?: string | null; hidden?: boolean };
+export type EntryPatch = {
+  tags?: string[];
+  notes?: string | null;
+  hidden?: boolean;
+  /** "Move to …": the section; null removes the field (back to the derived one). */
+  category?: string | null;
+  /** The person a photo belongs to; null removes the field (the implicit person). */
+  person?: string | null;
+};
 
-/**
- * Changes the tags, notes or hidden flag of the entry with `id`, keeping comments, key order and
- * every other field. A field the entry does not have yet goes where KEY_ORDER puts it.
- */
-export function updateManifestEntry(original: string, id: string, patch: EntryPatch): string {
-  const doc = parseManifestText(original);
+function entryMap(doc: Document, id: string): YAMLMap {
   const seq = doc.get("assets", true);
   const entry = isSeq(seq) ? seq.items.find((item) => isMap(item) && item.get("id") === id) : undefined;
   if (!isMap(entry)) throw new ManifestError(`no asset with id ${id}`);
+  return entry as YAMLMap;
+}
+
+function applyPatch(doc: Document, entry: YAMLMap, patch: EntryPatch) {
   const set = (key: keyof Asset, value: unknown) => {
     if (value === undefined) return;
     const remove =
@@ -182,6 +233,7 @@ export function updateManifestEntry(original: string, id: string, patch: EntryPa
     }
     const current = entry.get(key, true);
     if (entry.has(key)) {
+      if (same((current as { toJSON?(): unknown })?.toJSON?.() ?? current, value)) return;
       const next = valueNode(doc, key, value);
       if (current && typeof current === "object" && "comment" in current)
         next.comment = (current as { comment?: string | null }).comment;
@@ -201,9 +253,116 @@ export function updateManifestEntry(original: string, id: string, patch: EntryPa
   };
   if (patch.tags !== undefined) set("tags", [...new Set(patch.tags.map((t) => t.trim()).filter(Boolean))]);
   if (patch.notes !== undefined) set("notes", patch.notes?.trim() ? patch.notes.trim() : null);
+  if (patch.category !== undefined) set("category", patch.category);
+  if (patch.person !== undefined) set("person", patch.person);
   if (patch.hidden !== undefined) set("hidden", patch.hidden || null);
+}
+
+function finish(doc: Document, what: string): string {
   const text = doc.toString({ lineWidth: 0, flowCollectionPadding: false });
   const check = manifestSchema.safeParse(parseDocument(text).toJS());
-  if (!check.success) throw new ManifestError(`update produced an invalid manifest: ${issues(check.error)}`);
+  if (!check.success) throw new ManifestError(`${what} produced an invalid manifest: ${issues(check.error)}`);
   return text;
+}
+
+/**
+ * Changes the tags, notes, category, person or hidden flag of the entry with `id`, keeping
+ * comments, key order and every other field. A field the entry does not have yet goes where
+ * KEY_ORDER puts it.
+ */
+export function updateManifestEntry(original: string, id: string, patch: EntryPatch): string {
+  return updateManifestEntries(original, [{ id, patch }]);
+}
+
+/**
+ * Several entry updates in one write (the batch actions of the Assets tab). Unknown ids throw, so a
+ * batch is all or nothing. A batch that changes nothing returns the original text unchanged.
+ */
+export function updateManifestEntries(
+  original: string,
+  updates: readonly { id: string; patch: EntryPatch }[],
+): string {
+  const doc = parseManifestText(original);
+  const before = JSON.stringify(doc.toJS());
+  for (const u of updates) applyPatch(doc, entryMap(doc, u.id), u.patch);
+  if (JSON.stringify(doc.toJS()) === before) return original;
+  return finish(doc, "update");
+}
+
+const isBlank = (line: string) => line.trim() === "";
+
+/**
+ * Removes the entries with these ids. Everything else stays byte for byte: other entries, comments
+ * (also those right above a removed entry) and blank lines between entries. The text is cut line by
+ * line from the parsed ranges; when a layout is too unusual for that (flow sequences, every entry
+ * removed), the document is re-serialised instead. Returns the text and the removed ids.
+ */
+export function removeManifestEntries(
+  original: string,
+  ids: readonly string[],
+): { text: string; removed: string[] } {
+  const doc = parseManifestText(original);
+  const seq = doc.get("assets", true);
+  if (!isSeq(seq)) return { text: original, removed: [] };
+  const drop = new Set(ids);
+  const items = seq.items.filter(isMap) as YAMLMap[];
+  const removed = items.map((m) => String(m.get("id"))).filter((id) => drop.has(id));
+  if (removed.length === 0) return { text: original, removed };
+  const expected = JSON.stringify(
+    (doc.toJS() as { assets: { id: string }[] }).assets.filter((a) => !drop.has(a.id)),
+  );
+  const viaDoc = () => {
+    const d = parseManifestText(original);
+    const s = d.get("assets", true) as YAMLSeq;
+    s.items = s.items.filter((m) => !(isMap(m) && drop.has(String(m.get("id")))));
+    if (s.items.length === 0) s.flow = true;
+    return finish(d, "removal");
+  };
+  if (seq.flow || removed.length === items.length) return { text: viaDoc(), removed };
+
+  const lines = original.split("\n");
+  const starts: number[] = [];
+  let offset = 0;
+  for (const line of lines) {
+    starts.push(offset);
+    offset += line.length + 1;
+  }
+  const lineOf = (pos: number) => {
+    let lo = 0;
+    let hi = starts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (starts[mid]! <= pos) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  };
+  const cut = new Set<number>();
+  for (const item of items) {
+    if (!drop.has(String(item.get("id")))) continue;
+    const range = item.range;
+    if (!range) return { text: viaDoc(), removed };
+    let first = lineOf(range[0]);
+    const head = lines[first]!.slice(0, range[0] - starts[first]!);
+    if (!/^\s*-\s+$/.test(head)) {
+      // "-" alone on the line above the entry's first key.
+      if (head.trim() === "" && first > 0 && /^\s*-\s*$/.test(lines[first - 1]!)) first -= 1;
+      else return { text: viaDoc(), removed };
+    }
+    const last = lineOf(Math.max(range[0], range[2] - 1));
+    for (let l = first; l <= last; l++) cut.add(l);
+    // The blank lines after the entry go with it; at the end of the list, those before it.
+    let after = last + 1;
+    while (after < lines.length - 1 && isBlank(lines[after]!)) cut.add(after++);
+    if (after === last + 1 && item === items.at(-1))
+      for (let before = first - 1; before > 0 && isBlank(lines[before]!); before--) cut.add(before);
+  }
+  const text = lines.filter((_, i) => !cut.has(i)).join("\n");
+  try {
+    const check = parseManifestText(text);
+    if (JSON.stringify((check.toJS() as { assets: unknown[] }).assets) === expected) return { text, removed };
+  } catch {
+    // fall through to the re-serialised document
+  }
+  return { text: viaDoc(), removed };
 }

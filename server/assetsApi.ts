@@ -1,21 +1,19 @@
-// API for the asset manifest (<project>/manifest.yaml) and its images.
-//   GET /api/assets             → AssetListing (src/assets/types.ts)
-//   GET /api/assets/image/<id>  → the bytes of that manifest asset, images only
-//   POST /api/assets/scan       → ScanReport: adds entries for new images, as `npm run assets:scan`
-//   PATCH /api/assets/entries/<id>  body EntryPatch → the updated AssetListing: tags, notes, hidden
+// The asset manifest (<project>/manifest.yaml) and its images: paths, the lenient listing and entry
+// edits. The HTTP routes are in server/assetsHandler.ts, the actions that move files (delete, undo,
+// import) in server/assetActions.ts.
 // Only files named in the manifest are served, and only when they resolve inside the data folder.
-// The scan and the entry update are the only writes: they change manifest.yaml (keeping comments)
-// and never touch an image.
-import { createReadStream } from "node:fs";
-import { readFile, realpath, rename, stat, writeFile } from "node:fs/promises";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { parseDocument } from "yaml";
+import { categoryOf, isCategory, personOf } from "../src/assets/category.ts";
 import { assetSchema, MANIFEST_FILE, type Asset } from "../src/assets/manifest.ts";
-import { ManifestError, updateManifestEntry, type EntryPatch } from "../src/assets/manifestDoc.ts";
-import type { AssetInfo, AssetListing } from "../src/assets/types.ts";
-import { isCrossSite, readJson, send, sendError, subPath, type Handler } from "./http.ts";
-import { scanDataFolder } from "./scanFolder.ts";
+import { ManifestError, updateManifestEntries, type EntryPatch } from "../src/assets/manifestDoc.ts";
+import { projectionPhotoKeys } from "../src/assets/references.ts";
+import type { AssetInfo, AssetListing, TrashMode } from "../src/assets/types.ts";
+import { PERSON_ID } from "../src/project/persons.ts";
+import { withManifestLock, writeAtomic } from "./manifestLock.ts";
+import { folderPersons, type PersonDirs } from "./persons.ts";
+import { listProjections } from "./projectionsApi.ts";
 
 /** Image types a browser can show. HEIC/HEIF are named separately: Chrome cannot decode them. */
 export const IMAGE_TYPES: Record<string, string> = {
@@ -123,8 +121,29 @@ export function parseManifestText(text: string): { assets: Asset[]; warnings: st
   return { assets, warnings };
 }
 
-export async function listAssets(dataDir: string | null): Promise<AssetListing> {
+/** What the listing needs besides the manifest: the persons (for their projections) and the trash. */
+export type ListContext = {
+  /** Default: the implicit person with the folder's own layouts/ and projections/. */
+  persons?: PersonDirs[];
+  trash?: TrashMode;
+};
+
+/** fileKey()s of the photos every person's projections use (they make a body photo a tattoo photo). */
+export async function projectionKeys(persons: readonly PersonDirs[]): Promise<Set<string>> {
+  const files = await Promise.all(
+    persons.map((p) => (p.projectionsDir ? listProjections(p.projectionsDir) : Promise.resolve([]))),
+  );
+  return projectionPhotoKeys(files.flat());
+}
+
+/** The manifest with an existence check per file and each entry's section (category, person). */
+export async function listAssets(dataDir: string | null, ctx: ListContext = {}): Promise<AssetListing> {
   if (!dataDir) return { status: "unset" };
+  const persons = ctx.persons ?? folderPersons(dataDir);
+  const extra = {
+    persons: persons.map(({ id, name, implicit }) => ({ id, name, implicit })),
+    ...(ctx.trash ? { trash: ctx.trash } : {}),
+  };
   let text: string;
   try {
     text = await readFile(path.join(dataDir, MANIFEST_FILE), "utf8");
@@ -137,21 +156,29 @@ export async function listAssets(dataDir: string | null): Promise<AssetListing> 
       } catch {
         return { status: "error", message: "data folder not found" };
       }
-      return { status: "ok", assets: [], manifestFound: false, warnings: [] };
+      return { status: "ok", assets: [], manifestFound: false, warnings: [], ...extra };
     }
     return { status: "error", message: `cannot read ${MANIFEST_FILE}: ${String(code ?? e)}` };
   }
   const parsed = parseManifestText(text);
   if ("error" in parsed) return { status: "error", message: parsed.error };
   const warnings = [...parsed.warnings];
+  const keys = await projectionKeys(persons);
+  const defaultPerson = persons[0]?.id;
   const assets: AssetInfo[] = await Promise.all(
     parsed.assets.map(async (a) => {
       const r = await resolveInside(dataDir, a.file);
       if (!r.ok && r.message !== "file not found") warnings.push(`${a.id}: ${a.file}: ${r.message}`);
-      return { ...a, exists: r.ok };
+      const effectiveCategory = categoryOf(a, keys);
+      return {
+        ...a,
+        exists: r.ok,
+        effectiveCategory,
+        effectivePerson: personOf(a, effectiveCategory, defaultPerson),
+      };
     }),
   );
-  return { status: "ok", assets, manifestFound: true, warnings };
+  return { status: "ok", assets, manifestFound: true, warnings, ...extra };
 }
 
 export type ImageLookup =
@@ -159,10 +186,16 @@ export type ImageLookup =
 
 /** Finds the file for an asset id: only manifest entries, only images, only inside the data folder. */
 export async function findAssetImage(dataDir: string, id: string): Promise<ImageLookup> {
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) return { ok: false, status: 400, message: "invalid asset id" };
-  const listing = await listAssets(dataDir);
-  if (listing.status !== "ok") return { ok: false, status: 404, message: "no manifest" };
-  const asset = listing.assets.find((a) => a.id === id);
+  if (!ASSET_ID.test(id)) return { ok: false, status: 400, message: "invalid asset id" };
+  let text: string;
+  try {
+    text = await readFile(path.join(dataDir, MANIFEST_FILE), "utf8");
+  } catch {
+    return { ok: false, status: 404, message: "no manifest" };
+  }
+  const parsed = parseManifestText(text);
+  if ("error" in parsed) return { ok: false, status: 404, message: "no manifest" };
+  const asset = parsed.assets.find((a) => a.id === id);
   if (!asset) return { ok: false, status: 404, message: `unknown asset ${id}` };
   const type = imageContentType(asset.file);
   if (!type.ok) return type;
@@ -171,120 +204,80 @@ export async function findAssetImage(dataDir: string, id: string): Promise<Image
   return { ok: true, path: r.path, type: type.type };
 }
 
-/** Checks the body of an entry update: only tags (strings), notes (string or null) and hidden (boolean). */
+export const ASSET_ID = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
+ * Checks the body of an entry update: tags (strings), notes (string or null), hidden (boolean),
+ * category (a known category or null) and person (a person id or null). Anything else: null.
+ */
 export function parseEntryPatch(body: unknown): EntryPatch | null {
   if (typeof body !== "object" || body === null || Array.isArray(body)) return null;
-  const { tags, notes, hidden, ...rest } = body as Record<string, unknown>;
+  const { tags, notes, hidden, category, person, ...rest } = body as Record<string, unknown>;
   if (Object.keys(rest).length > 0) return null;
   if (
     tags !== undefined &&
-    !(Array.isArray(tags) && tags.every((t) => typeof t === "string" && t.length <= 64))
+    !(Array.isArray(tags) && tags.length <= 100 && tags.every((t) => typeof t === "string" && t.length <= 64))
   )
     return null;
   if (notes !== undefined && notes !== null && (typeof notes !== "string" || notes.length > 4000))
     return null;
   if (hidden !== undefined && typeof hidden !== "boolean") return null;
+  if (category !== undefined && category !== null && !isCategory(category)) return null;
+  if (person !== undefined && person !== null && !(typeof person === "string" && PERSON_ID.test(person)))
+    return null;
   return {
     ...(tags !== undefined ? { tags: tags as string[] } : {}),
     ...(notes !== undefined ? { notes: notes as string | null } : {}),
     ...(hidden !== undefined ? { hidden } : {}),
+    ...(category !== undefined ? { category: category as string | null } : {}),
+    ...(person !== undefined ? { person: person as string | null } : {}),
   };
 }
 
-/** Writes an entry update into manifest.yaml (atomically); a broken manifest is never overwritten. */
+export type EntryUpdateResult =
+  { ok: true; before: string; after: string } | { ok: false; status: 400 | 404 | 409; message: string };
+
+/**
+ * Writes entry updates into manifest.yaml (atomically, under the manifest lock); a broken manifest
+ * is never overwritten and an update that changes nothing writes nothing. All or nothing.
+ */
+export function updateAssetEntries(
+  dataDir: string,
+  updates: readonly { id: string; patch: EntryPatch }[],
+): Promise<EntryUpdateResult> {
+  return withManifestLock(async () => {
+    if (updates.some((u) => !ASSET_ID.test(u.id)))
+      return { ok: false, status: 400, message: "invalid asset id" } as const;
+    const file = path.join(dataDir, MANIFEST_FILE);
+    let original: string;
+    try {
+      original = await readFile(file, "utf8");
+    } catch {
+      return { ok: false, status: 404, message: "no manifest" } as const;
+    }
+    let text: string;
+    try {
+      text = updateManifestEntries(original, updates);
+    } catch (e) {
+      if (e instanceof ManifestError)
+        return {
+          ok: false,
+          status: e.message.startsWith("no asset") ? 404 : 409,
+          message: e.message,
+        } as const;
+      throw e;
+    }
+    if (text !== original) await writeAtomic(file, text);
+    return { ok: true, before: original, after: text } as const;
+  });
+}
+
+/** One entry update (PATCH /api/assets/entries/<id>). */
 export async function updateAssetEntry(
   dataDir: string,
   id: string,
   patch: EntryPatch,
 ): Promise<{ ok: true } | { ok: false; status: 400 | 404 | 409; message: string }> {
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) return { ok: false, status: 400, message: "invalid asset id" };
-  const file = path.join(dataDir, MANIFEST_FILE);
-  let original: string;
-  try {
-    original = await readFile(file, "utf8");
-  } catch {
-    return { ok: false, status: 404, message: "no manifest" };
-  }
-  let text: string;
-  try {
-    text = updateManifestEntry(original, id, patch);
-  } catch (e) {
-    if (e instanceof ManifestError)
-      return { ok: false, status: e.message.startsWith("no asset") ? 404 : 409, message: e.message };
-    throw e;
-  }
-  if (text !== original) {
-    const tmp = `${file}.tmp-${process.pid}`;
-    await writeFile(tmp, text, "utf8");
-    await rename(tmp, file);
-  }
-  return { ok: true };
-}
-
-async function serveImage(req: IncomingMessage, res: ServerResponse, dataDir: string, id: string) {
-  const found = await findAssetImage(dataDir, id);
-  if (!found.ok) return send(res, found.status, { error: found.message });
-  const s = await stat(found.path);
-  const lastModified = s.mtime.toUTCString();
-  // Private: never stored by shared caches. Revalidated, so a replaced image shows up at once.
-  res.setHeader("Cache-Control", "private, no-cache");
-  res.setHeader("Last-Modified", lastModified);
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  const since = req.headers["if-modified-since"];
-  if (since && Date.parse(since) >= Math.floor(s.mtimeMs / 1000) * 1000) {
-    res.statusCode = 304;
-    res.end();
-    return;
-  }
-  res.statusCode = 200;
-  res.setHeader("Content-Type", found.type);
-  res.setHeader("Content-Length", String(s.size));
-  createReadStream(found.path).pipe(res);
-}
-
-/** The asset manifest and its images in the open project (`dir` null = no project). */
-export function assetsHandler(dir: () => Promise<string | null>): Handler {
-  return async (req, res, url) => {
-    const sub = subPath(url);
-    try {
-      const dataDir = await dir();
-      if (req.method === "POST" && sub === "/scan") {
-        // Only the planner page itself may change the manifest.
-        if (isCrossSite(req.headers)) return send(res, 403, { error: "cross-site request refused" });
-        if (!dataDir) return send(res, 409, { error: "no project is open" });
-        return send(res, 200, await scanDataFolder(dataDir));
-      }
-      const entry = /^\/entries\/([^/]+)$/.exec(sub);
-      if (req.method === "PATCH" && entry) {
-        if (isCrossSite(req.headers)) return send(res, 403, { error: "cross-site request refused" });
-        if (req.headers["content-type"] !== "application/json") return send(res, 415, { error: "JSON only" });
-        if (!dataDir) return send(res, 409, { error: "no project is open" });
-        const patch = parseEntryPatch(await readJson(req, 20_000).catch(() => undefined));
-        if (!patch) return send(res, 400, { error: "expected { tags?, notes?, hidden? }" });
-        let id: string;
-        try {
-          id = decodeURIComponent(entry[1]!);
-        } catch {
-          return send(res, 400, { error: "invalid asset id" });
-        }
-        const r = await updateAssetEntry(dataDir, id, patch);
-        if (!r.ok) return send(res, r.status, { error: r.message });
-        return send(res, 200, await listAssets(dataDir));
-      }
-      if (req.method !== "GET") return send(res, 405, { error: "method not allowed" });
-      if (sub === "/" || sub === "") return send(res, 200, await listAssets(dataDir));
-      const m = /^\/image\/([^/]+)$/.exec(sub);
-      if (!m) return send(res, 404, { error: "not found" });
-      if (!dataDir) return send(res, 404, { error: "no project is open" });
-      let id: string;
-      try {
-        id = decodeURIComponent(m[1]!);
-      } catch {
-        return send(res, 400, { error: "invalid asset id" });
-      }
-      return await serveImage(req, res, dataDir, id);
-    } catch (e) {
-      sendError(res, e, 500);
-    }
-  };
+  const r = await updateAssetEntries(dataDir, [{ id, patch }]);
+  return r.ok ? { ok: true } : r;
 }
