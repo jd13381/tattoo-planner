@@ -7,7 +7,6 @@ import type { AssetInfo } from "../assets/types.ts";
 import { assetImageUrl } from "../assets/types.ts";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { REGIONS } from "../body/regions.ts";
-import type { HeaderSlots } from "../editor/LayoutPage.tsx";
 import { useLayouts, type WorkingLayout } from "../layout/useLayouts.ts";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
 import { layoutsShowing } from "./layoutLink.ts";
@@ -23,26 +22,16 @@ type Props = {
   pose: Pose;
   onDirty?: (dirty: boolean) => void;
   openLayout?: WorkingLayout | null;
-  header?: HeaderSlots;
 };
 
-export function ProjectionSettings({ arm, pose, onDirty, openLayout, header }: Props) {
+export function ProjectionSettings({ arm, pose, onDirty, openLayout }: Props) {
   const [view, setView] = useState<View>({ kind: "list" });
   const toList = () => {
     onDirty?.(false);
     setView({ kind: "list" });
   };
   if (view.kind === "advanced")
-    return (
-      <ProjectionPage
-        arm={arm}
-        pose={pose}
-        onDirty={onDirty}
-        header={header}
-        initialName={view.name}
-        onBack={toList}
-      />
-    );
+    return <ProjectionPage arm={arm} pose={pose} onDirty={onDirty} initialName={view.name} onBack={toList} />;
   if (view.kind === "wizard")
     return (
       <ProjectionWizard
@@ -52,7 +41,6 @@ export function ProjectionSettings({ arm, pose, onDirty, openLayout, header }: P
         editName={view.name}
         openLayout={openLayout ?? null}
         onDirty={onDirty}
-        header={header}
         onClose={toList}
         onAdvanced={(name) => setView({ kind: "advanced", name })}
         onAnother={() => setView({ kind: "wizard", name: null })}

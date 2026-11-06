@@ -4215,6 +4215,7 @@ button.link.cmp-summary-line:hover:not(:disabled) {
   gap: 6px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .projection-errors {
@@ -6535,18 +6536,35 @@ canvas.builtin-preview {
   min-height: 560px;
 }
 
+/* The wizard's own bar: title, the steps, Advanced and Cancel / Close at the right end, next to the
+ * work rather than in the app's top bar (2026-11-06 test notes). */
+.wizard-bar {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
 .wizard-title {
+  flex: 0 1 auto;
+  min-width: 6ch;
+  max-width: 32ch;
+  margin: 0;
+  font-size: var(--fs-md);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 32ch;
 }
 
 .wizard-rail {
-  flex: none;
-  border-bottom: 1px solid var(--border);
-  padding: 6px 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 0 2px var(--s-2);
+  border-left: 1px solid var(--border);
   overflow-x: auto;
 }
 

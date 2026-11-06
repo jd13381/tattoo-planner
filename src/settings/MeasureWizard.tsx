@@ -6,6 +6,7 @@ import { bodyStatus, fieldStatuses, formatCm, type FieldStatus } from "../body/f
 import { INPUT_LABELS, untapedKeys, wizardSteps, WIZARD_TIPS } from "../body/measureGuide.ts";
 import { REGIONS, type RegionId } from "../body/regions.ts";
 import { BODY_IDS, DEFAULT_BODY, SAMPLES, type BodyId } from "../body/samples.ts";
+import { useEscape } from "../ui/useEscape.ts";
 import type { ArmState } from "../viewer/useArm.ts";
 import { MeasureDiagram } from "./MeasureDiagram.tsx";
 
@@ -84,15 +85,7 @@ export function MeasureWizard({ arm, region, onExit, onSave, saving }: Props) {
         : `Skipped: ${formatCm(field?.fallback ?? 0)} cm from the sample body.`;
 
   // Esc closes the wizard like the Close button (the values entered so far stay in the draft).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented) return;
-      e.preventDefault();
-      onExit();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onExit]);
+  useEscape(onExit);
 
   const stepNo = Math.min(index, steps.length - 1) + 1;
   return (

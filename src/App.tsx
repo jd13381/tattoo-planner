@@ -39,7 +39,8 @@ export function App({ project }: { project: ProjectStatus }) {
   // Elbow flexion in degrees, shared by every 3D view (Arm, Layout, Compare).
   const [bendDeg, setBendDeg] = useState(0);
   const pose = { bendDeg, setBendDeg };
-  // The Layout and Projection tabs put their notices and their picker / save controls into the top bar.
+  // The Layout tab puts its notices and its picker / save controls into the top bar (the Settings
+  // flows keep their controls in their own bar, next to the work).
   const [noticesSlot, setNoticesSlot] = useState<HTMLDivElement | null>(null);
   const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
   const header: HeaderSlots = { notices: noticesSlot, actions: actionsSlot };
@@ -182,7 +183,6 @@ export function App({ project }: { project: ProjectStatus }) {
               onProjectionDirty={setProjectionDirty}
               openLayout={working}
               unsaved={{ projection: projectionDirty, body: arm.dirty > 0 }}
-              header={header}
             />
           )}
         </TabPanel>
