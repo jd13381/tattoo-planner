@@ -1,11 +1,12 @@
 // "Measure yourself": one value per step for the chosen region, with an instruction and a schematic;
 // every value goes into the unsaved draft at once, so the 3D region follows. Optional and can be left
-// at any step: the values entered so far stay in the draft (Save writes them).
+// at any step (Close or Esc): the values entered so far stay in the draft (Save writes them).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bodyStatus, fieldStatuses, formatCm, type FieldStatus } from "../body/fieldStatus.ts";
 import { INPUT_LABELS, untapedKeys, wizardSteps, WIZARD_TIPS } from "../body/measureGuide.ts";
 import { REGIONS, type RegionId } from "../body/regions.ts";
 import { BODY_IDS, DEFAULT_BODY, SAMPLES, type BodyId } from "../body/samples.ts";
+import { useEscape } from "../ui/useEscape.ts";
 import type { ArmState } from "../viewer/useArm.ts";
 import { MeasureDiagram } from "./MeasureDiagram.tsx";
 
@@ -83,21 +84,32 @@ export function MeasureWizard({ arm, region, onExit, onSave, saving }: Props) {
         ? `Skipped: ${formatCm(field.fallback)} cm, as measured on the other side.`
         : `Skipped: ${formatCm(field?.fallback ?? 0)} cm from the sample body.`;
 
+  // Esc closes the wizard like the Close button (the values entered so far stay in the draft).
+  useEscape(onExit);
+
+  const stepNo = Math.min(index, steps.length - 1) + 1;
   return (
-    <div className="wizard">
-      <div className="wizard-head">
-        <span className="wizard-title">Measure yourself · {def.label}</span>
+    <div className="measure-wizard">
+      <div className="float-head mw-head">
+        <h2 className="float-title mw-title">Measure yourself · {def.label}</h2>
         <span className="spacer" />
+        <span
+          className="faint mono mw-count"
+          aria-label={summary ? "Summary" : `Step ${stepNo} of ${steps.length}`}
+        >
+          {summary ? "Summary" : `${stepNo} / ${steps.length}`}
+        </span>
         <button
           type="button"
           className="ghost small-button"
           onClick={onExit}
-          title="Back to the form; entered values stay"
+          aria-keyshortcuts="Escape"
+          title="Back to the form (Esc); the values entered so far stay, unsaved"
         >
-          Leave
+          Close
         </button>
       </div>
-      <div className="wizard-progress" aria-hidden="true">
+      <div className="mw-progress" aria-hidden="true">
         <i style={{ width: `${(Math.min(index, steps.length) / steps.length) * 100}%` }} />
       </div>
       {summary ? (
@@ -109,17 +121,23 @@ export function MeasureWizard({ arm, region, onExit, onSave, saving }: Props) {
           onEdit={(key) => setIndex(steps.findIndex((s) => s.key === key))}
         />
       ) : (
-        <div className="wizard-body">
-          <p className="wizard-count faint mono">
-            Step {index + 1} of {steps.length}
-          </p>
+        <div className="mw-scroll">
           <MeasureDiagram kind={def.kind} diagram={step.diagram} label={step.label} />
-          <h3 className="wizard-label">{step.label}</h3>
-          <p className="wizard-instruction">{step.instruction}</p>
+          <section className="mw-step" aria-label={`Step ${stepNo} of ${steps.length}`}>
+            <h3 className="mw-label">{step.label}</h3>
+            <p className="mw-instruction">{step.instruction}</p>
+          </section>
           {index === 0 && (
-            <>
-              <label className="wizard-body-choice">
-                <span>Sample body</span>
+            <ul className="mw-tips" aria-label="Tips">
+              {WIZARD_TIPS.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          )}
+          <div className="mw-entry-card">
+            {index === 0 && (
+              <label className="mw-field">
+                <span className="mw-field-name">Sample body</span>
                 <select
                   value={bs.body}
                   onChange={(e) => {
@@ -134,39 +152,40 @@ export function MeasureWizard({ arm, region, onExit, onSave, saving }: Props) {
                   ))}
                 </select>
               </label>
-              <ul className="wizard-tips">
-                {WIZARD_TIPS.map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          <form
-            className="wizard-entry"
-            onSubmit={(e) => {
-              e.preventDefault();
-              go(index + 1);
-            }}
-          >
-            <input
-              ref={input}
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={0.1}
-              aria-label={`${step.label} in cm`}
-              placeholder={placeholder}
-              value={value ?? ""}
-              onChange={(e) => onInput(e.target.value)}
-            />
-            <span className="faint">cm</span>
-          </form>
-          <p className="wizard-fallback faint">
-            {value === null ? fallbackNote : "Shown on the 3D model now."}
-          </p>
+            )}
+            <form
+              className="mw-field"
+              onSubmit={(e) => {
+                e.preventDefault();
+                go(index + 1);
+              }}
+            >
+              <label className="mw-field-name" htmlFor="mw-value">
+                Your value
+              </label>
+              <span className="mw-value">
+                <input
+                  id="mw-value"
+                  ref={input}
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step={0.1}
+                  aria-label={`${step.label} in cm`}
+                  placeholder={placeholder}
+                  value={value ?? ""}
+                  onChange={(e) => onInput(e.target.value)}
+                />
+                <span className="faint">cm</span>
+              </span>
+            </form>
+            <p className={`mw-status${value === null ? " faint" : " ok-text"}`} aria-live="polite">
+              {value === null ? fallbackNote : "Shown on the 3D model now."}
+            </p>
+          </div>
         </div>
       )}
-      <div className="wizard-nav">
+      <div className="mw-nav">
         <button type="button" className="ghost" onClick={() => go(index - 1)} disabled={index === 0}>
           Back
         </button>
@@ -216,15 +235,17 @@ function Summary({
     s.key === "height_cm" ? bs.heightCm !== null : byKey.get(s.key)?.own != null,
   );
   return (
-    <div className="wizard-body">
-      <h3 className="wizard-label">Summary</h3>
-      <p className="wizard-instruction">
-        {own.length} of {steps.length} values are your own; the rest come from the{" "}
-        {SAMPLES[bs.body].label.toLowerCase()}
-        {bs.heightCm ? `, scaled to ${formatCm(bs.heightCm)} cm` : ""}. Click a row to go back to it.{" "}
-        {arm.dirty > 0 ? "Save writes the new values into measurements.yaml." : "Nothing new to save."}
-      </p>
-      <table className="wizard-summary">
+    <div className="mw-scroll">
+      <section className="mw-step">
+        <h3 className="mw-label">Summary</h3>
+        <p className="mw-instruction">
+          {own.length} of {steps.length} values are your own; the rest come from the{" "}
+          {SAMPLES[bs.body].label.toLowerCase()}
+          {bs.heightCm ? `, scaled to ${formatCm(bs.heightCm)} cm` : ""}. Click a row to go back to it.{" "}
+          {arm.dirty > 0 ? "Save writes the new values into measurements.yaml." : "Nothing new to save."}
+        </p>
+      </section>
+      <table className="mw-summary">
         <tbody>
           {steps.map((s) => {
             const f = byKey.get(s.key);
@@ -243,7 +264,7 @@ function Summary({
         </tbody>
       </table>
       {untaped.length > 0 && (
-        <p className="faint wizard-fallback">
+        <p className="faint mw-status">
           Not taped: {untaped.map((k) => INPUT_LABELS[k] ?? k).join(", ")}. They keep the sample&apos;s
           values; adjust them in the form if the 3D torso looks off.
         </p>

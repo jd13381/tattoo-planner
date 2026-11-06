@@ -3,6 +3,7 @@
 // and preview the combined patch on the unwrap and in 3D. Save writes the projection's YAML file.
 // The maths lives in model.ts and patch.ts; this file only draws and edits numbers.
 import {
+  useCallback,
   useEffect,
   useEffectEvent,
   useMemo,
@@ -10,17 +11,16 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
 import type { RegionProfile } from "../body/profile.ts";
 import { REGIONS, type RegionId } from "../body/regions.ts";
 import { requestImage, useAssetImages, useAssetListing } from "../assets/useAssets.ts";
-import type { HeaderSlots } from "../editor/LayoutPage.tsx";
 import { formatKeys } from "../editor/shortcuts.ts";
 import { currentPlatform } from "../editor/useLayoutShortcuts.ts";
 import type { AssetImage } from "../render/reference.ts";
 import { WarnIcon } from "../ui/icons.tsx";
 import { Popover } from "../ui/Popover.tsx";
 import { ToastRegion, useToast } from "../ui/Toast.tsx";
+import { useEscape } from "../ui/useEscape.ts";
 import { ArmViewer, ORBIT_HINT, PoseControl } from "../viewer/ArmViewer.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
 import type { GridLine } from "./model.ts";
@@ -51,7 +51,6 @@ export function ProjectionPage({
   arm,
   pose,
   onDirty,
-  header,
   initialName,
   onBack,
 }: {
@@ -59,8 +58,6 @@ export function ProjectionPage({
   pose: Pose;
   /** Reports unsaved edits, so the app can warn before a reload. */
   onDirty?: (dirty: boolean) => void;
-  /** Top-bar slots (App.tsx); without them the picker and Save sit in a bar above the workspace. */
-  header?: HeaderSlots;
   /** The projection to open first. */
   initialName?: string;
   /** Back to the list of existing tattoos. */
@@ -68,8 +65,34 @@ export function ProjectionPage({
 }) {
   const { files, calibrations, errors, loadError } = useProjections();
   const [name, setName] = useState<string | null>(initialName ?? null);
+  // Back to the list (button or Esc), like the wizard's Cancel: unsaved edits ask first.
+  const [editorDirty, setEditorDirty] = useState(false);
+  const reportDirty = useCallback(
+    (d: boolean) => {
+      setEditorDirty(d);
+      onDirty?.(d);
+    },
+    [onDirty],
+  );
+  const goBack = () => {
+    if (!onBack) return;
+    if (editorDirty && !window.confirm("Leave without saving? The changes to this projection are lost."))
+      return;
+    onBack();
+  };
+  useEscape(goBack, !!onBack);
   const back = onBack && (
-    <button type="button" className="ghost" onClick={onBack} title="Back to the list of existing tattoos">
+    <button
+      type="button"
+      className="ghost"
+      onClick={goBack}
+      aria-keyshortcuts="Escape"
+      title={
+        editorDirty
+          ? "Back to the list of existing tattoos without saving (Esc)"
+          : "Back to the list of existing tattoos (Esc)"
+      }
+    >
       ‹ Existing tattoos
     </button>
   );
@@ -123,11 +146,14 @@ export function ProjectionPage({
   if (!saved)
     return (
       <div className="projection-page">
-        <TopBar header={header}>
-          {back}
-          <span className="header-sep" aria-hidden="true" />
-          {picker(false)}
-        </TopBar>
+        <TopBar
+          start={
+            <>
+              {back}
+              {picker(false)}
+            </>
+          }
+        />
         <div className="projection-message">
           <p className="notice error" role="alert">
             <strong>{current}.yaml is invalid:</strong> {errors.get(current)}
@@ -143,31 +169,25 @@ export function ProjectionPage({
       back={back}
       profile={arm.region(projectionRegion(saved))}
       pose={pose}
-      onDirty={onDirty}
-      header={header}
+      onDirty={reportDirty}
     />
   );
 }
 
-/** Puts the page's actions into the top bar, or (without slots) into a bar above the workspace. */
+/** The page's own bar above the workspace: back to the list and the picker at the start, notices and
+ * the actions at the end. */
 function TopBar({
-  header,
+  start,
   notices,
   children,
 }: {
-  header?: HeaderSlots;
+  start: ReactNode;
   notices?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
-  if (header?.actions)
-    return (
-      <>
-        {header.notices && notices && createPortal(notices, header.notices)}
-        {createPortal(children, header.actions)}
-      </>
-    );
   return (
     <div className="toolbar projection-topbar">
+      {start}
       <span className="spacer" />
       {notices}
       {children}
@@ -184,9 +204,8 @@ function ProjectionEditor(props: {
   profile: RegionProfile;
   pose: Pose;
   onDirty?: (dirty: boolean) => void;
-  header?: HeaderSlots;
 }) {
-  const { saved, picker, back, profile, pose, onDirty, header } = props;
+  const { saved, picker, back, profile, pose, onDirty } = props;
   const current = saved.name;
   const region = projectionRegion(saved);
   const { listing } = useAssetListing();
@@ -339,10 +358,15 @@ function ProjectionEditor(props: {
 
   return (
     <div className="projection-page">
-      <TopBar header={header} notices={noticesChip}>
-        {back}
-        <span className="header-sep" aria-hidden="true" />
-        {picker(dirty)}
+      <TopBar
+        notices={noticesChip}
+        start={
+          <>
+            {back}
+            {picker(dirty)}
+          </>
+        }
+      >
         <button
           type="button"
           className="ghost"
