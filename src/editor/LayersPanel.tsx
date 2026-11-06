@@ -15,7 +15,7 @@ import {
 } from "../render/backgrounds/catalogue.ts";
 import { DEFAULT_INK } from "../render/backgrounds/paint.ts";
 import { Popover } from "../ui/Popover.tsx";
-import { DuplicateIcon, LockIcon, TrashIcon, WarnIcon } from "../ui/icons.tsx";
+import { DuplicateIcon, LockIcon, PlusIcon, TrashIcon, WarnIcon } from "../ui/icons.tsx";
 import { coverSummary, removeShape, setCover, sourceLabel } from "./backgroundOps.ts";
 import { dropIndex } from "./layoutOps.ts";
 
@@ -176,13 +176,14 @@ export function AddLayerMenu(props: {
     <span className="popover-anchor">
       <button
         type="button"
-        className="small-button"
+        className="ghost icon-button add-layer-button"
+        aria-label="Add layer"
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((o) => !o)}
         title="Add a background layer on top of the others"
       >
-        + Add layer
+        <PlusIcon />
       </button>
       <Popover
         open={open}

@@ -8499,6 +8499,26 @@ button.ghost.active-star[aria-pressed="true"]:hover {
   opacity: 0.5;
 }
 
+/* Three tabs and the + share the narrow side header: tighter tabs, icons only on the selected one. */
+.side-tabs > .float-head {
+  gap: 2px;
+  padding-left: 6px;
+}
+
+.side-tabs > .float-head button.panel-tab {
+  padding: 0 6px;
+}
+
+.side-tabs > .float-head button.panel-tab:not([aria-selected="true"]) svg {
+  display: none;
+}
+
+/* The tab header is narrow: the popover must stay above the inspector below it. */
+.side-tabs:has(.add-layer-popover) {
+  position: relative;
+  z-index: 45;
+}
+
 .add-layer-popover {
   width: 300px;
   max-height: 60vh;
@@ -8642,4 +8662,37 @@ button.ghost.active-star[aria-pressed="true"]:hover {
 
 .unwrap-editor .poly-preview circle {
   fill: var(--accent);
+}
+
+/* Image studio, Background mode: a tile repeated 3 × 3 and the preset buttons (docs/adr/0019). */
+.tiled-preview {
+  display: block;
+  aspect-ratio: 1;
+  width: min(100%, calc(100dvh - var(--header-h) - 150px));
+  background-repeat: repeat;
+  background-size: calc(100% / 3) calc(100% / 3);
+  background-color: var(--skin);
+}
+
+.tile-image.checker > .tiled-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.studio-focus .tiled-preview,
+.studio-hero .tiled-preview {
+  min-width: min(60vh, 100%);
+}
+
+.studio-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: var(--s-2) 0;
+}
+
+.studio-presets button {
+  font-size: var(--fs-xs);
 }

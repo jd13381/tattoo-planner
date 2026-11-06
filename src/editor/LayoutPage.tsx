@@ -1554,7 +1554,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header, openRe
                       </div>
                       <p className="muted small">
                         {layers.length === 0
-                          ? "Add a layer (Layers → + Add layer): a standard background such as clouds, stars or smoke, a line pattern, or a tileable image from the project."
+                          ? "Add a layer with the + in the Layers tab: a standard background such as clouds, stars or smoke, a line pattern, or a tileable image from the project."
                           : "Select a layer in the list to edit it. Each layer covers the whole region or an area you draw or paint; motifs on top cover it."}
                       </p>
                       <p className="faint small">{BACKGROUND_HINT}</p>

@@ -1,11 +1,12 @@
 // The standard-background generator (docs/adr/0019): PNG decoding, the seam fix on a returned image,
-// and `npm run backgrounds:generate` against a fake OpenAI endpoint.
+// `npm run backgrounds:generate` and the Image studio's Background mode against a fake OpenAI endpoint.
 import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { generateStandardBackgrounds, seamlessPng } from "../server/backgrounds.ts";
+import { EditManager } from "../server/editsApi.ts";
 import { decodePng, encodeGreyPng, encodePng } from "../server/png.ts";
 import { buildBackgroundPrompt } from "../src/edits/background.ts";
 import { parseCatalogue } from "../src/render/backgrounds/catalogue.ts";
@@ -197,5 +198,43 @@ describe("generateStandardBackgrounds", () => {
     await expect(
       generateStandardBackgrounds({ folder: dir, settings, names: ["nope"], fetchImpl }),
     ).rejects.toThrow(/not in backgrounds.yaml: nope/);
+  });
+});
+
+describe("Image studio: Background mode", () => {
+  it("asks for a square opaque tile, fixes its seam and keeps it in backgrounds/ as kind background", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "bg-studio-"));
+    writeFileSync(path.join(dir, "manifest.yaml"), "version: 1\nassets: []\n");
+    const bodies: Record<string, unknown>[] = [];
+    const answer = encodePng(64, 64, rampRgba(64)).toString("base64");
+    const m = new EditManager(dir, {
+      openai: { apiKey: "sk-test", model: "gpt-image-test", inputFidelity: null, quality: "high" },
+      fetchImpl: (async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(String(init.body)));
+        return new Response(JSON.stringify({ data: [{ b64_json: answer }] }), { status: 200 });
+      }) as typeof fetch,
+    });
+    const s = await m.startSession({ mode: "create", name: "Night sky", size: "1024x1536", tileable: true });
+    expect(s.create).toEqual({ name: "night-sky", size: "1024x1024", background: "opaque", tileable: true });
+    const started = await m.start({ session: s.id, instruction: "Sterne und Punkte" });
+    expect(started.created).toEqual({ name: "night-sky", tileable: true });
+    let job = m.get(started.id);
+    for (let i = 0; i < 200 && job.state === "running"; i++) {
+      await new Promise((r) => setTimeout(r, 5));
+      job = m.get(started.id);
+    }
+    expect(job.state).toBe("done");
+    expect(bodies[0]).toMatchObject({ size: "1024x1024", background: "opaque" });
+    expect(bodies[0]!.prompt).toBe(buildBackgroundPrompt("Sterne und Punkte"));
+    expect(job.log.join("\n")).toMatch(/Seam fixed/);
+    const kept = await m.keep(job.id);
+    expect(kept.kept).toEqual({ id: "night-sky-1", file: "backgrounds/night-sky-1.png" });
+    const out = decodePng(readFileSync(path.join(dir, "backgrounds", "night-sky-1.png")));
+    const ramp = seamRatio({ width: 64, height: 64, data: new Uint8ClampedArray(rampRgba(64)) });
+    const fixed = seamRatio({ width: out.width, height: out.height, data: new Uint8ClampedArray(out.rgba) });
+    expect(fixed).toBeLessThan(ramp / 2);
+    const manifest = readFileSync(path.join(dir, "manifest.yaml"), "utf8");
+    expect(manifest).toMatch(/kind: background/);
+    expect(manifest).toMatch(/background\b.*\n?.*tags/s);
   });
 });
