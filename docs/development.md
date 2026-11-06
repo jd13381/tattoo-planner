@@ -62,9 +62,19 @@ Without a Developer ID certificate the app is ad-hoc signed and not notarised. S
 npm run assets:scan  # catalogue new images in images/, photos/ and the older folders (Reload in the planner does the same)
 ```
 
-It scans the open project (`TATTOO_DATA_DIR`, else the remembered one) and writes only its `manifest.yaml`: an entry for every image no entry references yet, with an id from its path (`cards/rhonas.jpg` → `cards-rhonas`) and the kind from its folder (`images/` → `reference`, `photos/` → `arm-photo`; older folders: `cards/` → `card-art`, `refs/` → `reference`, `existing/` → `existing`, `arm-photos/` → `arm-photo`). A text file with the same name next to an image (`refs/medusa.txt`) becomes its `source`. Running it again is safe: it only adds entries for new files. Your edits to `manifest.yaml` (ids, notes, tags, comments, order) are kept; a manifest with errors is never overwritten. Details: `docs/adr/0003-ideas-pdf-ingestion.md`.
+It scans the open project (`TATTOO_DATA_DIR`, else the remembered one) and writes only its `manifest.yaml`: an entry for every image no entry references yet, with an id from its path (`cards/rhonas.jpg` → `cards-rhonas`) and the kind from its folder (`images/` → `reference`, `photos/` → `arm-photo`, `backgrounds/` → `background`; older folders: `cards/` → `card-art`, `refs/` → `reference`, `existing/` → `existing`, `arm-photos/` → `arm-photo`). A text file with the same name next to an image (`refs/medusa.txt`) becomes its `source`. Running it again is safe: it only adds entries for new files. Your edits to `manifest.yaml` (ids, notes, tags, comments, order) are kept; a manifest with errors is never overwritten. Details: `docs/adr/0003-ideas-pdf-ingestion.md`.
 
 The former `npm run ingest` (splitting `ideas.pdf` into images with mupdf) was removed: it was specific to one PDF and mupdf's AGPL licence does not fit an open-source product (`docs/product/roadmap.md` §3). Images it extracted into `ideas/` earlier keep working: they are ordinary manifest entries (`page` and `bbox` stay as they are).
+
+## Standard backgrounds
+
+```sh
+npm run backgrounds:generate                  # every entry of assets/backgrounds/backgrounds.yaml without a file
+npm run backgrounds:generate -- clouds stars  # only these (replacing their files)
+npm run backgrounds:generate -- --force       # every entry, replacing the files
+```
+
+Sends each fixed prompt to GPT Image (`TATTOO_OPENAI_API_KEY` from the shell or `.env`; one paid request per image), makes the result seamless, writes `assets/backgrounds/<name>.png` (at most 1024 px and 2 MB) and sets `file`, `generated` and `licence` in the catalogue. Review the tiles in the planner (Layers → +), then commit them: they are the one image exception the pre-commit guard allows (`docs/adr/0019-background-layers.md`).
 
 ## The server
 

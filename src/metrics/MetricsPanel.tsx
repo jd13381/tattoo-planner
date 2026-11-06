@@ -23,7 +23,7 @@ const ZONE_SHORT: Record<string, string> = {
 const LABELS: Record<Category, string> = {
   figure: "Fig.",
   existing: "Exist.",
-  filler: "Fill.",
+  background: "Bg.",
   band: "Band",
   line: "Line",
   open: "Open",
@@ -41,7 +41,7 @@ const WHOLE: Record<RegionKind, string> = { arm: "Whole arm", leg: "Whole leg", 
 const TITLES: Record<Category, string> = {
   figure: "Figures",
   existing: "Existing tattoo",
-  filler: "Fillers",
+  background: "Background",
   band: "Bands",
   line: "Lines",
   open: "Open skin",

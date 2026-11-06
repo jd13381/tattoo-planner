@@ -66,17 +66,19 @@ function under(file: string, ...folders: string[]): boolean {
 }
 
 /**
- * The entry's category. Order: explicit `category`; `derived_from` (a kept edit); generated/ or the
- * tag generated; kind background or backgrounds/; then photos: photos/measuring/ → measuring,
- * photos/existing/, existing/ (also persons/<id>/existing/) or kind existing → existing; a body photo (kind arm-photo, photos/, arm-photos/)
- * → existing when a projection uses the file, else measuring; everything else is an idea.
+ * The entry's category. Order: explicit `category`; kind background or backgrounds/ (an edited
+ * background stays one); `derived_from` (a kept edit); generated/ or the tag generated; then photos:
+ * photos/measuring/ → measuring; photos/existing/, existing/ (also persons/<id>/existing/) or kind
+ * existing → existing; a body photo (kind arm-photo, photos/, arm-photos/) → existing when a
+ * projection uses the file, else measuring; everything else is an idea.
  * `projectionFiles` holds fileKey()s of every projection photo (all persons).
  */
 export function categoryOf(entry: Entry, projectionFiles?: ReadonlySet<string>): AssetCategory {
   if (isCategory(entry.category)) return entry.category;
+  // A tileable background stays one when edited (a kept edit copies the original's kind).
+  if (entry.kind === "background" || under(entry.file, "backgrounds")) return "background";
   if (entry.derived_from || under(entry.file, "edits")) return "edit";
   if (under(entry.file, "generated") || (entry.tags ?? []).includes("generated")) return "generated";
-  if (entry.kind === "background" || under(entry.file, "backgrounds")) return "background";
   const own = personPath(entry.file);
   const rest = own ? own.rest : norm(entry.file);
   if (under(rest, "photos/measuring")) return "measuring";

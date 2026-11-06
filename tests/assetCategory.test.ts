@@ -40,6 +40,12 @@ describe("categoryOf", () => {
     expect(categoryOf(e("photos/side.jpg", "arm-photo"))).toBe("measuring");
     expect(categoryOf(e("backgrounds/paper.png", "reference"))).toBe("background");
     expect(categoryOf(e("images/x.png", "background"))).toBe("background");
+    expect(categoryOf(e("backgrounds/paper-1.png", "background", { tags: ["background"] }))).toBe(
+      "background",
+    );
+    expect(categoryOf(e("edits/paper-1-edit-1.png", "background", { derived_from: "paper-1" }))).toBe(
+      "background",
+    );
     expect(categoryOf(e("persons/anna/photos/measuring/a.jpg", "arm-photo"))).toBe("measuring");
     expect(categoryOf(e("persons/anna/photos/b.jpg", "reference"))).toBe("measuring");
     expect(categoryOf(e("arm-photos/front.JPG", "arm-photo", { category: "existing" }))).toBe("existing");

@@ -15,9 +15,9 @@ Every image is in exactly one category. There are six:
 `categoryOf(entry, projectionFiles)` in `src/assets/category.ts` derives the category. The first rule that matches wins:
 
 1. An explicit `category:` field in the entry.
-2. `derived_from` or `edits/` → edit.
-3. `generated/` or the tag `generated` → generated.
-4. Kind `background` or `backgrounds/` → background.
+2. Kind `background` or `backgrounds/` → background (the Image studio's Background mode keeps tiles there, ADR 0019; an edited background keeps the kind and stays one).
+3. `derived_from` or `edits/` → edit.
+4. `generated/` or the tag `generated` → generated.
 5. `photos/measuring/` → measuring.
 6. `photos/existing/`, `existing/` (also `persons/<id>/existing/`) or kind `existing` → existing.
 7. Any other body photo (kind `arm-photo`, `photos/`, `arm-photos/`, a person's folder) → existing when a projection uses the file, else measuring.
@@ -46,7 +46,7 @@ The scan catalogues `persons/<id>/photos/` and `persons/<id>/existing/`, and nev
 
 `GET /api/assets/usage` returns, per asset id, where the image is used:
 
-- layout elements: every `asset` or `*_asset` key, across all persons
+- layout elements: every `asset` or `*_asset` key, and the `source.image` of background layers (ADR 0019), across all persons
 - projection photos
 - edits derived from it
 - open studio sessions

@@ -27,7 +27,7 @@ On the start screen, **Explore the sample** shows a ready-made, read-only projec
 
 - **Home:** the whole body of the current person with every region's active layout on a turntable; click a region to edit it. A project can hold **several people** (for example you and your partner), each with their own body, measurements, layouts and photos, sharing one idea library.
 - **Body regions:** left and right arm, left and right leg, torso, on a female or male sample body; your own measurements (optional, with a measuring wizard) adjust it.
-- **Layout editor:** figures (reference images), existing tattoos, pattern fillers, bands and freehand lines on a 2D unwrap; drag, resize, rotate, layer, undo. The 3D view follows every change, also with the elbow bent and as a full body.
+- **Layout editor:** figures (reference images), existing tattoos, bands and freehand lines on a 2D unwrap, over background layers (clouds, stars, patterns, tileable images); drag, resize, rotate, layer, undo. The 3D view follows every change, also with the elbow bent and as a full body.
 - **Blockout and reference modes**, a cm grid, and **coverage** per zone (how much skin stays open).
 - **Compare** two variants side by side.
 - **Existing tattoos** projected onto the body from a few photos (guided setup).

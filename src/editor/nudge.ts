@@ -39,7 +39,7 @@ export function nudgeUV(profile: RegionProfile, p: UV, dxCm: number, dyCm: numbe
 }
 
 /**
- * The point an element is measured from: a figure's position, a filler region's centre,
+ * The point an element is measured from: a figure's position,
  * a band's line (u = 0), a line's first point u with its mean v.
  */
 export function elementAnchor(el: LayoutElement): UV {
@@ -47,10 +47,6 @@ export function elementAnchor(el: LayoutElement): UV {
     case "figure":
     case "existing":
       return el.position;
-    case "filler": {
-      const span = wrapU(el.region.u[1] - el.region.u[0]);
-      return { u: wrapU(el.region.u[0] + span / 2), v: (el.region.v[0] + el.region.v[1]) / 2 };
-    }
     case "band":
       return { u: 0, v: el.v };
     case "line": {

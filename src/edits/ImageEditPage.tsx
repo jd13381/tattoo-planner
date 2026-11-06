@@ -24,6 +24,7 @@ import {
 import { CATEGORY_LABELS, type AssetCategory } from "../assets/category.ts";
 import { useResolvedTheme } from "../ui/useTheme.ts";
 import { showInStudio } from "./edit.ts";
+import { BACKGROUND_PRESETS } from "./background.ts";
 import { encodePng, loadPixels } from "./pixelsDom.ts";
 import {
   attemptsFrom,
@@ -36,7 +37,14 @@ import {
   unsavedWork,
   versionLabel,
 } from "./session.ts";
-import { FocusView, JobTile, resultUrl, VersionStrip, type StripVersion } from "./StudioResults.tsx";
+import {
+  FocusView,
+  JobTile,
+  resultUrl,
+  TiledPreview,
+  VersionStrip,
+  type StripVersion,
+} from "./StudioResults.tsx";
 import { artboardAspect, formatUsd, hasResult, runEstimate, runLabel, spentUsd, stepId } from "./studio.ts";
 import {
   applyUrl,
@@ -151,6 +159,8 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
   const [size, setSize] = useState<CreateSize>("1024x1024");
   const [background, setBackground] = useState<CreateBackground>("transparent");
   const [createSessionId, setCreateSessionId] = useState<string | null>(null);
+  // Background mode (docs/adr/0019): "create" with a seamless, square, opaque tile.
+  const [tileable, setTileable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -192,7 +202,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
       ? selected
         ? sessionForAsset(sessions, selected.id)
         : null
-      : (createSessions.find((s) => s.id === createSessionId) ?? null);
+      : (createSessions.find((s) => s.id === createSessionId && !!s.create?.tileable === tileable) ?? null);
   const own = session ? sessionJobs(allJobs, session.id) : [];
   const byId = new Map(own.map((j) => [j.id, j]));
   const last = session?.versions.length ?? 0;
@@ -211,7 +221,8 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
     activeEngine === "openai" ? Math.max(1, Math.min(variants, MAX_RUNNING_GENERATIVE - runningCount)) : 1;
   // Something to work on: the picked image (edit) or a new image (create).
   const hasTarget = mode === "create" || !!selected;
-  const usesRefs = activeEngine === "openai" && generativeOk && hasTarget;
+  // A background tile is drawn from its description alone (references would make it a picture).
+  const usesRefs = activeEngine === "openai" && generativeOk && hasTarget && !(mode === "create" && tileable);
   const spent = spentUsd(own);
   const params = opParams[opId] ?? defaultParams(opId);
 
@@ -277,7 +288,9 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
     if (session) return session;
     const body: SessionRequest =
       mode === "create"
-        ? { mode: "create", name, size, background }
+        ? tileable
+          ? { mode: "create", name, tileable: true }
+          : { mode: "create", name, size, background }
         : { mode: "edit", assetId: selected!.id };
     const s = await call<EditSession>(`${EDITS_ENDPOINT}/sessions`, "POST", body);
     if (s.mode === "create") setCreateSessionId(s.id);
@@ -649,21 +662,30 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
     } else {
       barTitle = (
         <>
-          <strong>{name.trim() || "New image"}</strong>
+          <strong>{name.trim() || (tileable ? "New background" : "New image")}</strong>
           <span className="faint mono">
-            {size === "auto" ? "auto" : size.replace("x", " × ")} · {background}
+            {tileable
+              ? "1024 × 1024 · seamless tile"
+              : `${size === "auto" ? "auto" : size.replace("x", " × ")} · ${background}`}
           </span>
         </>
       );
       canvas = (
         <div className="studio-center">
-          <figure className="studio-artboard" style={{ "--aspect": artboardAspect(size) } as CSSProperties}>
-            <div className={`artboard-frame${background === "transparent" ? " checker" : ""}`}>
-              <span className="mono">{size === "auto" ? "auto size" : size.replace("x", " × ")}</span>
+          <figure
+            className="studio-artboard"
+            style={{ "--aspect": artboardAspect(tileable ? "1024x1024" : size) } as CSSProperties}
+          >
+            <div className={`artboard-frame${!tileable && background === "transparent" ? " checker" : ""}`}>
+              <span className="mono">
+                {tileable ? "1024 × 1024 tile" : size === "auto" ? "auto size" : size.replace("x", " × ")}
+              </span>
               <span className="faint">
-                {generativeOk
-                  ? "Describe it on the right, then create it"
-                  : "New images need an OpenAI API key"}
+                {!generativeOk
+                  ? "New images need an OpenAI API key"
+                  : tileable
+                    ? "Describe the background on the right; the result is made seamless and shown tiled 3 × 3"
+                    : "Describe it on the right, then create it"}
               </span>
             </div>
           </figure>
@@ -674,7 +696,8 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
     barTitle = (
       <>
         <strong>
-          {session.mode === "edit" ? "Editing" : "New image"} {sessionTitle}
+          {session.mode === "edit" ? "Editing" : session.create?.tileable ? "New background" : "New image"}{" "}
+          {sessionTitle}
         </strong>
         <span className="faint mono">
           {last === 0 ? "no version yet" : `${last} version${last === 1 ? "" : "s"}`}
@@ -755,7 +778,11 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
           {viewSrc ? (
             <figure className="studio-hero">
               <div className="checker">
-                <img src={viewSrc} alt={versionLabel(view)} />
+                {session.create?.tileable ? (
+                  <TiledPreview src={viewSrc} label={`${versionLabel(view)} tiled 3 × 3`} />
+                ) : (
+                  <img src={viewSrc} alt={versionLabel(view)} />
+                )}
               </div>
             </figure>
           ) : (
@@ -978,17 +1005,30 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
       <aside className="studio-inspector" aria-label="Image studio">
         <div className="studio-col-head">
           <span className="segmented studio-mode" role="group" aria-label="Mode">
-            {(["edit", "create"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                className={mode === m ? "active" : ""}
-                aria-pressed={mode === m}
-                onClick={() => switchMode(m)}
-              >
-                {m === "edit" ? "Edit" : "Create new"}
-              </button>
-            ))}
+            {(
+              [
+                ["edit", false, "Edit", "Change an existing image"],
+                ["create", false, "Create new", "A new image from a description"],
+                ["create", true, "Background", "A seamless tile for background layers"],
+              ] as const
+            ).map(([m, t, label, title]) => {
+              const on = mode === m && (m === "edit" || tileable === t);
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  className={on ? "active" : ""}
+                  aria-pressed={on}
+                  title={title}
+                  onClick={() => {
+                    setTileable(t);
+                    switchMode(m);
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </span>
         </div>
 
@@ -1003,7 +1043,19 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
             </div>
           )}
 
-          {mode === "create" && !session && (
+          {mode === "create" && !session && tileable && (
+            <BackgroundSettings
+              name={name}
+              disabled={!generativeOk}
+              onName={setName}
+              onPreset={(p) => {
+                setName(p.name);
+                setInstruction(p.subject);
+              }}
+            />
+          )}
+
+          {mode === "create" && !session && !tileable && (
             <NewImageSettings
               name={name}
               size={size}
@@ -1112,9 +1164,11 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                       value={instruction}
                       maxLength={2000}
                       placeholder={
-                        creatingNew
-                          ? "What should it show? e.g. Ein rotes Dreieck als Rahmen, Linien wie im Referenzbild; or a dotwork pattern for the forearm."
-                          : "What should change? e.g. Mache ein rotes Dreieck drumherum wie im Referenzbild (German is fine)."
+                        creatingNew && tileable
+                          ? "What should the tile show? e.g. Wolken im Stil von Tattoo-Flash, locker verteilt. Pick a preset above to start."
+                          : creatingNew
+                            ? "What should it show? e.g. Ein rotes Dreieck als Rahmen, Linien wie im Referenzbild; or a dotwork pattern for the forearm."
+                            : "What should change? e.g. Mache ein rotes Dreieck drumherum wie im Referenzbild (German is fine)."
                       }
                       onChange={(e) => setInstruction(e.target.value)}
                       onKeyDown={(e) => {
@@ -1194,6 +1248,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                 resetView();
                 if (s.mode === "create") {
                   setMode("create");
+                  setTileable(!!s.create?.tileable);
                   setCreateSessionId(s.id);
                 } else {
                   setMode("edit");
@@ -1273,6 +1328,43 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
 }
 
 /** Name, format and background of a new image, fixed once its session opens. */
+/** Background mode: the tile's name and the presets that fill in the description. */
+function BackgroundSettings(props: {
+  name: string;
+  disabled: boolean;
+  onName: (v: string) => void;
+  onPreset: (p: (typeof BACKGROUND_PRESETS)[number]) => void;
+}) {
+  return (
+    <InspectorSection title="New background">
+      <div className="props studio-props">
+        <label>
+          Name
+          <input
+            type="text"
+            value={props.name}
+            maxLength={60}
+            placeholder="e.g. night sky"
+            disabled={props.disabled}
+            onChange={(e) => props.onName(e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="studio-presets" role="group" aria-label="Presets">
+        {BACKGROUND_PRESETS.map((p) => (
+          <button key={p.name} type="button" disabled={props.disabled} onClick={() => props.onPreset(p)}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <p className="faint small">
+        Square and opaque, black and grey on white; the seam is fixed after each result. Saved results go to
+        backgrounds/ and can be added as a layer (Layout → Layers → +).
+      </p>
+    </InspectorSection>
+  );
+}
+
 function NewImageSettings(props: {
   name: string;
   size: CreateSize;

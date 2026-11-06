@@ -2,7 +2,13 @@
 # v = along it (0 wrist, 1 shoulder).
 name: right-arm
 region: arm-right
-description: "Sun on the outer upper arm, swallow on the forearm, lotus band above the elbow"
+description: "Sun on the outer upper arm, swallow on the forearm, lotus band above the elbow, clouds behind"
+# A whole-region background: the motifs knock it out, with 0.4 cm of skin around each.
+backgrounds:
+  - id: clouds
+    source: { standard: clouds }
+    opacity: 0.8
+    gap_cm: 0.4
 elements:
   - id: sun
     type: figure

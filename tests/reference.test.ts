@@ -55,7 +55,6 @@ describe("unwrap rows", () => {
   it("masks a shape exactly as the classification does, seam included", () => {
     const elements: LayoutElement[] = [
       { id: "anubis", type: "existing", position: { u: 0.5, v: 0.2 }, size_cm: { h: 20, w: 10 } },
-      { id: "s", type: "filler", pattern: "x", region: { u: [0.45, 0.6], v: [0.1, 0.4] } },
       { id: "b", type: "band", pattern: "meander", v: 0.02, width_cm: 2 },
       {
         id: "l",

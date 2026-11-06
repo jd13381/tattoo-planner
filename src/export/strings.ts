@@ -18,7 +18,7 @@ export const HANDOUT_EN = {
   dateLine: (date: string) => `Prepared ${date}`,
   noteTitle: "This is a sketch, not a design",
   note: [
-    "These pages show the idea for the sleeve: which motifs go where, roughly how big they are, and how figures, fillers and open skin balance out. The body is a simple 3D model built from measurements; the pictures are rough reference images.",
+    "These pages show the idea for the sleeve: which motifs go where, roughly how big they are, and how figures, backgrounds and open skin balance out. The body is a simple 3D model built from measurements; the pictures are rough reference images.",
     "Please read everything here as a starting point. Style, details, exact placement, sizes and flow are yours to design, and changes that make the tattoo work better are welcome.",
   ],
   contentsTitle: "In this package",
@@ -30,11 +30,11 @@ export const HANDOUT_EN = {
   ],
   legendTitle: "How to read the pictures",
   legendIntro:
-    "Blockout shows every element as a flat shape coloured by type, to judge balance at a glance. Reference shows the same layout with rough reference images: grayscale on the forearm, procedural placeholder patterns for fillers and bands.",
+    "Blockout shows every element as a flat shape coloured by type, to judge balance at a glance. Reference shows the same layout with rough reference images: grayscale on the forearm, procedural placeholder patterns for background layers and bands.",
   legend: {
     figure: "Figure (planned motif)",
     existing: "Existing tattoo (outlined)",
-    filler: "Filler (background pattern)",
+    background: "Background layer (pattern under the motifs)",
     band: "Band around the arm",
     line: "Line (brush stroke)",
     open: "Open skin",
@@ -67,14 +67,18 @@ export const HANDOUT_EN = {
   type: {
     figure: "figure",
     existing: "existing tattoo",
-    filler: "filler",
     band: "band",
     line: "line",
   } satisfies Record<ElementType, string>,
+  background: {
+    type: "background layer",
+    whole: "the whole region, under the motifs",
+    area: (n: number) => `an area of ${n} part${n === 1 ? "" : "s"}, under the motifs`,
+  },
   coverageTitle: "Coverage per zone",
   coverageIntro:
     "Share of each zone’s skin taken by each element type (topmost element counted). Elbow: 4 cm below to 6 cm above the elbow tip; shoulder: the top 8 cm; inner = the half around the palm-side line.",
-  coverageHeaders: ["Zone", "Figures", "Existing", "Fillers", "Bands", "Lines", "Open skin"],
+  coverageHeaders: ["Zone", "Figures", "Existing", "Background", "Bands", "Lines", "Open skin"],
   zones: {
     "forearm-inner": "Forearm inner",
     "forearm-outer": "Forearm outer",
@@ -163,7 +167,7 @@ export function handoutText(region: RegionId, base: HandoutText = HANDOUT_EN): H
     ...base,
     subjectFallback: `A placement sketch for the ${part}, from the ${start} to the ${end}`,
     note: [
-      `These pages show the idea for the ${part}: which motifs go where, roughly how big they are, and how figures, fillers and open skin balance out. The body is a simple 3D model built from measurements or a sample body; the pictures are rough reference images.`,
+      `These pages show the idea for the ${part}: which motifs go where, roughly how big they are, and how figures, backgrounds and open skin balance out. The body is a simple 3D model built from measurements or a sample body; the pictures are rough reference images.`,
       base.note[1]!,
     ],
     legend: {
@@ -173,7 +177,7 @@ export function handoutText(region: RegionId, base: HandoutText = HANDOUT_EN): H
       line: "Line",
     },
     legendIntro:
-      "Blockout shows every element as a flat shape coloured by type, to judge balance at a glance. Reference shows the same layout with rough reference images and procedural placeholder patterns for fillers and bands.",
+      "Blockout shows every element as a flat shape coloured by type, to judge balance at a glance. Reference shows the same layout with rough reference images and procedural placeholder patterns for background layers and bands.",
     views,
     overviewIntro: `${r.kind === "arm" ? "Arm hanging down, palm facing forward" : "Standing upright"}; the ${end} at the top, the ${start} at the bottom. All views use the same scale.`,
     viewNote: `The 3D ${part} is a smooth model built from tape measurements or a sample body; sizes are right, the silhouette is approximate.`,

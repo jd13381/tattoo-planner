@@ -12,7 +12,7 @@ import { activeVariant, type ActiveMap } from "../project/persons.ts";
 const STATS_PX_PER_CM = 2;
 
 export type RegionStats = {
-  /** Skin covered by anything (figures, existing tattoos, fillers, bands, lines), whole percent. */
+  /** Skin covered by anything (figures, existing tattoos, background layers, bands, lines), whole percent. */
   coveragePct: number;
   /** Figures and existing tattoos. */
   motifs: number;

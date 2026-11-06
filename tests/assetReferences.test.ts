@@ -100,6 +100,15 @@ describe("assetReferences", () => {
   });
 
   it("walks nested structures for asset keys", () => {
+    expect(
+      layoutAssetRefs({
+        elements: [{ id: "f", image: "not-a-ref" }],
+        backgrounds: [
+          { id: "bg", source: { image: "paper", tile_cm: 4 } },
+          { id: "p", source: { pattern: "dots" } },
+        ],
+      }),
+    ).toEqual([{ asset: "paper", element: "bg" }]);
     expect(layoutAssetRefs({ a: [{ id: "x", asset: "one", sub: { id: "y", cover_asset: "two" } }] })).toEqual(
       [
         { asset: "one", element: "x" },

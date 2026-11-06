@@ -6,7 +6,7 @@ import { z } from "zod";
 export const MANIFEST_FILE = "manifest.yaml";
 
 /** Known kinds; other strings are allowed so Jan can invent his own. */
-export const ASSET_KINDS = ["reference", "card-art", "idea", "existing", "arm-photo"] as const;
+export const ASSET_KINDS = ["reference", "card-art", "idea", "existing", "arm-photo", "background"] as const;
 
 /** Normalised rectangle inside an image: 0..1 from the left/top edge. */
 export const rectSchema = z.strictObject({

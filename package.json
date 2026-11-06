@@ -25,6 +25,7 @@
     "check": "npm run lint && npm run typecheck && npm test && node scripts/check-binaries.mjs --all",
     "hooks": "git config core.hooksPath .githooks",
     "assets:scan": "node scripts/assets.ts scan",
+    "backgrounds:generate": "node scripts/backgrounds-generate.ts",
     "migrate": "node scripts/migrate.ts"
   },
   "dependencies": {

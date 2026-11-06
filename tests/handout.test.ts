@@ -72,7 +72,9 @@ describe("handout content", () => {
     expect(h.layoutName).toBe("v1-baseline");
     expect(h.description).toContain("Rhonas");
     const byId = new Map(h.elementRows.map((r) => [r[0], r]));
-    expect(h.elementRows).toHaveLength(baseline().elements.length);
+    // Background layers first (bottom layer first), then the elements.
+    expect(h.elementRows).toHaveLength((baseline().backgrounds?.length ?? 0) + baseline().elements.length);
+    expect(h.elementRows[0]![0]).toBe("scales-forearm");
     expect(h.elementRows.every((r) => r.length === t.elementHeaders.length)).toBe(true);
     // Anubis takes its size from measurements.yaml.
     expect(byId.get("anubis")!.slice(1, 4)).toEqual(["existing tattoo", "anubis-photo", "26 × 12 cm"]);
@@ -80,6 +82,8 @@ describe("handout content", () => {
     expect(byId.get("rhonas")![5]).toBe("hatching");
     expect(byId.get("medusa")![5]).toBe("realistic, red accents");
     expect(byId.get("pegasus")![3]).toContain("height not set");
+    expect(byId.get("scales-forearm")![1]).toBe("background layer");
+    expect(byId.get("scales-forearm")![4]).toMatch(/^from lateral line to between lateral and inner/);
     expect(byId.get("scales-forearm")![5]).toBe("pattern snake-scales, density 0.3");
     expect(byId.get("wrist-band")![4]).toBe("all around the arm, 1.2 cm above the wrist");
     expect(byId.get("red-stroke-1")![3]).toMatch(/^1.5 cm wide, about \d+(\.\d)? cm long$/);

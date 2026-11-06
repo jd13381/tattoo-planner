@@ -39,23 +39,28 @@ function isAssetKey(key: string): boolean {
   return key === "asset" || key.endsWith("_asset");
 }
 
-/** Every (asset id, element id) pair in a parsed layout, in document order. */
+/**
+ * Every (asset id, element id) pair in a parsed layout, in document order. Background layers
+ * (docs/adr/0019-background-layers.md) name a tileable image as `source: { image: <asset id> }`;
+ * their layer id stands in for the element.
+ */
 export function layoutAssetRefs(doc: unknown): { asset: string; element: string }[] {
   const out: { asset: string; element: string }[] = [];
-  const walk = (node: unknown, owner: string) => {
+  const walk = (node: unknown, owner: string, inBackground: boolean) => {
     if (Array.isArray(node)) {
-      for (const item of node) walk(item, owner);
+      for (const item of node) walk(item, owner, inBackground);
       return;
     }
     if (!node || typeof node !== "object") return;
     const obj = node as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : owner;
     for (const [key, value] of Object.entries(obj)) {
-      if (isAssetKey(key) && typeof value === "string" && value) out.push({ asset: value, element: id });
-      else walk(value, id);
+      const ref = isAssetKey(key) || (inBackground && key === "image");
+      if (ref && typeof value === "string" && value) out.push({ asset: value, element: id });
+      else walk(value, id, inBackground || key === "backgrounds");
     }
   };
-  walk(doc, "");
+  walk(doc, "", false);
   return out;
 }
 
