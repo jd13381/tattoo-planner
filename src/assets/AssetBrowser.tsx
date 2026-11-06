@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { facets, filterAssets, NO_FILTER, pickableAssets, type AssetFilter } from "./filter.ts";
+import { facets, filterAssets, NO_FILTER, type AssetFilter } from "./filter.ts";
 import { assetImageUrl, type AssetInfo, type AssetListing } from "./types.ts";
+import { PickerScopeControls, usePickerScope } from "./usePickerScope.tsx";
 
 type Props = {
   listing: AssetListing | null;
@@ -14,18 +15,18 @@ type Props = {
   heading?: boolean;
   /** What the last Reload found (new images, skipped files). */
   note?: string | null;
+  /** Offer photos from the start (an existing tattoo shows a photo). */
+  photos?: boolean;
 };
 
 /** Thumbnails of the manifest assets; clicking one assigns it to the selected figure. */
 export function AssetBrowser(props: Props) {
   const { listing, onReload, current, assignBlocked, onPick, heading = true, note } = props;
   const [filter, setFilter] = useState<AssetFilter>(NO_FILTER);
-  // Hidden images (Assets tab) are left out, except the one the selected figure shows.
-  const assets = useMemo(
-    () => (listing?.status === "ok" ? pickableAssets(listing.assets, current) : []),
-    [listing, current],
-  );
-  const kinds = useMemo(() => facets(assets.map((a) => a.kind)), [assets]);
+  // The library (ideas, studio images, backgrounds); photos on request. Hidden images are left
+  // out, except the one the selected figure shows.
+  const scope = usePickerScope(listing, current, props.photos);
+  const assets = scope.assets;
   const tags = useMemo(() => facets(assets.flatMap((a) => a.tags)), [assets]);
   const shown = useMemo(() => filterAssets(assets, filter), [assets, filter]);
 
@@ -46,7 +47,7 @@ export function AssetBrowser(props: Props) {
         see the <a href="#assets">Assets</a> tab.
       </p>
     );
-  else if (assets.length === 0) body = <p className="small muted">No images catalogued yet.</p>;
+  else if (listing.assets.length === 0) body = <p className="small muted">No images catalogued yet.</p>;
   else
     body = (
       <>
@@ -58,18 +59,7 @@ export function AssetBrowser(props: Props) {
             onChange={(e) => setFilter({ ...filter, text: e.target.value })}
             aria-label="Search assets"
           />
-          <select
-            value={filter.kind}
-            onChange={(e) => setFilter({ ...filter, kind: e.target.value })}
-            aria-label="Kind"
-          >
-            <option value="">all kinds</option>
-            {kinds.map((k) => (
-              <option key={k.value} value={k.value}>
-                {k.value} ({k.count})
-              </option>
-            ))}
-          </select>
+          <PickerScopeControls scope={scope} />
           <select
             value={filter.tag}
             onChange={(e) => setFilter({ ...filter, tag: e.target.value })}

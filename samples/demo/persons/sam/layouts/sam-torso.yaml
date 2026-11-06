@@ -1,0 +1,17 @@
+# Sam's sample torso. u = around it (0 right flank, 0.25 front, 0.5 left flank, 0.75 back),
+# v = up from the waist (0) to the neck (1).
+name: sam-torso
+region: torso
+description: "Sun on the chest, swallow over the left shoulder blade"
+elements:
+  - id: sun
+    type: figure
+    asset: sun
+    position: { u: 0.25, v: 0.74 } # chest
+    size_cm: { h: 14 }
+  - id: swallow
+    type: figure
+    asset: swallow
+    position: { u: 0.66, v: 0.80 } # left shoulder blade
+    size_cm: { h: 9 }
+    rotation_deg: 20

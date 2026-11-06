@@ -25,7 +25,7 @@ It stays a **sketch tool, not a design tool**: it helps people plan placement, s
 
 ## 2. Principles
 
-- **Local-first.** No server of our own, no account, no telemetry, no remote fonts or CDNs. Projects are plain folders the user picks. The only network calls are ones the user starts: a generative image request to the provider whose key they entered, and (later, opt-in) an update check. Each upload shows what is sent and to whom. "100% local" in the README means exactly this.
+- **Local-first.** No server of our own, no account, no telemetry, no remote fonts or CDNs. Projects are plain folders the user picks. The only network calls go to the provider whose key the user entered: generative image requests the user starts, a check of the key when they save or test it, and one key check per app start that can be switched off (it sends only the key, no images; ADR 0016); later, an opt-in update check. Each upload shows what is sent and to whom. "100% local" in the README means exactly this.
 - **Sketch, not design.** No feature that claims to produce a finished tattoo design.
 - **Fewer, finished features** over many half-finished ones. A feature ships with docs and tests or it does not ship.
 - **Same code path for git and DMG.** The desktop shell only wraps what `npm run dev` runs.

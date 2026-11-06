@@ -264,4 +264,11 @@ describe("showInStudio", () => {
     // By folder too, whatever the kind says.
     expect(showInStudio({ kind: "reference", file: "Arm-Photos/anubis1_nr.JPG" })).toBe(false);
   });
+
+  it("follows the catalogue section and leaves hidden images out", () => {
+    const photo = { kind: "reference", file: "images/x.png" };
+    expect(showInStudio({ ...photo, effectiveCategory: "measuring" })).toBe(false);
+    expect(showInStudio({ ...photo, effectiveCategory: "background" })).toBe(true);
+    expect(showInStudio({ ...photo, effectiveCategory: "edit", hidden: true })).toBe(false);
+  });
 });

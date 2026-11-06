@@ -27,4 +27,9 @@ export default tseslint.config(
     files: ["**/*.{js,mjs}"],
     languageOptions: { globals: globals.node, sourceType: "module" },
   },
+  {
+    // Plain scripts the page loads as they are (public/theme-init.js).
+    files: ["public/**/*.js"],
+    languageOptions: { globals: globals.browser, sourceType: "script" },
+  },
 );

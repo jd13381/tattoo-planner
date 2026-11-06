@@ -16,13 +16,18 @@ import { placeholderPng, SAMPLE_READ_ONLY } from "./project/sample.ts";
 /** POSTs below /api/project that switch or copy projects; they work while the sample is open. */
 const PROJECT_SWITCHES = new Set(["/open", "/create", "/close", "/open-sample", "/save-sample"]);
 
+/** Switching projects, or showing another person (docs/adr/0017-persons.md), changes no file. */
+function isProjectSwitch(sub: string): boolean {
+  return PROJECT_SWITCHES.has(sub) || /^\/persons\/[^/]+\/select$/.test(sub);
+}
+
 /** Whether a request would change the open project (and so is refused for the sample). */
 export function isSampleWrite(method: string, url: string): boolean {
   const m = method.toUpperCase();
   if (m === "GET" || m === "HEAD") return false;
   const p = subPath(url).replace(/\/+$/, "");
   if (p === "/api/project" || p.startsWith("/api/project/"))
-    return !(m === "POST" && PROJECT_SWITCHES.has(p.slice("/api/project".length)));
+    return !(m === "POST" && isProjectSwitch(p.slice("/api/project".length)));
   return /^\/api\/(layouts|projections|assets|edits|exports|data-files)(\/|$)/.test(p);
 }
 
@@ -43,6 +48,7 @@ export async function sampleAssets(sampleDir: string): Promise<AssetListing> {
   if (listing.status !== "ok") return listing;
   return {
     ...listing,
+    readOnly: true,
     assets: listing.assets.map((a) => (placeholderPng(a.file) ? { ...a, exists: true } : a)),
   };
 }

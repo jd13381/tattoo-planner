@@ -11,9 +11,10 @@ import type { Layout } from "../layout/schema.ts";
 import type { ReferenceSources } from "../render/reference.ts";
 import type { AssetInfo } from "./types.ts";
 import { requestImage, useAssetImages } from "./useAssets.ts";
+import { useStandardBackgrounds } from "./useStandardBackgrounds.ts";
 
 export type LayoutSources = {
-  /** Asset ids the layout's figures and existing tattoos use. */
+  /** Asset ids the layout's figures, existing tattoos and background layers use. */
   usedAssets: string[];
   aspects: ElementAspects;
   /** Existing tattoos built from their photos (docs/adr/0006), by element id. */
@@ -38,8 +39,10 @@ export function useLayoutSources(
 ): LayoutSources {
   const { images, version: imagesVersion } = useAssetImages();
   const { calibrations, files: projectionFiles } = useProjections();
+  const standard = useStandardBackgrounds();
   const usedAssets = useMemo(() => {
     const ids = new Set<string>();
+    for (const b of layout?.backgrounds ?? []) if ("image" in b.source && !b.hidden) ids.add(b.source.image);
     for (const e of layout?.elements ?? []) {
       if (!isFigureLike(e)) continue;
       if (e.asset) ids.add(e.asset);
@@ -87,8 +90,8 @@ export function useLayoutSources(
   }, [layout, calibrations, projectionFiles, profile, assetMap, images, imagesVersion]);
   const sources = useMemo<ReferenceSources>(() => {
     void imagesVersion;
-    return { assets: assetMap, images, aspects, patches };
-  }, [assetMap, images, aspects, patches, imagesVersion]);
+    return { assets: assetMap, images, aspects, patches, standard };
+  }, [assetMap, images, aspects, patches, imagesVersion, standard]);
   // An image the manifest lists but the cache has not started on yet counts as loading too.
   const loading =
     !listingLoaded ||

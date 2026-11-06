@@ -6,7 +6,7 @@ Local web tool that previews Jan's left-arm tattoo sleeve on a parametric 3D arm
 
 1. `PROJECT_BRIEF.md` is the single source of truth (concept, decisions, requirements, data model, phases). Read its table of contents, then the sections your task touches. §14 lists the phases and their acceptance criteria.
 2. `docs/product/roadmap.md` is the plan for turning the planner into an open-source product (feature review, phases A–D). For product work it wins over the brief; the brief stays the source for Jan's own sleeve.
-3. `README.md` has setup and commands; `docs/adr/` records technical decisions; `git log` shows where work stands.
+3. `README.md` has the quick start; `docs/development.md` has setup details and commands; `docs/adr/` records technical decisions; `git log` shows where work stands.
 
 ## Conventions (from PROJECT_BRIEF.md §15)
 
@@ -14,6 +14,7 @@ Local web tool that previews Jan's left-arm tattoo sleeve on a parametric 3D arm
   Exception: `docs/measuring.md` (measuring guide and entry sheet) is in German at Jan's request.
   When Jan fills in its "Eintragen" tables, transfer the final values into `config/measurements.yaml`.
 - **Never commit images, PDFs or exports.** All binary/visual data lives in `TATTOO_DATA_DIR` (Seafile). Respect the pre-commit guard; never bypass it (no `--no-verify`, no editing the allow-list to sneak a file in).
+  The one exception: the generated standard background tiles in `assets/backgrounds/` (PNG/WebP, at most 2 MB each, written by `npm run backgrounds:generate`; Jan, 2026-11-06, docs/adr/0019). Never a reference image, photo or export there.
 - Read paths only via `TATTOO_DATA_DIR`; never hard-code Jan's absolute paths in committed files. Jan's real path lives only in the git-ignored `.env`.
 - No public deployment; the planner stays local. Sending an image to an image-edit service (OpenAI, for generative edits; Jan, 2026-11-04) is fine; never put data-folder files into a git repo or anywhere public. The dev server binds to `127.0.0.1` only.
 - Prefer small, reviewable commits per phase step; keep `README.md` current.

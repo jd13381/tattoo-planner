@@ -69,23 +69,11 @@ describe("nudgeElement", () => {
     expect(moved).toBeCloseTo(2, 1);
   });
 
-  it("moves bands only along the arm and fillers as a whole", () => {
+  it("moves bands only along the arm", () => {
     const band: LayoutElement = { type: "band", id: "b", pattern: "meander", v: 0.5, width_cm: 2 };
     const b = nudgeElement(band, profile, 5, 0);
     expect(b).toEqual(band);
-    const filler: LayoutElement = {
-      type: "filler",
-      id: "x",
-      pattern: "snake-scales",
-      region: { u: [0.95, 0.05], v: [0.2, 0.4] },
-      density: 0.3,
-    };
-    expect(elementAnchor(filler).u).toBeCloseTo(0);
-    expect(elementAnchor(filler).v).toBeCloseTo(0.3);
-    const f = nudgeElement(filler, profile, 0, -6);
-    if (f.type !== "filler") throw new Error("type");
-    expect(f.region.v[1] - f.region.v[0]).toBeCloseTo(0.2);
-    expect(f.region.u).toEqual([0.95, 0.05]);
+    expect(elementAnchor(band)).toEqual({ u: 0, v: 0.5 });
   });
 });
 

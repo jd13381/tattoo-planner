@@ -12,7 +12,7 @@ import type { RegionProfile } from "../body/profile.ts";
 import { REGIONS, type CentreLines } from "../body/regions.ts";
 import { screenSign, wrapU } from "../body/uv.ts";
 import type { ElementAspects } from "../layout/imageFit.ts";
-import type { Layout, LayoutElement } from "../layout/schema.ts";
+import type { AreaShape, BackgroundLayer, Layout, LayoutElement } from "../layout/schema.ts";
 import {
   nextInCycle,
   pickAllElements,
@@ -23,7 +23,9 @@ import {
   type ExistingSize,
   type Shape,
 } from "../layout/shapes.ts";
+import { addShape, addStroke, moveShape, shapeFromDrag, thinStroke } from "./backgroundOps.ts";
 import { moveElement, movePoint } from "./edit.ts";
+import type { BackgroundTool } from "./LayersPanel.tsx";
 import {
   applyResize,
   formatSize,
@@ -70,7 +72,27 @@ type Props = {
   hint?: boolean;
   /** Floats next to the selected figure or existing tattoo (e.g. "Change image"); hidden while dragging. */
   selectionAction?: ReactNode;
+  /**
+   * The Background view (docs/adr/0019): the elements are shown but cannot be picked; the selected
+   * layer's area shapes and brush strokes are edited with the chosen tool instead.
+   */
+  background?: BackgroundEditing;
 };
+
+export type BackgroundEditing = {
+  /** The selected layer, or null when none is selected. */
+  layer: BackgroundLayer | null;
+  tool: BackgroundTool;
+  brushCm: number;
+  selectedShape: number | null;
+  onSelectShape: (index: number | null) => void;
+  /** `gesture` is the same for every change of one drag (one undo step). */
+  onChange: (layer: BackgroundLayer, gesture?: string) => void;
+};
+
+/** How to use the Background view's editor. */
+export const BACKGROUND_HINT =
+  "Background view: Rect / Ellipse drag a shape, Polygon clicks corners (Enter or the first corner closes, Esc cancels), Brush and Eraser paint the area. Select moves shapes; Delete removes the selected shape. Motifs are dimmed and cannot be picked here.";
 
 /** How to use the editor, shown under it or as a tooltip. */
 export const EDITOR_HINT =
@@ -96,7 +118,10 @@ type Drag =
       opts: ResizeOptions;
     }
   | { kind: "rotate"; index: number; start: LayoutElement; cx: number; cy: number }
-  | { kind: "point"; index: number; point: number; start: LayoutElement };
+  | { kind: "point"; index: number; point: number; start: LayoutElement }
+  | { kind: "shape-move"; index: number; start: AreaShape; u: number; v: number }
+  | { kind: "draw-box"; shape: "rect" | "ellipse"; a: { x: number; y: number }; b: { x: number; y: number } }
+  | { kind: "paint"; erase: boolean; svg: { x: number; y: number }[]; skin: { u: number; v: number }[] };
 
 type ViewBox = { x: number; y: number; w: number; h: number };
 
@@ -123,7 +148,21 @@ export function UnwrapEditor(props: Props) {
     fitRequest,
     hint = true,
     selectionAction,
+    background: bg,
   } = props;
+  // A polygon being drawn in the Background view: its corners so far (SVG frame and skin).
+  const [poly, setPoly] = useState<{ x: number; y: number; u: number; v: number }[] | null>(null);
+  const [polyCursor, setPolyCursor] = useState<{ x: number; y: number } | null>(null);
+  const bgLayer = bg?.layer ?? null;
+  const bgEditable = !!bgLayer && !bgLayer.locked;
+  const bgTool = bg ? bg.tool : null;
+  // A tool change or another layer drops an unfinished polygon (adjusting state during render).
+  const polyKey = `${bgTool}|${bgLayer?.id}`;
+  const [polySeen, setPolySeen] = useState(polyKey);
+  if (polyKey !== polySeen) {
+    setPolySeen(polyKey);
+    setPoly(null);
+  }
   const L = profile.length;
   const half = profile.maxCircumference / 2;
   // The lines a quarter turn left and right of the centre line, as seen on screen.
@@ -297,10 +336,90 @@ export function UnwrapEditor(props: Props) {
     setDrag(next);
   };
 
+  const finishPolygon = (pts: { u: number; v: number }[]) => {
+    setPoly(null);
+    if (!bg || !bgLayer || pts.length < 3) return;
+    const shape: AreaShape = {
+      kind: "polygon",
+      points: pts.map((p) => ({ u: Math.round(p.u * 1000) / 1000, v: Math.round(p.v * 1000) / 1000 })),
+    };
+    bg.onChange(addShape(bgLayer, shape));
+    bg.onSelectShape(bgLayer.shapes?.length ?? 0);
+  };
+  const onPolyKey = useEffectEvent((e: KeyboardEvent) => {
+    if (!poly) return;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      finishPolygon(poly);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      setPoly(null);
+    }
+  });
+  const drawingPoly = poly !== null;
+  useEffect(() => {
+    if (!drawingPoly) return;
+    const on = (e: KeyboardEvent) => onPolyKey(e);
+    window.addEventListener("keydown", on, true);
+    return () => window.removeEventListener("keydown", on, true);
+  }, [drawingPoly]);
+
   const endDrag = () => {
-    if (drag && drag.kind !== "pan") onGestureEnd?.();
+    if (drag?.kind === "draw-box" && bg && bgLayer) {
+      const shape = shapeFromDrag(drag.shape, profile, centerU, drag.a, drag.b);
+      if (shape) {
+        bg.onChange(addShape(bgLayer, shape));
+        bg.onSelectShape(bgLayer.shapes?.length ?? 0);
+      }
+    } else if (drag?.kind === "paint" && bg && bgLayer && drag.skin.length > 0) {
+      bg.onChange(
+        addStroke(bgLayer, {
+          ...(drag.erase ? { erase: true } : {}),
+          radius_cm: bg.brushCm,
+          points: thinStroke(drag.svg, drag.skin),
+        }),
+      );
+    } else if (drag && drag.kind !== "pan") onGestureEnd?.();
     lastPointer.current = null;
     setDrag(null);
+  };
+
+  /** Pointer down on the sheet in the Background view: start the tool's gesture. */
+  const onBackgroundDown = (e: ReactPointerEvent): boolean => {
+    if (!bg || !bgTool || bgTool === "select" || !bgEditable || e.button !== 0) return false;
+    const p = pointer(e);
+    if (!p) return true;
+    if (bgTool === "rect" || bgTool === "ellipse") {
+      startDrag(e, { kind: "draw-box", shape: bgTool, a: { x: p.sx, y: p.sy }, b: { x: p.sx, y: p.sy } });
+    } else if (bgTool === "brush" || bgTool === "eraser") {
+      startDrag(e, {
+        kind: "paint",
+        erase: bgTool === "eraser",
+        svg: [{ x: p.sx, y: p.sy }],
+        skin: [{ u: p.u, v: p.v }],
+      });
+    } else if (bgTool === "polygon") {
+      e.stopPropagation();
+      const first = poly?.[0];
+      // A click near the first corner closes the polygon.
+      if (poly && first && poly.length >= 3 && Math.hypot(p.sx - first.x, p.sy - first.y) < 10 * px) {
+        finishPolygon(poly);
+        return true;
+      }
+      setPoly([...(poly ?? []), { x: p.sx, y: p.sy, u: p.u, v: p.v }]);
+    }
+    return true;
+  };
+
+  const onShapeDown = (e: ReactPointerEvent, index: number) => {
+    if (!bg || !bgLayer || bgTool !== "select") return;
+    e.stopPropagation();
+    bg.onSelectShape(index);
+    const p = pointer(e);
+    const shape = bgLayer.shapes?.[index];
+    if (!p || !shape || bgLayer.locked) return;
+    startDrag(e, { kind: "shape-move", index, start: shape, u: p.u, v: p.v });
   };
 
   const onElementDown = (e: ReactPointerEvent, index: number) => {
@@ -360,6 +479,25 @@ export function UnwrapEditor(props: Props) {
       case "point":
         onChange(drag.index, movePoint(drag.start, drag.point, p.u, p.v), gesture);
         return;
+      case "shape-move": {
+        if (!bg || !bgLayer) return;
+        const moved = moveShape(drag.start, wrapDelta(p.u - drag.u), p.v - drag.v);
+        bg.onChange(
+          { ...bgLayer, shapes: (bgLayer.shapes ?? []).map((s, i) => (i === drag.index ? moved : s)) },
+          gesture,
+        );
+        return;
+      }
+      case "draw-box":
+        setDrag({ ...drag, b: { x: p.sx, y: p.sy } });
+        return;
+      case "paint":
+        setDrag({
+          ...drag,
+          svg: [...drag.svg, { x: p.sx, y: p.sy }],
+          skin: [...drag.skin, { u: p.u, v: p.v }],
+        });
+        return;
     }
   };
 
@@ -384,10 +522,18 @@ export function UnwrapEditor(props: Props) {
         viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
         preserveAspectRatio="xMidYMid meet"
         onPointerDown={(e) => {
-          onSelect(null);
+          if (onBackgroundDown(e)) return;
+          if (bg) bg.onSelectShape(null);
+          else onSelect(null);
           startDrag(e, { kind: "pan", startX: e.clientX, startY: e.clientY, box: view });
         }}
-        onPointerMove={onMove}
+        onPointerMove={(e) => {
+          if (poly) {
+            const p = pointer(e);
+            setPolyCursor(p ? { x: p.sx, y: p.sy } : null);
+          }
+          onMove(e);
+        }}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onPointerLeave={() => {
@@ -395,7 +541,10 @@ export function UnwrapEditor(props: Props) {
           onCursor?.(null);
         }}
         onWheel={onWheel}
-        onDoubleClick={() => setView(fullView)}
+        onDoubleClick={() => {
+          if (poly) finishPolygon(poly);
+          else setView(fullView);
+        }}
         role="application"
         aria-label="Unwrap editor"
         className={
@@ -421,6 +570,7 @@ export function UnwrapEditor(props: Props) {
         </text>
         {resolved.map((r, i) => (
           <ShapeOverlay
+            passive={!!bg}
             key={r.element.id}
             shape={r.shape}
             label={r.element.id}
@@ -436,7 +586,37 @@ export function UnwrapEditor(props: Props) {
             onLeave={() => setHover((h) => (h === i ? null : h))}
           />
         ))}
-        {selected !== null &&
+        {bg && bgLayer && (
+          <AreaOverlay
+            layer={bgLayer}
+            toSvg={toSvg}
+            profile={profile}
+            px={px}
+            selected={bg.selectedShape}
+            selectable={bgTool === "select"}
+            onDown={onShapeDown}
+          />
+        )}
+        {drag?.kind === "draw-box" && <DrawPreview kind={drag.shape} a={drag.a} b={drag.b} />}
+        {drag?.kind === "paint" && (
+          <polyline
+            className={`paint-preview${drag.erase ? " erase" : ""}`}
+            points={drag.svg.map((q) => `${q.x},${q.y}`).join(" ")}
+            style={{ strokeWidth: (bg?.brushCm ?? 1) * 2 }}
+          />
+        )}
+        {poly && (
+          <g className="poly-preview" pointerEvents="none">
+            <polyline
+              points={[...poly, ...(polyCursor ? [polyCursor] : [])].map((q) => `${q.x},${q.y}`).join(" ")}
+            />
+            {poly.map((q, k) => (
+              <circle key={k} cx={q.x} cy={q.y} r={(k === 0 ? 5 : 3.5) * px} />
+            ))}
+          </g>
+        )}
+        {!bg &&
+          selected !== null &&
           resolved[selected] &&
           !resolved[selected].element.locked &&
           resolved[selected].shape.kind !== "patch" && (
@@ -500,9 +680,11 @@ function ShapeOverlay(props: {
   onDown: (e: ReactPointerEvent) => void;
   onEnter: () => void;
   onLeave: () => void;
+  /** Shown faintly and ignores the pointer (the Background view). */
+  passive?: boolean;
 }) {
-  const { shape, label, title, selected, hovered, locked, toSvg, profile, onDown } = props;
-  const cls = `shape shape-${shape.kind}${selected ? " selected" : ""}${hovered ? " hovered" : ""}${locked ? " locked" : ""}`;
+  const { shape, label, title, selected, hovered, locked, toSvg, profile, onDown, passive } = props;
+  const cls = `shape shape-${shape.kind}${selected && !passive ? " selected" : ""}${hovered && !passive ? " hovered" : ""}${locked ? " locked" : ""}${passive ? " passive" : ""}`;
   let body: React.ReactNode;
   let labelAt: { x: number; y: number };
   switch (shape.kind) {
@@ -563,6 +745,122 @@ function ShapeOverlay(props: {
         {locked ? " 🔒" : ""}
       </text>
     </g>
+  );
+}
+
+/** The selected background layer's area in the Background view: its shapes and brush strokes. */
+function AreaOverlay(props: {
+  layer: BackgroundLayer;
+  toSvg: ToSvg;
+  profile: RegionProfile;
+  px: number;
+  selected: number | null;
+  selectable: boolean;
+  onDown: (e: ReactPointerEvent, index: number) => void;
+}) {
+  const { layer, toSvg, profile, px, selected } = props;
+  const L = profile.length;
+  if ((layer.cover ?? "region") === "region") return null;
+  return (
+    <g className={`area-overlay${props.selectable ? " selectable" : ""}`}>
+      {(layer.mask ?? []).map((s, k) => {
+        const pts = s.points.map((q) => toSvg(q.u, q.v * L));
+        return pts.length === 1 ? (
+          <circle
+            key={`m${k}`}
+            className={`mask-stroke${s.erase ? " erase" : ""}`}
+            cx={pts[0]!.x}
+            cy={pts[0]!.y}
+            r={s.radius_cm}
+          />
+        ) : (
+          <polyline
+            key={`m${k}`}
+            className={`mask-stroke${s.erase ? " erase" : ""}`}
+            points={pts.map((q) => `${q.x},${q.y}`).join(" ")}
+            style={{ strokeWidth: s.radius_cm * 2 }}
+          />
+        );
+      })}
+      {(layer.shapes ?? []).map((s, k) => {
+        const cls = `area-shape${selected === k ? " selected" : ""}`;
+        const down = (e: ReactPointerEvent) => props.onDown(e, k);
+        const sw = { strokeWidth: (selected === k ? 2 : 1.25) * px };
+        switch (s.kind) {
+          case "rect":
+          case "ellipse": {
+            const c = toSvg(s.u, s.v * L);
+            const deg = s.rotation_deg ?? 0;
+            return (
+              <g
+                key={k}
+                className={cls}
+                transform={`translate(${c.x} ${c.y}) rotate(${-deg})`}
+                onPointerDown={down}
+              >
+                {s.kind === "rect" ? (
+                  <rect x={-s.w_cm / 2} y={-s.h_cm / 2} width={s.w_cm} height={s.h_cm} style={sw} />
+                ) : (
+                  <ellipse rx={s.w_cm / 2} ry={s.h_cm / 2} style={sw} />
+                )}
+              </g>
+            );
+          }
+          case "polygon": {
+            const pts = s.points.map((q) => toSvg(q.u, q.v * L));
+            return (
+              <polygon
+                key={k}
+                className={cls}
+                points={pts.map((q) => `${q.x},${q.y}`).join(" ")}
+                style={sw}
+                onPointerDown={down}
+              />
+            );
+          }
+          case "span": {
+            const ys: number[] = [];
+            for (let y = s.v[0] * L; y <= s.v[1] * L + 1e-9; y += 0.5) ys.push(Math.min(y, s.v[1] * L));
+            const left = ys.map((y) => toSvg(s.u[0], y));
+            const right = ys.map((y) => toSvg(s.u[1], y)).reverse();
+            return (
+              <polygon
+                key={k}
+                className={cls}
+                points={[...left, ...right].map((q) => `${q.x},${q.y}`).join(" ")}
+                style={sw}
+                onPointerDown={down}
+              />
+            );
+          }
+        }
+        return null;
+      })}
+    </g>
+  );
+}
+
+/** The rectangle or ellipse being dragged out, upright on screen. */
+function DrawPreview(props: {
+  kind: "rect" | "ellipse";
+  a: { x: number; y: number };
+  b: { x: number; y: number };
+}) {
+  const x = Math.min(props.a.x, props.b.x);
+  const y = Math.min(props.a.y, props.b.y);
+  const w = Math.abs(props.b.x - props.a.x);
+  const h = Math.abs(props.b.y - props.a.y);
+  return props.kind === "rect" ? (
+    <rect className="draw-preview" x={x} y={y} width={w} height={h} pointerEvents="none" />
+  ) : (
+    <ellipse
+      className="draw-preview"
+      cx={x + w / 2}
+      cy={y + h / 2}
+      rx={w / 2}
+      ry={h / 2}
+      pointerEvents="none"
+    />
   );
 }
 

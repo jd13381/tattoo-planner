@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { parseRoute, routeHash, TABS } from "../src/settings/routes.ts";
 
 describe("app routes", () => {
-  it("lists Layout and Image studio first, Settings last", () => {
-    expect(TABS.map((t) => t.id)).toEqual(["layout", "images", "compare", "assets", "settings"]);
+  it("lists Home first, then Layout and Image studio, Settings last", () => {
+    expect(TABS.map((t) => t.id)).toEqual(["home", "layout", "images", "compare", "assets", "settings"]);
   });
 
   it("parses main tabs and Settings sections", () => {
@@ -14,9 +14,10 @@ describe("app routes", () => {
     expect(parseRoute("#settings/nope")).toEqual({ tab: "settings", section: "project" });
   });
 
-  it("opens Layout for an empty or unknown hash", () => {
-    expect(parseRoute("")).toEqual({ tab: "layout" });
-    expect(parseRoute("#whatever")).toEqual({ tab: "layout" });
+  it("opens Home for an empty or unknown hash", () => {
+    expect(parseRoute("")).toEqual({ tab: "home" });
+    expect(parseRoute("#whatever")).toEqual({ tab: "home" });
+    expect(parseRoute("#layout")).toEqual({ tab: "layout" });
   });
 
   it("sends the old tabs to their Settings sections", () => {
@@ -26,7 +27,15 @@ describe("app routes", () => {
   });
 
   it("round-trips through the hash", () => {
-    for (const h of ["layout", "images", "compare", "assets", "settings/body", "settings/image-generation"])
+    for (const h of [
+      "home",
+      "layout",
+      "images",
+      "compare",
+      "assets",
+      "settings/body",
+      "settings/image-generation",
+    ])
       expect(routeHash(parseRoute(`#${h}`))).toBe(h);
   });
 });

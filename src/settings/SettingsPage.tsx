@@ -1,13 +1,14 @@
 // The Settings tab: everything that is set up once rather than used every day, as sections with a
 // small side navigation: Project (the former Data folder tab), Body & measurements (sample body, own
 // measurements per region, the measuring wizard), the existing tattoos (list, guided setup and the
-// Advanced calibration page) and the image-generation status.
+// Advanced calibration page), the image-generation status and the appearance (theme).
 import type { ReactNode } from "react";
 import type { HeaderSlots } from "../editor/LayoutPage.tsx";
 import type { WorkingLayout } from "../layout/useLayouts.ts";
 import { ProjectionSettings } from "../projection/ProjectionSettings.tsx";
 import { ProjectPage } from "../project/ProjectPage.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
+import { AppearanceSettings } from "./AppearanceSettings.tsx";
 import { BodyPage } from "./BodyPage.tsx";
 import { ImageGenerationSettings } from "./ImageGenerationSettings.tsx";
 import { SETTINGS_SECTIONS, type SettingsSection } from "./routes.ts";
@@ -51,6 +52,9 @@ export function SettingsPage(props: Props) {
       break;
     case "image-generation":
       body = <ImageGenerationSettings />;
+      break;
+    case "appearance":
+      body = <AppearanceSettings />;
       break;
   }
   return (

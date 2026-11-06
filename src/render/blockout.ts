@@ -1,13 +1,13 @@
 // Blockout mode (PROJECT_BRIEF.md §10.1 F5): every element as a flat shape coloured by type.
-import { OUTSIDE, type Classification } from "../layout/shapes.ts";
+import { BACKGROUND, OUTSIDE, type Classification } from "../layout/shapes.ts";
 import type { ElementType } from "../layout/schema.ts";
 
 type RGB = [number, number, number];
 
-export const BLOCKOUT_COLORS: Record<ElementType | "open" | "outside", RGB> = {
+export const BLOCKOUT_COLORS: Record<ElementType | "background" | "open" | "outside", RGB> = {
   figure: [74, 70, 67], // dark grey
   existing: [120, 112, 105], // outline drawn darker, see below
-  filler: [196, 190, 184], // light grey
+  background: [196, 190, 184], // light grey, the colour fillers had (background layers, docs/adr/0019)
   band: [140, 134, 128], // mid grey, hatched
   line: [198, 40, 40], // red
   open: [239, 230, 220], // skin
@@ -19,8 +19,18 @@ const EXISTING_FILL: RGB = [222, 211, 199];
 /** The selected element's outline: the UI's selection accent (--accent, #8f84ff). */
 export const SELECTION_OUTLINE: RGB = [143, 132, 255];
 
-/** Paints the classification into RGBA pixels (row 0 = shoulder, as the texture expects). */
-export function blockoutPixels(cls: Classification, selected?: number): Uint8ClampedArray<ArrayBuffer> {
+/** How far dimmed elements are drawn towards the open-skin colour (the Background view). */
+const DIM_TOWARDS_OPEN = 0.7;
+
+/**
+ * Paints the classification into RGBA pixels (row 0 = shoulder, as the texture expects). `dim` draws
+ * the elements faded towards open skin, so the background layers stand out (the Background view).
+ */
+export function blockoutPixels(
+  cls: Classification,
+  selected?: number,
+  dim = false,
+): Uint8ClampedArray<ArrayBuffer> {
   const { width, height, cells, resolved, pxPerCm } = cls;
   const out = new Uint8ClampedArray(width * height * 4);
   const outlinePx = Math.max(1, Math.round(pxPerCm * 0.25));
@@ -31,6 +41,7 @@ export function blockoutPixels(cls: Classification, selected?: number): Uint8Cla
       let color: RGB;
       if (v === OUTSIDE) color = BLOCKOUT_COLORS.outside;
       else if (v === 0) color = BLOCKOUT_COLORS.open;
+      else if (v === BACKGROUND) color = BLOCKOUT_COLORS.background;
       else {
         const type = resolved[v - 1]!.element.type;
         color = BLOCKOUT_COLORS[type];
@@ -39,6 +50,15 @@ export function blockoutPixels(cls: Classification, selected?: number): Uint8Cla
           color = isEdge(cells, width, height, i, j, v, outlinePx) ? EXISTING_OUTLINE : EXISTING_FILL;
         if (selected !== undefined && v === selected + 1 && isEdge(cells, width, height, i, j, v, outlinePx))
           color = SELECTION_OUTLINE;
+        if (dim && v !== BACKGROUND) {
+          const o = BLOCKOUT_COLORS.open;
+          const t = DIM_TOWARDS_OPEN;
+          color = [
+            color[0] + (o[0] - color[0]) * t,
+            color[1] + (o[1] - color[1]) * t,
+            color[2] + (o[2] - color[2]) * t,
+          ];
+        }
       }
       out[idx * 4] = color[0];
       out[idx * 4 + 1] = color[1];

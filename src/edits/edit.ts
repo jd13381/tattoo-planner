@@ -3,6 +3,7 @@
 // (server/editsApi.ts) wires these to requests and files.
 import type { Asset } from "../assets/manifest.ts";
 import { EDITED_TAG, EDITS_FOLDER, GENERATED_FOLDER, GENERATED_KIND, GENERATED_TAG } from "./types.ts";
+import { BACKGROUNDS_FOLDER } from "./background.ts";
 
 export const INPUT_BASENAME = "input";
 export const OUTPUT_FILE = "output.png";
@@ -71,12 +72,17 @@ export function nextVariant(
   rootId: string,
   takenIds: ReadonlySet<string>,
   takenFiles: ReadonlySet<string>,
-  /** Kept new images: `<name>-N` in `generated/` instead of `<root>-edit-N` in `edits/`. */
-  kind: "edit" | "created" = "edit",
+  /**
+   * Kept new images: `<name>-N` in `generated/` instead of `<root>-edit-N` in `edits/`; kept
+   * backgrounds: `<name>-N` in `backgrounds/`.
+   */
+  kind: "edit" | "created" | "background" = "edit",
 ): { id: string; file: string } {
+  const folder =
+    kind === "background" ? BACKGROUNDS_FOLDER : kind === "created" ? GENERATED_FOLDER : EDITS_FOLDER;
   for (let n = 1; n <= MAX_VARIANTS; n++) {
-    const id = kind === "created" ? `${rootId}-${n}` : `${rootId}-edit-${n}`;
-    const file = `${kind === "created" ? GENERATED_FOLDER : EDITS_FOLDER}/${id}.png`;
+    const id = kind === "edit" ? `${rootId}-edit-${n}` : `${rootId}-${n}`;
+    const file = `${folder}/${id}.png`;
     if (!takenIds.has(id) && !takenFiles.has(file.toLowerCase())) return { id, file };
   }
   throw new Error(`more than ${MAX_VARIANTS} edits of ${rootId}`);
@@ -160,8 +166,14 @@ export function createdAsset(
 const STUDIO_HIDDEN_KINDS = new Set(["arm-photo", "existing"]);
 const STUDIO_HIDDEN_FOLDERS = ["arm-photos/", "existing/"];
 
-/** Whether an asset belongs in the Image studio's picker (to edit or as a reference). */
-export function showInStudio(asset: Pick<Asset, "kind" | "file">): boolean {
+/** Whether an asset belongs in the Image studio's picker (to edit or as a reference); hidden ones do not. */
+export function showInStudio(
+  asset: Pick<Asset, "kind" | "file"> & { effectiveCategory?: string; hidden?: boolean },
+): boolean {
+  if (asset.hidden) return false;
+  // The catalogue's section, when known (docs/adr/0020): body photos stay out.
+  if (asset.effectiveCategory)
+    return asset.effectiveCategory !== "measuring" && asset.effectiveCategory !== "existing";
   const file = asset.file.replaceAll("\\", "/").toLowerCase();
   return !STUDIO_HIDDEN_KINDS.has(asset.kind) && !STUDIO_HIDDEN_FOLDERS.some((f) => file.startsWith(f));
 }

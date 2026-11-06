@@ -1,7 +1,7 @@
 import { AssetThumb } from "../assets/AssetBrowser.tsx";
 import { ArrowDownIcon, ArrowUpIcon, DuplicateIcon, LockIcon, TrashIcon, WarnIcon } from "../ui/icons.tsx";
 import type { ReactNode } from "react";
-import { BAND_PATTERNS, FILLER_PATTERNS } from "../render/patterns/index.ts";
+import { BAND_PATTERNS } from "../render/patterns/index.ts";
 import { colorToHex, LINE_SWATCHES } from "./edit.ts";
 import type { AssetInfo } from "../assets/types.ts";
 import { FULL_IMAGE } from "../layout/imageFit.ts";
@@ -30,8 +30,6 @@ type Props = {
   onDuplicate: () => void;
   /** Opens the image picker next to the given button (figures and existing tattoos). */
   onChangeImage?: (anchor: HTMLElement) => void;
-  /** Steps to the previous (-1) or next (+1) image of the same kind; null when there is none. */
-  onStepImage?: ((dir: 1 | -1) => void) | null;
   /** Error of the id field (duplicate or invalid), shown under it. */
   idError?: string | null;
   /** Keyboard hints for the button tooltips, e.g. { duplicate: "⌘D" }. */
@@ -52,7 +50,6 @@ export function ElementPanel({
   onDelete,
   onDuplicate,
   onChangeImage,
-  onStepImage,
   idError,
   keys = {},
 }: Props) {
@@ -185,13 +182,7 @@ export function ElementPanel({
         </label>
         {(el.type === "figure" || el.type === "existing") && (
           <>
-            <ImageSwap
-              el={el}
-              asset={asset}
-              locked={locked}
-              onChangeImage={onChangeImage}
-              onStepImage={onStepImage}
-            />
+            <ImageSwap el={el} asset={asset} locked={locked} onChangeImage={onChangeImage} />
             {el.type === "existing" && (
               <label title="A calibration made in Settings → Projection: the tattoo is drawn from all its photos; position, size and cut-out apply only while that cannot be built.">
                 projection {text(el.projection, (projection) => onChange({ ...el, projection }))}
@@ -239,53 +230,6 @@ export function ElementPanel({
             </div>
             {/* style and red_accents stay in the YAML but are left out here (not used for drawing). */}
             <ImageFields el={el} asset={asset} autoFilter={autoFilter} locked={locked} onChange={onChange} />
-          </>
-        )}
-        {el.type === "filler" && (
-          <>
-            <h3 className="props-head">Position</h3>
-            <label>
-              u from{" "}
-              {num(el.region.u[0], (n) =>
-                onChange({ ...el, region: { ...el.region, u: [n ?? 0, el.region.u[1]] } }),
-              )}
-            </label>
-            <label>
-              u to{" "}
-              {num(el.region.u[1], (n) =>
-                onChange({ ...el, region: { ...el.region, u: [el.region.u[0], n ?? 0] } }),
-              )}
-            </label>
-            <label>
-              v from{" "}
-              {num(el.region.v[0], (n) =>
-                onChange({ ...el, region: { ...el.region, v: [n ?? 0, el.region.v[1]] } }),
-              )}
-            </label>
-            <label>
-              v to{" "}
-              {num(el.region.v[1], (n) =>
-                onChange({ ...el, region: { ...el.region, v: [el.region.v[0], n ?? 0] } }),
-              )}
-            </label>
-            {cm}
-            <h3 className="props-head">Style</h3>
-            <label>
-              pattern
-              <PatternSelect
-                value={el.pattern}
-                options={FILLER_PATTERNS}
-                disabled={locked}
-                onChange={(pattern) => onChange({ ...el, pattern })}
-              />
-            </label>
-            <label>
-              density{" "}
-              {num(el.density, (density) => onChange({ ...el, density: density ?? undefined }), {
-                step: 0.05,
-                nullable: true,
-              })}
-            </label>
           </>
         )}
         {el.type === "band" && (
@@ -475,15 +419,14 @@ function ImageFields(props: {
   );
 }
 
-/** The figure's image, large, with Change image and quick previous / next arrows. */
+/** The figure's image, large, with Change image (opens the picker). */
 function ImageSwap(props: {
   el: FigureLike;
   asset?: AssetInfo | null;
   locked: boolean;
   onChangeImage?: (anchor: HTMLElement) => void;
-  onStepImage?: ((dir: 1 | -1) => void) | null;
 }) {
-  const { el, asset, locked, onChangeImage, onStepImage } = props;
+  const { el, asset, locked, onChangeImage } = props;
   const crop = el.crop ?? asset?.crop;
   return (
     <div className="image-swap">
@@ -501,32 +444,12 @@ function ImageSwap(props: {
       <div className="image-swap-bar">
         <button
           type="button"
-          className="ghost icon-button"
-          aria-label="Previous image"
-          title="Previous image of the same kind"
-          disabled={locked || !onStepImage}
-          onClick={() => onStepImage?.(-1)}
-        >
-          ‹
-        </button>
-        <button
-          type="button"
           className="primary change-image"
           disabled={locked || !onChangeImage}
           onClick={(e) => onChangeImage?.(e.currentTarget)}
           title={locked ? "Unlock it to change its image" : "Pick another image"}
         >
           {el.asset ? "Change image" : "Choose image"}
-        </button>
-        <button
-          type="button"
-          className="ghost icon-button"
-          aria-label="Next image"
-          title="Next image of the same kind"
-          disabled={locked || !onStepImage}
-          onClick={() => onStepImage?.(1)}
-        >
-          ›
         </button>
       </div>
       {el.asset && <p className="image-swap-id mono faint">{el.asset}</p>}

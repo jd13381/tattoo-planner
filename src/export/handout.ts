@@ -3,6 +3,7 @@
 // writer (pdf.ts) only lays this out. All wording comes from strings.ts.
 import type { RegionProfile } from "../body/profile.ts";
 import { wrapU } from "../body/uv.ts";
+import { layerName, visibleLayers } from "../layout/areas.ts";
 import { isFigureLike } from "../layout/imageFit.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import {
@@ -127,13 +128,6 @@ export function positionText(r: ResolvedElement, profile: RegionProfile, t: Hand
       const [u, v] = s.kind === "patch" ? [s.uc, s.cy / L] : [el.position.u, el.position.v];
       return `${t.cell.centre(sideName(u, t), cm(v * L))} ${t.cell.coords(two(u), two(v))}`;
     }
-    case "filler":
-      return t.cell.span(
-        sideName(el.region.u[0], t),
-        sideName(el.region.u[1], t),
-        cm(el.region.v[0] * L),
-        cm(el.region.v[1] * L),
-      );
     case "band":
       return t.cell.around(cm(el.v * L));
     case "line": {
@@ -152,10 +146,6 @@ export function styleText(el: LayoutElement, t: HandoutText): string {
       if (el.style) parts.push(el.style);
       if (el.red_accents) parts.push(t.cell.redAccents);
       break;
-    case "filler":
-      parts.push(t.cell.pattern(el.pattern));
-      if (el.density !== undefined) parts.push(t.cell.density(String(el.density)));
-      break;
     case "band":
       parts.push(t.cell.pattern(el.pattern));
       break;
@@ -166,7 +156,39 @@ export function styleText(el: LayoutElement, t: HandoutText): string {
   return parts.join(", ") || t.cell.none;
 }
 
+/** Rows for the background layers (docs/adr/0019), bottom layer first; they lie under every element. */
+export function backgroundRows(layout: Layout, profile: RegionProfile, t: HandoutText): string[][] {
+  const L = profile.length;
+  return visibleLayers(layout).map((b) => {
+    const src = b.source;
+    const name = "pattern" in src ? src.pattern : "standard" in src ? src.standard : src.image;
+    const style: string[] = [t.cell.pattern(name)];
+    if ("density" in src && src.density !== undefined) style.push(t.cell.density(String(src.density)));
+    const area = (b.cover ?? "region") === "region";
+    const only = !area && b.shapes?.length === 1 && !b.mask?.length ? b.shapes[0] : undefined;
+    const position =
+      only?.kind === "span"
+        ? t.cell.span(sideName(only.u[0], t), sideName(only.u[1], t), cm(only.v[0] * L), cm(only.v[1] * L))
+        : area
+          ? t.background.whole
+          : t.background.area((b.shapes?.length ?? 0) + (b.mask?.length ? 1 : 0));
+    return [
+      layerName(b),
+      t.background.type,
+      "image" in src ? src.image : t.cell.none,
+      t.cell.none,
+      position,
+      style.join(", "),
+      b.notes?.trim() || t.cell.none,
+    ];
+  });
+}
+
 export function elementRows(facts: HandoutFacts, t: HandoutText): string[][] {
+  return [...backgroundRows(facts.layout, facts.profile, t), ...elementOnlyRows(facts, t)];
+}
+
+function elementOnlyRows(facts: HandoutFacts, t: HandoutText): string[][] {
   return facts.resolved.map((r) => {
     const el = r.element;
     let asset: string = t.cell.none;

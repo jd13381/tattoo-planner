@@ -21,6 +21,11 @@ export const EXPECTED_ENTRIES: ExpectedEntry[] = [
   { name: "edits", kind: "folder", purpose: "edited images kept in the Image studio" },
   { name: "generated", kind: "folder", purpose: "new images created in the Image studio" },
   { name: "exports", kind: "folder", purpose: "PDF / PNG handouts" },
+  {
+    name: "persons",
+    kind: "folder",
+    purpose: "further people: layouts, measurements, projections and photos each (optional)",
+  },
   { name: "ideas.pdf", kind: "file", purpose: "collected ideas", older: true },
   {
     name: "ideas",

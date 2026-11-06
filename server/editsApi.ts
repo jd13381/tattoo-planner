@@ -40,6 +40,7 @@ import { MANIFEST_FILE, type Asset } from "../src/assets/manifest.ts";
 import { mergeManifest } from "../src/assets/manifestDoc.ts";
 import { imageContentType, isInside, listAssets, resolveInside } from "./assetsApi.ts";
 import { HttpError, isCrossSite, readRawBody, send, sendError, type Handler } from "./http.ts";
+import { withManifestLock } from "./manifestLock.ts";
 import { BUILTIN_TOOL } from "../src/edits/builtin.ts";
 import {
   checkInstruction,
@@ -55,6 +56,14 @@ import {
   readPngInfo,
   slugName,
 } from "../src/edits/edit.ts";
+import {
+  backgroundAsset,
+  BACKGROUND_EDIT_LINE,
+  BACKGROUND_SIZE,
+  BACKGROUNDS_FOLDER,
+  buildBackgroundPrompt,
+} from "../src/edits/background.ts";
+import { seamlessPng } from "./backgrounds.ts";
 import { pickVersion, runSource, sessionForAsset, truncateVersions } from "../src/edits/session.ts";
 import {
   buildCreatePrompt,
@@ -138,7 +147,6 @@ export class EditManager {
   private readonly sessions = new Map<string, EditSession>();
   private sessionCounter = 0;
   private counter = 0;
-  private manifestLock: Promise<unknown> = Promise.resolve();
 
   private readonly dataDir: string | null;
   private readonly opts: EditOptions;
@@ -204,13 +212,18 @@ export class EditManager {
       return session;
     };
     if (req.mode === "create") {
-      const size = req.size ?? "1024x1024";
-      const background = req.background ?? "transparent";
+      // A background tile is always square and opaque: the seam fix needs a full square.
+      const tileable = req.tileable === true;
+      const size = tileable ? BACKGROUND_SIZE : (req.size ?? "1024x1024");
+      const background = tileable ? "opaque" : (req.background ?? "transparent");
       if (!CREATE_SIZES.some((o) => o.value === size))
         throw new HttpError(400, `unknown size ${String(size)}`);
       if (!CREATE_BACKGROUNDS.some((o) => o.value === background))
         throw new HttpError(400, `unknown background ${String(background)}`);
-      return make({ mode: "create", create: { name: slugName(req.name), size, background } });
+      return make({
+        mode: "create",
+        create: { name: slugName(req.name), size, background, ...(tileable ? { tileable } : {}) },
+      });
     }
     if (req.mode !== "edit") throw new HttpError(400, `unknown mode ${String(req.mode)}`);
     if (typeof req.assetId !== "string") throw new HttpError(400, "assetId missing");
@@ -302,6 +315,7 @@ export class EditManager {
       delete req.name;
       delete req.size;
       delete req.background;
+      delete req.tileable;
       req.mode = session.mode;
       if (from.kind === "job") req.fromJob = from.jobId;
       else if (from.kind === "asset") req.assetId = from.assetId;
@@ -323,8 +337,9 @@ export class EditManager {
       throw new HttpError(400, "references must be a list of asset ids");
     if (refIds.length > MAX_REFERENCES)
       throw new HttpError(400, `at most ${MAX_REFERENCES} reference images`);
-    const size = req.size ?? "1024x1024";
-    const background = req.background ?? "transparent";
+    const tileable = creating && req.tileable === true;
+    const size = tileable ? BACKGROUND_SIZE : (req.size ?? "1024x1024");
+    const background = tileable ? "opaque" : (req.background ?? "transparent");
     if (!CREATE_SIZES.some((o) => o.value === size)) throw new HttpError(400, `unknown size ${String(size)}`);
     if (!CREATE_BACKGROUNDS.some((o) => o.value === background))
       throw new HttpError(400, `unknown background ${String(background)}`);
@@ -345,7 +360,7 @@ export class EditManager {
             earlier: [],
             earlierTools: [],
             earlierRefs: [],
-            created: { name },
+            created: { name, ...(tileable ? { tileable } : {}) },
           };
         })()
       : await this.sourceOf(req.fromJob, req.assetId);
@@ -583,13 +598,17 @@ export class EditManager {
         images.push({ bytes: await readFile(r.path), fileName: r.fileName, mimeType: r.mimeType });
       const refPrompts = job.refs.map((r) => r.prompt);
       const current = info.instructions.at(-1) ?? "";
-      const prompt = job.create
-        ? buildCreatePrompt(current, refPrompts)
-        : buildGenerativePrompt({
-            instructions: info.instructions,
-            asset: job.asset,
-            references: refPrompts,
-          });
+      const tileable = info.created?.tileable === true;
+      const prompt =
+        job.create && tileable
+          ? buildBackgroundPrompt(current)
+          : job.create
+            ? buildCreatePrompt(current, refPrompts)
+            : buildGenerativePrompt({
+                instructions: info.instructions,
+                asset: job.asset,
+                references: refPrompts,
+              }) + (tileable ? `\n\n${BACKGROUND_EDIT_LINE}` : "");
       const send = async (inputFidelity: OpenAISettings["inputFidelity"]) => {
         const what =
           images.length === 0
@@ -640,21 +659,31 @@ export class EditManager {
         info.error = answer.message;
         return;
       }
-      const png = readPngInfo(answer.png);
-      if (!png || answer.png.length > MAX_OUTPUT_BYTES) {
+      let bytes = answer.png;
+      if (tileable && readPngInfo(bytes)) {
+        // Background mode: the model's tile is only roughly seamless; offset-and-blend closes it.
+        try {
+          bytes = seamlessPng(bytes).png;
+          this.log(job, ["Seam fixed (offset-and-blend), so the tile repeats without an edge."]);
+        } catch (e) {
+          this.log(job, [`Seam fix skipped: ${e instanceof Error ? e.message : String(e)}`]);
+        }
+      }
+      const png = readPngInfo(bytes);
+      if (!png || bytes.length > MAX_OUTPUT_BYTES) {
         info.state = "failed";
         info.error = "OpenAI returned something that is not a PNG.";
         return;
       }
       const outputPath = path.join(job.dir, OUTPUT_FILE);
-      await writeFile(outputPath, answer.png);
+      await writeFile(outputPath, bytes);
       const cost = estimateCostUsd(answer.usage);
       if (cost !== null) info.costUsd = cost;
       this.log(job, [
         `Received ${png.width} × ${png.height} px${cost !== null ? `, about $${cost.toFixed(2)}` : ""}.`,
       ]);
       job.outputPath = outputPath;
-      info.output = { width: png.width, height: png.height, bytes: answer.png.length, alpha: png.alpha };
+      info.output = { width: png.width, height: png.height, bytes: bytes.length, alpha: png.alpha };
       info.state = "done";
     } catch (e) {
       if (info.state === "discarded") return;
@@ -693,9 +722,13 @@ export class EditManager {
 
   /** Writes the result into edits/ (or generated/) and appends its manifest entry; never overwrites. */
   keep(id: string): Promise<EditJob> {
-    const run = this.manifestLock.then(() => this.keepNow(id));
-    this.manifestLock = run.catch(() => undefined);
-    return run;
+    // The one manifest lock of the process, shared with the scan and the Assets tab's actions.
+    return withManifestLock(() => this.keepNow(id));
+  }
+
+  /** Asset ids with an open editing session: the Assets tab refuses to delete them. */
+  sessionAssets(): string[] {
+    return [...this.sessions.values()].flatMap((s) => (s.mode === "edit" && s.assetId ? [s.assetId] : []));
   }
 
   private async keepNow(id: string): Promise<EditJob> {
@@ -707,7 +740,8 @@ export class EditManager {
     if (!dataDir) throw new HttpError(409, "no project is open");
     const root = await realpath(dataDir);
     const created = job.info.created;
-    const folderName = created ? GENERATED_FOLDER : EDITS_FOLDER;
+    const tile = created?.tileable === true;
+    const folderName = tile ? BACKGROUNDS_FOLDER : created ? GENERATED_FOLDER : EDITS_FOLDER;
     const folder = path.join(root, folderName);
     await mkdir(folder, { recursive: true });
     const realFolder = await realpath(folder);
@@ -729,7 +763,7 @@ export class EditManager {
       ...(await readdir(realFolder)).map((f) => `${folderName}/${f}`.toLowerCase()),
     ]);
     const variant = created
-      ? nextVariant(created.name, takenIds, takenFiles, "created")
+      ? nextVariant(created.name, takenIds, takenFiles, tile ? "background" : "created")
       : nextVariant(job.info.assetId, takenIds, takenFiles);
     // The entry is built from the image actually edited (which may itself be a kept edit), so its
     // tags and crop carry over; derived_from still names the original (rootAssetId).
@@ -744,9 +778,11 @@ export class EditManager {
       sameSize = !!png && png.width === job.info.output.width && png.height === job.info.output.height;
     }
     const base = original ? { ...original } : job.asset;
-    const entry = created
-      ? createdAsset(variant, job.info.instructions, job.info.tools, job.info.references ?? [])
-      : keptAsset(base, variant, job.info.instructions, sameSize, job.info.tools);
+    const entry = tile
+      ? backgroundAsset(variant, job.info.instructions, job.info.tools)
+      : created
+        ? createdAsset(variant, job.info.instructions, job.info.tools, job.info.references ?? [])
+        : keptAsset(base, variant, job.info.instructions, sameSize, job.info.tools);
     const merged = mergeManifest(manifestText?.trim() ? manifestText : null, [entry]);
     if (!merged.added.includes(variant.id)) throw new HttpError(409, "the manifest refused the new entry");
 
@@ -882,5 +918,11 @@ export function editsHandler(dir: () => Promise<string | null>, opts: EditOption
       sendError(res, e, 500);
     }
   };
-  return { handle, close: async () => current?.manager.close() };
+  return {
+    handle,
+    close: async () => current?.manager.close(),
+    /** Asset ids open in the Image studio of the current project. */
+    sessionAssets: (folder: string | null): string[] =>
+      current && current.dir === folder ? current.manager.sessionAssets() : [],
+  };
 }

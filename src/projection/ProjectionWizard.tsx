@@ -47,9 +47,8 @@ import {
   type WizardStep,
 } from "./wizard.ts";
 import { EdgesArt, FacingThumb, MarksArt, TurnArt } from "./wizardArt.tsx";
+import { useCurrentPerson } from "../assets/person.ts";
 
-/** Kinds of catalogued image offered first in the photo step. */
-const PHOTO_KINDS = ["existing", "arm-photo", "photos", "photo"];
 const PREVIEW_PX_PER_CM = 10;
 const TEXTURE_PX_PER_CM = 12;
 
@@ -549,6 +548,7 @@ function PhotoPicker(props: {
   onChange: (files: string[]) => void;
 }) {
   const { assets, listingState, picked, onChange } = props;
+  const person = useCurrentPerson();
   const [text, setText] = useState("");
   if (listingState === "loading") return <p className="wizard-message muted">Reading the project folder…</p>;
   if (listingState !== "ok")
@@ -563,10 +563,17 @@ function PhotoPicker(props: {
   const visible = (assets ?? []).filter(
     (a) =>
       !a.hidden &&
+      // Photos of other persons stay with them (docs/adr/0017-persons.md); the library is shared.
+      (a.effectivePerson === null || a.effectivePerson === person.id) &&
       (text === "" || `${a.id} ${a.file} ${a.tags.join(" ")}`.toLowerCase().includes(text.toLowerCase())),
   );
-  const photos = visible.filter((a) => PHOTO_KINDS.includes(a.kind));
-  const others = visible.filter((a) => !PHOTO_KINDS.includes(a.kind));
+  // The current person's tattoo photos first, then their measuring photos (a new tattoo photo is
+  // one until a projection uses it); everything else folded away.
+  const mine = (c: string) =>
+    visible.filter((a) => a.effectiveCategory === c && a.effectivePerson === person.id);
+  const tattoos = mine("existing");
+  const measuring = mine("measuring");
+  const others = visible.filter((a) => !tattoos.includes(a) && !measuring.includes(a));
   const pickedKeys = picked.map(fileKey);
   const toggle = (a: AssetInfo) => {
     const k = pickedKeys.indexOf(fileKey(a.file));
@@ -608,17 +615,28 @@ function PhotoPicker(props: {
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
-      <h3 className="float-title">Photos</h3>
-      {photos.length ? (
-        grid(photos)
+      <h3 className="float-title">Tattoo photos</h3>
+      {tattoos.length ? (
+        grid(tattoos)
       ) : (
-        <p className="faint small">No images of the kinds existing or arm-photo yet.</p>
+        <p className="faint small">
+          No tattoo photos yet. Add them in the <a href="#assets">Assets</a> tab (Tattoo photos).
+        </p>
+      )}
+      {measuring.length > 0 && (
+        <>
+          <h3 className="float-title">Measuring photos</h3>
+          {grid(measuring)}
+        </>
       )}
       {others.length > 0 && (
-        <>
-          <h3 className="float-title">Other images</h3>
+        <details
+          className="wizard-others"
+          open={text !== "" || others.some((a) => pickedKeys.includes(fileKey(a.file)))}
+        >
+          <summary className="float-title">Other images ({others.length})</summary>
           {grid(others)}
-        </>
+        </details>
       )}
     </div>
   );

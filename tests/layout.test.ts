@@ -29,7 +29,7 @@ describe("layout schema", () => {
     expect(baseline().elements.map((e) => e.id)).toContain("pegasus");
   });
 
-  it("rejects duplicate ids, unknown keys and upside-down regions", () => {
+  it("rejects duplicate ids, unknown keys and upside-down filler regions", () => {
     const dup = baselineText.replace("id: skull", "id: rhonas");
     expect(parseLayout(dup)).toMatchObject({ ok: false });
     const typo = baselineText.replace("rotation_deg: 0", "rotaton_deg: 0");
@@ -44,7 +44,12 @@ describe("layout schema", () => {
 
 describe("YAML round trip", () => {
   it("leaves the file untouched when nothing changed", () => {
-    expect(parseLayout(updateLayoutText(baselineText, baseline()))).toEqual({ ok: true, layout: baseline() });
+    // v1-baseline still has a filler element: it reads as a background layer and stays as it is in
+    // the file until a save (docs/adr/0019).
+    expect(parseLayout(updateLayoutText(baselineText, baseline()))).toMatchObject({
+      ok: true,
+      layout: baseline(),
+    });
     expect(updateLayoutText(baselineText, baseline())).toContain("# Added at Jan's request");
   });
 
@@ -60,11 +65,7 @@ describe("YAML round trip", () => {
 
   it("removes, reorders and adds elements", () => {
     const l = baseline();
-    l.elements = reorder(
-      l.elements.filter((e) => e.id !== "scales-forearm"),
-      0,
-      1,
-    );
+    l.elements = reorder(l.elements, 0, 1);
     l.elements.push({ id: "elbow-band", type: "band", pattern: "meander", v: 0.45, width_cm: 1.5 });
     const r = parseLayout(updateLayoutText(baselineText, l));
     expect(r.ok && r.layout.elements.map((e) => e.id)).toEqual([
@@ -155,13 +156,7 @@ describe("shapes", () => {
   });
 
   it("handles regions across the seam", () => {
-    const filler: LayoutElement = {
-      id: "s",
-      type: "filler",
-      pattern: "x",
-      region: { u: [0.45, 0.55], v: [0, 1] },
-    };
-    const { shape } = resolveElement(filler, profile);
+    const shape = { kind: "region", u0: 0.45, u1: 0.55, y0: 0, y1: 70 } as const;
     expect(hits(shape, 0.5, 10, 20)).toBe(true);
     expect(hits(shape, 0.0, 10, 20)).toBe(false);
   });
@@ -214,18 +209,13 @@ describe("editing", () => {
   it("moves, wraps and clamps", () => {
     const f: LayoutElement = { id: "f", type: "figure", position: { u: 0.95, v: 0.98 }, size_cm: { h: 10 } };
     expect(moveElement(f, 0.1, 0.1)).toMatchObject({ position: { u: 0.05, v: 1 } });
-    const r: LayoutElement = {
-      id: "r",
-      type: "filler",
-      pattern: "x",
-      region: { u: [0.2, 0.3], v: [0.8, 0.9] },
-    };
-    expect(moveElement(r, 0, 0.5)).toMatchObject({ region: { v: [0.9, 1] } });
+    const b: LayoutElement = { id: "b", type: "band", pattern: "x", v: 0.9, width_cm: 2 };
+    expect(moveElement(b, 0.3, 0.5)).toMatchObject({ v: 1 });
   });
 
   it("creates valid new elements with unique ids", () => {
     expect(uniqueId("new-figure", ["new-figure", "new-figure-2"])).toBe("new-figure-3");
-    for (const type of ["figure", "existing", "filler", "band", "line"] as const) {
+    for (const type of ["figure", "existing", "band", "line"] as const) {
       const el = newElement(type, 0, 0.5, []);
       const r = parseLayout(updateLayoutText("name: t\nelements: []\n", { name: "t", elements: [el] }));
       expect(r.ok, type).toBe(true);

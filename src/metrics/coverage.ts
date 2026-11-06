@@ -2,7 +2,7 @@
 import type { RegionKind, RegionProfile } from "../body/profile.ts";
 import { screenSign, wrapU } from "../body/uv.ts";
 import type { ElementType } from "../layout/schema.ts";
-import { OUTSIDE, type Classification } from "../layout/shapes.ts";
+import { BACKGROUND, OUTSIDE, type Classification } from "../layout/shapes.ts";
 
 export type ArmZoneId =
   "forearm-inner" | "forearm-outer" | "elbow" | "upper-inner" | "upper-outer" | "shoulder";
@@ -80,8 +80,9 @@ export function zoneOf(profile: RegionProfile, u: number, y: number): ZoneId {
   }
 }
 
-export type Category = ElementType | "open";
-export const CATEGORIES: Category[] = ["figure", "existing", "filler", "band", "line", "open"];
+/** "background": skin covered only by a background layer (docs/adr/0019; fillers before). */
+export type Category = ElementType | "background" | "open";
+export const CATEGORIES: Category[] = ["figure", "existing", "background", "band", "line", "open"];
 
 export type ZoneCoverage = { area: number; byCategory: Record<Category, number> };
 export type Coverage = {
@@ -98,7 +99,7 @@ export function zoneCoverage(c: Coverage, id: ZoneId): ZoneCoverage {
 
 const empty = (): ZoneCoverage => ({
   area: 0,
-  byCategory: { figure: 0, existing: 0, filler: 0, band: 0, line: 0, open: 0 },
+  byCategory: { figure: 0, existing: 0, background: 0, band: 0, line: 0, open: 0 },
 });
 
 /** Areas in cm² of the topmost category, per zone and in total. */
@@ -118,7 +119,8 @@ export function coverage(cls: Classification, profile: RegionProfile): Coverage 
       if (value === OUTSIDE) continue;
       // Screen x from the centre line, turned into the direction u grows.
       const x = sign * ((i + 0.5) / cls.pxPerCm - profile.maxCircumference / 2);
-      const cat: Category = value === 0 ? "open" : cls.resolved[value - 1]!.element.type;
+      const cat: Category =
+        value === 0 ? "open" : value === BACKGROUND ? "background" : cls.resolved[value - 1]!.element.type;
       const zone = zones[zoneOf(profile, cls.centerU + x / c, y)];
       zone.area += cell;
       zone.byCategory[cat] += cell;
