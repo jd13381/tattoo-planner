@@ -3,7 +3,22 @@
 import { BufferAttribute, BufferGeometry, CanvasTexture, SRGBColorSpace } from "three";
 import { bendArmMesh } from "../body/bend.ts";
 import { buildLoftMesh } from "../body/geometry.ts";
-import type { RegionProfile } from "../body/profile.ts";
+import type { LoftShape, RegionProfile } from "../body/profile.ts";
+
+/** A neutral loft (pelvis, neck: src/body/placement.ts) as one untextured mesh. */
+export function neutralGeometry(shape: LoftShape): BufferGeometry {
+  // Same ring layout as the regions, so the rings where they meet coincide.
+  const mesh = buildLoftMesh(shape);
+  const g = new BufferGeometry();
+  g.setAttribute("position", new BufferAttribute(mesh.positions, 3));
+  g.setAttribute("normal", new BufferAttribute(mesh.normals, 3));
+  const index = new Uint32Array(mesh.skinIndices.length + mesh.capIndices.length);
+  index.set(mesh.skinIndices, 0);
+  index.set(mesh.capIndices, mesh.skinIndices.length);
+  g.setIndex(new BufferAttribute(index, 1));
+  g.computeBoundingSphere();
+  return g;
+}
 
 /**
  * The live viewer's canvas is transparent so the workspace gradient (CSS, .canvas-wrap, which

@@ -9,7 +9,8 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ResolvedBody } from "../body/body.ts";
 import { REGION_IDS, type RegionId } from "../body/regions.ts";
 import { RegionMesh, type RegionTexture } from "../viewer/BodyViewer.tsx";
-import { armGeometry, CAP_COLOR, CAP_ROUGHNESS } from "../viewer/scene.ts";
+import { NeutralBody } from "../viewer/NeutralBody.tsx";
+import { armGeometry } from "../viewer/scene.ts";
 import { BODY_VIEWS, CAMERA_FOV, fitCamera, type BodyViewName } from "../viewer/views.ts";
 
 /** Studio lights: a warm key, a soft fill and two cool rim lights that draw the silhouette. */
@@ -99,12 +100,7 @@ export function HomeViewer(props: Props) {
           onOut={() => onLeave(id)}
         />
       ))}
-      {body.layout.parts.map((p) => (
-        <mesh key={p.name} position={p.centre} rotation={[0, 0, p.rotZ]} scale={p.radii}>
-          <sphereGeometry args={[1, 40, 24]} />
-          <meshStandardMaterial color={CAP_COLOR} roughness={CAP_ROUGHNESS} />
-        </mesh>
-      ))}
+      <NeutralBody layout={body.layout} />
       <ContactShadows
         position={[0, floor + 0.2, 0]}
         scale={Math.max(width * 2.2, 120)}
