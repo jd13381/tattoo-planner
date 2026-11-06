@@ -30,7 +30,7 @@ On the start screen, **Explore the sample** shows a ready-made, read-only projec
 - **Layout editor:** figures (reference images), existing tattoos, bands and freehand lines on a 2D unwrap, over background layers (clouds, stars, patterns, tileable images); drag, resize, rotate, layer, undo. The 3D view follows every change, also with the elbow bent and as a full body.
 - **Blockout and reference modes**, a cm grid, and **coverage** per zone (how much skin stays open).
 - **Compare** two variants side by side.
-- **Existing tattoos** projected onto the body from a few photos (guided setup).
+- **Existing tattoos** projected onto the body from a few photos (guided setup); only the ink goes onto the skin, cleaned built-in or in the Image studio.
 - **Image studio:** clean up a reference image with built-in operations, or redraw it with OpenAI's GPT Image using your own key.
 - **Handout:** a PDF with every view, the unwrap, an element table and the open points, plus PNGs, saved into your project folder.
 
