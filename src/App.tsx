@@ -14,6 +14,7 @@ import {
   type SettingsSection,
   type TabId,
 } from "./settings/routes.ts";
+import { KeyCheckNotice } from "./settings/KeyCheckNotice.tsx";
 import { SettingsPage } from "./settings/SettingsPage.tsx";
 import { useArm } from "./viewer/useArm.ts";
 
@@ -126,6 +127,7 @@ export function App({ project }: { project: ProjectStatus }) {
         <ProjectChip project={project} onOpen={() => setRoute({ tab: "settings", section: "project" })} />
         <div className="header-slot" ref={setActionsSlot} />
       </header>
+      <KeyCheckNotice onOpenSettings={() => setRoute({ tab: "settings", section: "image-generation" })} />
       <main className="page">
         {/* The Layout tab stays mounted (hidden), so unsaved edits survive a look at another tab. */}
         <TabPanel id="layout" open={tab === "layout"} keepMounted>
