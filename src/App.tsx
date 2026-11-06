@@ -10,6 +10,8 @@ import { PersonMenu } from "./project/PersonSwitcher.tsx";
 import type { ProjectStatus } from "./project/schema.ts";
 import {
   DEFAULT_SECTION,
+  FROM_HOME_STATE,
+  isFromHome,
   parseRoute,
   routeHash,
   TABS,
@@ -19,6 +21,7 @@ import {
 } from "./settings/routes.ts";
 import { KeyCheckNotice } from "./settings/KeyCheckNotice.tsx";
 import { SettingsPage } from "./settings/SettingsPage.tsx";
+import { HomeIcon } from "./ui/icons.tsx";
 import { useArm } from "./viewer/useArm.ts";
 
 /** The open tab (and Settings section) lives in the URL hash (#settings/projection), so a reload keeps it. */
@@ -46,26 +49,53 @@ export function App({ project }: { project: ProjectStatus }) {
   const header: HeaderSlots = { notices: noticesSlot, actions: actionsSlot };
   // Home opens a region's layout in the Layout tab.
   const [layoutRequest, setLayoutRequest] = useState<LayoutRequest | null>(null);
+  // Whether the Layout tab was opened from Home: it then shows "‹ Home › person ›" in front of its
+  // region picker, and Esc (with nothing selected) or the browser's Back return to Home.
+  const [fromHome, setFromHome] = useState(() => isFromHome(window.history.state));
 
   const setRoute = (r: Route) => {
     setRouteState(r);
     if (r.tab === "settings") setLastSection(r.section);
+    // The tab bar replaces the history entry; only Home → region adds one (openFromHome).
+    if (r.tab !== "layout") setFromHome(false);
     const hash = routeHash(r);
     if (window.location.hash.slice(1) !== hash) window.history.replaceState(null, "", `#${hash}`);
   };
-  const setTab = (id: TabId) =>
+  const openFromHome = (region: LayoutRequest["region"], variant: string | null) => {
+    setLayoutRequest((r) => ({ region, variant, nonce: (r?.nonce ?? 0) + 1 }));
+    setRouteState({ tab: "layout" });
+    setFromHome(true);
+    window.history.pushState(FROM_HOME_STATE, "", "#layout");
+  };
+  // Back to Home: through the history when Home pushed this entry (the browser's Forward then
+  // reopens the layout), otherwise as a tab switch.
+  const backToHome = () => {
+    if (isFromHome(window.history.state)) window.history.back();
+    else setRoute({ tab: "home" });
+  };
+  const setTab = (id: TabId) => {
+    // The Home tab from a region Home opened is the same as Back: no duplicate Home entry.
+    if (id === "home" && tab === "layout" && isFromHome(window.history.state)) return backToHome();
     setRoute(id === "settings" ? { tab: "settings", section: lastSection } : { tab: id });
+  };
   useEffect(() => {
     // An old or unknown hash (#arm, #data) is rewritten to the route it opened.
     const hash = routeHash(routeFromHash());
     if (window.location.hash.slice(1) !== hash) window.history.replaceState(null, "", `#${hash}`);
+    // Back / Forward between Home and a region it opened fire popstate (and hashchange), as does a
+    // hash typed into the address bar. Applying the same route twice is harmless.
     const onHash = () => {
       const r = routeFromHash();
       setRouteState(r);
       if (r.tab === "settings") setLastSection(r.section);
+      setFromHome(r.tab === "layout" && isFromHome(window.history.state));
     };
     window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    window.addEventListener("popstate", onHash);
+    return () => {
+      window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("popstate", onHash);
+    };
   }, []);
 
   // Unsaved edits: the browser asks before a reload or close throws them away.
@@ -123,6 +153,7 @@ export function App({ project }: { project: ProjectStatus }) {
                 onClick={() => setTab(t.id)}
                 onKeyDown={onTabKey}
               >
+                {t.id === "home" && <HomeIcon />}
                 {t.label}
                 {unsaved[t.id] && (
                   <span className="tab-dot" role="img" aria-label="unsaved changes" title="Unsaved changes" />
@@ -145,10 +176,7 @@ export function App({ project }: { project: ProjectStatus }) {
             arm={arm}
             unsaved={anyUnsaved}
             onOpenProject={() => setRoute({ tab: "settings", section: "project" })}
-            onOpenRegion={(region, variant) => {
-              setLayoutRequest((r) => ({ region, variant, nonce: (r?.nonce ?? 0) + 1 }));
-              setTab("layout");
-            }}
+            onOpenRegion={openFromHome}
           />
         </TabPanel>
         {/* The Layout tab stays mounted (hidden), so unsaved edits survive a look at another tab. */}
@@ -160,6 +188,7 @@ export function App({ project }: { project: ProjectStatus }) {
             active={tab === "layout"}
             header={header}
             openRequest={layoutRequest}
+            onBackToHome={fromHome ? backToHome : undefined}
           />
         </TabPanel>
         {/* The Image studio stays mounted too: the picked image, the prompt and the version on view

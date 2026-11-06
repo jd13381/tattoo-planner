@@ -239,3 +239,17 @@ export const ArrowRightIcon = () => (
     <path d="M5 12h14M13 6l6 6-6 6" />
   </Pro>
 );
+
+/** The Home tab, and the Layout tab's way back to it. */
+export const HomeIcon = () => (
+  <Pro size={14}>
+    <path d="M4 10.5 12 4l8 6.5" />
+    <path d="M6 9v10.5h4.5V14h3v5.5H18V9" />
+  </Pro>
+);
+
+export const ChevronLeftIcon = () => (
+  <Pro size={13}>
+    <path d="m14.5 6-6 6 6 6" />
+  </Pro>
+);

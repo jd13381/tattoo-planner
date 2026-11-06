@@ -111,7 +111,10 @@ export const SHORTCUTS: readonly { keys: readonly string[]; description: string 
   { keys: ["Shift+Mod+Z", "Mod+Y"], description: "Redo" },
   { keys: ["Mod+D"], description: "Duplicate the selected element" },
   { keys: ["Delete", "Backspace"], description: "Delete the selected element (unless locked)" },
-  { keys: ["Esc"], description: "Deselect, or leave Draw mode" },
+  {
+    keys: ["Esc"],
+    description: "Deselect, or leave Draw mode; with nothing selected, back to Home (if opened there)",
+  },
   { keys: ["V"], description: "Select and move tool (leaves Draw mode)" },
   { keys: ["R"], description: "Draw red line on the 3D arm (toggle)" },
   { keys: ["←", "→", "↑", "↓"], description: "Nudge the selected element by 0.5 cm" },

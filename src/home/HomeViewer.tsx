@@ -31,6 +31,12 @@ const STAGE_INSETS = { top: 40, right: 0, bottom: 84, left: 0 };
 
 export type HomeView = { name: BodyViewName; request: number };
 
+/**
+ * The camera when Home last closed (a region opened in the Layout tab): the way back shows the body
+ * from the same angle. Per page load; a person switch reloads the page and starts fresh.
+ */
+let lastCamera: { position: [number, number, number]; target: [number, number, number] } | null = null;
+
 type Props = {
   body: ResolvedBody;
   textures: Partial<Record<RegionId, RegionTexture>>;
@@ -130,6 +136,8 @@ function TurntableRig({
   const size = useThree((s) => s.size);
   const bounds = body.layout.bounds;
   const height = bounds.max[1] - bounds.min[1];
+  // The first framing after a return to Home takes the camera it left with.
+  const restore = useRef(lastCamera);
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
@@ -137,11 +145,24 @@ function TurntableRig({
     const fit = fitCamera(bounds, dir, size.width, size.height, STAGE_INSETS, MARGIN);
     if ("setViewOffset" in camera)
       camera.setViewOffset(size.width, size.height, fit.offset[0], fit.offset[1], size.width, size.height);
-    // Look a little above the middle and from a touch higher, as a photographer would.
-    camera.position.set(fit.position[0], fit.position[1] + height * 0.04, fit.position[2]);
-    c.target.set(fit.target[0], fit.target[1] + height * 0.02, fit.target[2]);
+    const saved = restore.current;
+    restore.current = null;
+    if (saved) {
+      camera.position.set(...saved.position);
+      c.target.set(...saved.target);
+    } else {
+      // Look a little above the middle and from a touch higher, as a photographer would.
+      camera.position.set(fit.position[0], fit.position[1] + height * 0.04, fit.position[2]);
+      c.target.set(fit.target[0], fit.target[1] + height * 0.02, fit.target[2]);
+    }
     c.update();
   }, [bounds, height, view, camera, size.width, size.height]);
+  useEffect(() => {
+    const c = controls.current;
+    return () => {
+      if (c) lastCamera = { position: camera.position.toArray(), target: c.target.toArray() };
+    };
+  }, [camera]);
   return (
     <OrbitControls
       ref={controls}
