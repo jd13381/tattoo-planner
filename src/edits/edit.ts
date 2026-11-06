@@ -162,18 +162,20 @@ export function createdAsset(
   };
 }
 
-/** Kinds and folders the Image studio does not offer: arm photos and photos of existing tattoos. */
-const STUDIO_HIDDEN_KINDS = new Set(["arm-photo", "existing"]);
-const STUDIO_HIDDEN_FOLDERS = ["arm-photos/", "existing/"];
+/**
+ * Kinds and folders the Image studio does not offer: measuring photos. Photos of existing tattoos
+ * are offered (Jan, 2026-11-06: e.g. to clean one up or use it as a reference).
+ */
+const STUDIO_HIDDEN_KINDS = new Set(["arm-photo"]);
+const STUDIO_HIDDEN_FOLDERS = ["arm-photos/"];
 
 /** Whether an asset belongs in the Image studio's picker (to edit or as a reference); hidden ones do not. */
 export function showInStudio(
   asset: Pick<Asset, "kind" | "file"> & { effectiveCategory?: string; hidden?: boolean },
 ): boolean {
   if (asset.hidden) return false;
-  // The catalogue's section, when known (docs/adr/0020): body photos stay out.
-  if (asset.effectiveCategory)
-    return asset.effectiveCategory !== "measuring" && asset.effectiveCategory !== "existing";
+  // The catalogue's section, when known (docs/adr/0020): measuring photos stay out.
+  if (asset.effectiveCategory) return asset.effectiveCategory !== "measuring";
   const file = asset.file.replaceAll("\\", "/").toLowerCase();
   return !STUDIO_HIDDEN_KINDS.has(asset.kind) && !STUDIO_HIDDEN_FOLDERS.some((f) => file.startsWith(f));
 }
