@@ -7033,12 +7033,6 @@ button.facing-choice.current {
 
 .image-swap-bar {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 4px;
-}
-
-.image-swap-bar .icon-button {
-  font-size: 16px;
 }
 
 .image-swap-id {
@@ -7073,7 +7067,7 @@ button.facing-choice.current {
 
 .picker-filters {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 130px;
+  grid-template-columns: minmax(0, 1fr) 160px;
   gap: 6px;
 }
 
@@ -7082,7 +7076,14 @@ button.facing-choice.current {
   min-height: 0;
   flex: 1 1 auto;
   margin: 0;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--s-2);
+}
+
+@media (max-width: 640px) {
+  .picker-grid {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  }
 }
 
 /* The floating "Change image" button next to the selected figure in the 2D editor. */

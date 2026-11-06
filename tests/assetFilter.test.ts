@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { facets, filterAssets, NO_FILTER, pickableAssets, stepAsset } from "../src/assets/filter.ts";
+import { facets, filterAssets, NO_FILTER, pickableAssets } from "../src/assets/filter.ts";
 import type { AssetInfo } from "../src/assets/types.ts";
 
 const a = (id: string, kind: string, tags: string[], extra: Partial<AssetInfo> = {}): AssetInfo => ({
@@ -42,7 +42,7 @@ describe("asset filter", () => {
   });
 });
 
-describe("pickable assets and stepping", () => {
+describe("pickable assets", () => {
   const list = [
     a("r1", "reference", []),
     a("c1", "card-art", []),
@@ -54,18 +54,5 @@ describe("pickable assets and stepping", () => {
   it("leaves hidden images out unless they are in use", () => {
     expect(pickableAssets(list).map((x) => x.id)).toEqual(["r1", "c1", "r3", "r4"]);
     expect(pickableAssets(list, "r2").map((x) => x.id)).toContain("r2");
-  });
-
-  it("steps through visible, existing images of the same kind and wraps round", () => {
-    expect(stepAsset(list, "r1", 1)?.id).toBe("r3");
-    expect(stepAsset(list, "r3", 1)?.id).toBe("r1");
-    expect(stepAsset(list, "r1", -1)?.id).toBe("r3");
-    expect(stepAsset(list, "c1", 1)).toBeNull();
-  });
-
-  it("starts at the first or last image without a current one", () => {
-    expect(stepAsset(list, undefined, 1, "reference")?.id).toBe("r1");
-    expect(stepAsset(list, undefined, -1, "reference")?.id).toBe("r3");
-    expect(stepAsset(list, "unknown", 1, "card-art")?.id).toBe("c1");
   });
 });

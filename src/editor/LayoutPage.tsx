@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AssetBrowser } from "../assets/AssetBrowser.tsx";
-import { stepAsset } from "../assets/filter.ts";
 import { ImagePicker } from "../assets/ImagePicker.tsx";
 import type { AssetInfo } from "../assets/types.ts";
 import { useAssetListing } from "../assets/useAssets.ts";
@@ -516,17 +515,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
     // A new image gets its own cut-out: drop a crop that belonged to the old one. One undo step.
     setElement(selected, { ...sel, asset: a.id, crop: undefined });
   };
-  const allAssets = listing?.status === "ok" ? listing.assets : null;
   const canChangeImage = !!sel && isFigureLike(sel) && !sel.locked;
-  const stepImage =
-    canChangeImage && allAssets && sel && isFigureLike(sel)
-      ? (dir: 1 | -1) => {
-          const next = stepAsset(allAssets, sel.asset, dir, sel.type === "existing" ? "existing" : undefined);
-          if (next) pickAsset(next);
-        }
-      : null;
-  const canStep =
-    !!stepImage && !!sel && isFigureLike(sel) && stepAsset(allAssets ?? [], sel.asset, 1) !== null;
   // The picker belongs to the selection: it closes when the selection changes.
   const [pickerFor, setPickerFor] = useState<number | null>(null);
   if (pickerAnchor && pickerFor !== selected) {
@@ -1240,7 +1229,6 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                     onDelete={deleteSelected}
                     onDuplicate={() => apply((l) => duplicateAt(l, selected))}
                     onChangeImage={canChangeImage ? openPicker : undefined}
-                    onStepImage={canStep ? stepImage : null}
                     idError={issueSplit?.idErrors.get(selected) ?? null}
                     keys={{
                       duplicate: keyHint("Mod+D"),
