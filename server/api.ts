@@ -7,6 +7,7 @@ import { editsHandler } from "./editsApi.ts";
 import { exportsHandler } from "./exportsApi.ts";
 import { sendError, type Handler, type Middleware } from "./http.ts";
 import { layoutsHandler } from "./layoutsApi.ts";
+import { openaiKeyHandler } from "./openaiKeyApi.ts";
 import { projectHandler } from "./projectApi.ts";
 import { projectionsHandler } from "./projectionsApi.ts";
 import { handleSampleRequest } from "./sampleApi.ts";
@@ -46,6 +47,7 @@ export function createApi(context: ApiContext): Api {
     ["/api/assets", assetsHandler(dir)],
     ["/api/exports", exportsHandler(dir)],
     ["/api/edits", edits.handle],
+    ["/api/openai-key", openaiKeyHandler(context.settings.keys)],
     ["/api/layouts", layoutsHandler(async () => (await paths()).layoutsDir)],
     ["/api/project", projectHandler(context.projects, context.home)],
     ["/api/projections", projectionsHandler(async () => (await paths()).projectionsDir)],
