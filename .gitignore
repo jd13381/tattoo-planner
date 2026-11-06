@@ -41,3 +41,6 @@ exports/
 *.[bB][mM][pP]
 *.[pP][sS][dD]
 *.[pP][dD][fF]
+
+# Python bytecode (benchmark scripts)
+__pycache__/

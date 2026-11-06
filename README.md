@@ -162,6 +162,8 @@ All of these live in the project folder (for an older data folder not yet moved:
 
 Technical decisions live in `docs/adr/`, the product plan in `docs/product/roadmap.md`; `PROJECT_BRIEF.md` is the original brief for Jan's own sleeve. Decisions Claude made without Jan are listed in `docs/claude-decisions.md` for review.
 
+Research on local image models as an alternative to GPT Image: `docs/research/local-image-models.md`, with a benchmark to run on a Mac in `benchmark/local-image-models/`.
+
 ### Setup
 
 ```sh
