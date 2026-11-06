@@ -43,6 +43,7 @@ A project is one folder you choose (YAML files and images: layouts, measurements
 - [docs/development.md](docs/development.md): setup for git users (`TATTOO_DATA_DIR`, `.env`, `npm run migrate`), desktop app builds and signing, the server API, commands, code layout, UI conventions and status.
 - [docs/measuring.md](docs/measuring.md): how to measure and photograph the arm (German).
 - [docs/jans-sleeve.md](docs/jans-sleeve.md): Jan's own sleeve (asset ids, the Anubis projection).
+- [docs/research/local-image-models.md](docs/research/local-image-models.md): local image models as an alternative to GPT Image, with a benchmark in `benchmark/local-image-models/`.
 - [docs/adr/](docs/adr/): technical decisions; [docs/product/roadmap.md](docs/product/roadmap.md): the product plan; `PROJECT_BRIEF.md`: the original brief; [docs/claude-decisions.md](docs/claude-decisions.md): decisions Claude made for review.
 
 ## Development in short
