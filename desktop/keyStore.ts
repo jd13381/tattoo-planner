@@ -5,6 +5,7 @@
 import { existsSync } from "node:fs";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import type { KeyStatus } from "../src/desktop/bridge.ts";
+import { keyProblem } from "../src/edits/keyCheck.ts";
 
 /** The part of Electron's `safeStorage` this module uses (its asynchronous API). */
 export type SafeStorageLike = {
@@ -13,20 +14,7 @@ export type SafeStorageLike = {
   decryptStringAsync(encrypted: Buffer): Promise<{ result: string; shouldReEncrypt: boolean }>;
 };
 
-/** Longest key accepted; OpenAI keys are well below it. */
-export const MAX_KEY_LENGTH = 512;
-
-/** Null when `key` looks like an OpenAI API key, else why not (never echoes the key). */
-export function keyProblem(key: unknown): string | null {
-  if (typeof key !== "string") return "The key must be text.";
-  const k = key.trim();
-  if (k === "") return "Paste a key first.";
-  if (k.length > MAX_KEY_LENGTH) return "That is too long for an API key.";
-  // eslint-disable-next-line no-control-regex
-  if (/[\s\u0000-\u001f\u007f]/.test(k)) return "An API key has no spaces or line breaks.";
-  if (!k.startsWith("sk-")) return "OpenAI API keys start with “sk-”.";
-  return null;
-}
+export { keyProblem, MAX_KEY_LENGTH } from "../src/edits/keyCheck.ts";
 
 export class KeyStore {
   private readonly file: string;

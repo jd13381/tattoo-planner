@@ -87,6 +87,8 @@ describe("projects on disk", () => {
     expect(s).toMatchObject({ status: "none", path: null, locked: false, recent: [] });
     expect(await store().paths()).toEqual({
       dir: null,
+      personDir: null,
+      person: null,
       layoutsDir: null,
       projectionsDir: null,
       measurementsFile: null,

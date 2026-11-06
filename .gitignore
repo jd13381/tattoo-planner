@@ -46,3 +46,6 @@ exports/
 # The pre-commit guard limits them to PNG/WebP directly in this folder, 2 MB each.
 !assets/backgrounds/*.[pP][nN][gG]
 !assets/backgrounds/*.[wW][eE][bB][pP]
+
+# Python bytecode (benchmark scripts)
+__pycache__/

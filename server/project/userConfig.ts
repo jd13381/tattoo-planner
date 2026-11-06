@@ -42,3 +42,22 @@ export async function writeUserConfig(file: string, config: UserConfig): Promise
 export function addRecent(recent: string[], dir: string): string[] {
   return [dir, ...recent.filter((p) => p !== dir)].slice(0, MAX_RECENT);
 }
+
+/**
+ * The person last shown per project (docs/adr/0017-persons.md): `currentPerson` maps a project's
+ * path to a person id. Kept here, not in project.yaml, because it is this computer's view, and a
+ * project folder shared between two people (or synced) should not flip between them.
+ */
+export function rememberedPerson(config: UserConfig, dir: string): string | null {
+  const map = config.currentPerson;
+  if (typeof map !== "object" || map === null || Array.isArray(map)) return null;
+  const id = (map as Record<string, unknown>)[dir];
+  return typeof id === "string" ? id : null;
+}
+
+export function withRememberedPerson(config: UserConfig, dir: string, id: string | null): UserConfig {
+  const old = config.currentPerson;
+  const entries = typeof old === "object" && old !== null && !Array.isArray(old) ? Object.entries(old) : [];
+  const kept = entries.filter(([k]) => k !== dir);
+  return { ...config, currentPerson: Object.fromEntries(id === null ? kept : [...kept, [dir, id]]) };
+}

@@ -187,12 +187,14 @@ describe("sample in the project store", () => {
     await expect(s.migrate()).rejects.toMatchObject({ status: 409 });
   });
 
-  it("is not offered when TATTOO_DATA_DIR fixes the folder or the app has no sample", async () => {
+  it("opens beside a TATTOO_DATA_DIR project and closes back to it, but is not saved there", async () => {
     const project = path.join(tmp, "fixed");
     await mkdir(project);
     const locked = store(project);
-    expect((await locked.status()).sampleAvailable).toBe(false);
-    await expect(locked.openSample()).rejects.toMatchObject({ status: 409 });
+    expect((await locked.status()).sampleAvailable).toBe(true);
+    expect(await locked.openSample()).toMatchObject({ sample: true, locked: true });
+    expect(await locked.close()).toMatchObject({ status: "legacy", path: project, sample: false });
+    await expect(locked.close()).rejects.toMatchObject({ status: 409 });
     await expect(
       locked.saveSampleAs({ path: path.join(tmp, "x"), name: "X", body: "male" }),
     ).rejects.toMatchObject({ status: 409 });

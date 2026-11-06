@@ -28,24 +28,3 @@ export function facets(values: readonly string[]): { value: string; count: numbe
 export function pickableAssets(assets: readonly AssetInfo[], keep?: string): AssetInfo[] {
   return assets.filter((a) => !a.hidden || a.id === keep);
 }
-
-/**
- * The asset `dir` steps before (-1) or after (+1) `current` among the pickable images of the same
- * kind (manifest order, wrapping round), for the quick previous / next arrows. Without a current
- * asset, `kind` (else the first image's kind) picks the list. Null when there is nothing to step to.
- */
-export function stepAsset(
-  assets: readonly AssetInfo[],
-  current: string | undefined,
-  dir: 1 | -1,
-  kind?: string,
-): AssetInfo | null {
-  const now = current ? assets.find((a) => a.id === current) : undefined;
-  const k = now?.kind ?? kind;
-  const list = pickableAssets(assets, current).filter((a) => a.exists && (k === undefined || a.kind === k));
-  if (list.length === 0) return null;
-  const i = now ? list.findIndex((a) => a.id === now.id) : -1;
-  if (i < 0) return dir === 1 ? list[0]! : list[list.length - 1]!;
-  if (list.length === 1) return null;
-  return list[(i + dir + list.length) % list.length]!;
-}

@@ -6,7 +6,7 @@ Local web tool that previews Jan's left-arm tattoo sleeve on a parametric 3D arm
 
 1. `PROJECT_BRIEF.md` is the single source of truth (concept, decisions, requirements, data model, phases). Read its table of contents, then the sections your task touches. §14 lists the phases and their acceptance criteria.
 2. `docs/product/roadmap.md` is the plan for turning the planner into an open-source product (feature review, phases A–D). For product work it wins over the brief; the brief stays the source for Jan's own sleeve.
-3. `README.md` has setup and commands; `docs/adr/` records technical decisions; `git log` shows where work stands.
+3. `README.md` has the quick start; `docs/development.md` has setup details and commands; `docs/adr/` records technical decisions; `git log` shows where work stands.
 
 ## Conventions (from PROJECT_BRIEF.md §15)
 

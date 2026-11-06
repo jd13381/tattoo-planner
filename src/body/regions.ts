@@ -3,6 +3,17 @@
 // placement in the body in placement.ts.
 import type { RegionKind } from "./profile.ts";
 
+/**
+ * The two opposite centre lines (u) each kind of region is mainly looked at along: the texture centre
+ * and the seam side on limbs, front and back on the torso (whose texture centre is a flank). The 2D
+ * editor centres on them and the cm grid measures its lengthwise lines from them (src/render/cmGrid.ts).
+ */
+export const MAIN_LINES: Record<RegionKind, readonly [number, number]> = {
+  arm: [0, 0.5],
+  leg: [0, 0.5],
+  torso: [0.25, 0.75],
+};
+
 export const REGION_IDS = ["arm-left", "arm-right", "leg-left", "leg-right", "torso"] as const;
 export type RegionId = (typeof REGION_IDS)[number];
 
@@ -104,12 +115,14 @@ export function regionOf(layout: { region?: RegionId }): RegionId {
  */
 export function editorCentres(id: RegionId): { u: number; label: string; title: string }[] {
   const def = REGIONS[id];
-  const pick = def.kind === "torso" ? [1, 3] : [0, 2];
-  return pick.map((i) => ({
-    u: i / 4,
-    label: cap(def.lines[i]!),
-    title: `Centre the 2D editor on the ${def.lines[i]} line`,
-  }));
+  return MAIN_LINES[def.kind].map((u) => {
+    const i = Math.round(u * 4);
+    return {
+      u,
+      label: cap(def.lines[i]!),
+      title: `Centre the 2D editor on the ${def.lines[i]} line`,
+    };
+  });
 }
 
 function cap(s: string): string {

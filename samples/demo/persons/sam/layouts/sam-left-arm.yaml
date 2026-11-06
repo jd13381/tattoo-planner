@@ -1,0 +1,26 @@
+# Sam's sample sleeve on the left arm. u = around the arm (0 outer, 0.25 lateral, 0.5 inner,
+# 0.75 medial), v = along it (0 wrist, 1 shoulder).
+name: sam-left-arm
+region: arm-left
+description: "Mountains on the outer forearm, fern up the inner arm, meander band at the wrist"
+elements:
+  - id: mountains
+    type: figure
+    asset: mountains
+    position: { u: 0.00, v: 0.30 } # outer forearm
+    size_cm: { h: 11 }
+  - id: fern
+    type: figure
+    asset: fern
+    position: { u: 0.50, v: 0.68 } # inner upper arm
+    size_cm: { h: 16 }
+  - id: hatch
+    type: filler
+    pattern: hatching
+    region: { u: [-0.12, 0.12], v: [0.55, 0.9] }
+    density: 0.35
+  - id: wrist-band
+    type: band
+    pattern: meander
+    v: 0.04
+    width_cm: 1.8

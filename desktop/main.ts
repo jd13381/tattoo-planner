@@ -8,6 +8,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeTheme,
   safeStorage,
   session,
   shell,
@@ -21,6 +22,7 @@ import path from "node:path";
 import { createContext, readEnv } from "../server/context.ts";
 import { startServer, staticFile } from "../server/standalone.ts";
 import type { PickOptions } from "../src/desktop/bridge.ts";
+import { isTheme, type Theme } from "../src/ui/theme.ts";
 import { CHANNELS } from "./channels.ts";
 import { KeyStore, type SafeStorageLike } from "./keyStore.ts";
 import {
@@ -30,6 +32,7 @@ import {
   isAppUrl,
   isExternalUrl,
 } from "./navigation.ts";
+import { loadTheme, saveTheme, THEME_ARG, windowBackground } from "./themeFile.ts";
 
 const APP_NAME = "Tattoo Planner";
 /** dist-desktop/desktop/ → the app folder (the checkout, or app.asar in the packaged app). */
@@ -47,6 +50,16 @@ if (!app.commandLine.hasSwitch("no-sandbox")) app.enableSandbox();
 let mainWindow: BrowserWindow | null = null;
 let server: { url: string; close: () => Promise<void> } | null = null;
 let origin = "";
+let theme: Theme = "system";
+let themeFile = "";
+
+/** Follows the page's theme: native controls and menus via nativeTheme, and the window background. */
+function applyNativeTheme(next: Theme) {
+  theme = next;
+  // Electron's themeSource uses the same names ("system" | "light" | "dark").
+  nativeTheme.themeSource = next;
+  mainWindow?.setBackgroundColor(windowBackground(next, nativeTheme.shouldUseDarkColors));
+}
 
 function backendName(): string {
   if (process.platform === "darwin") return "macOS Keychain";
@@ -104,6 +117,11 @@ function registerIpc(keys: KeyStore) {
   handle(CHANNELS.getKeyStatus, () => keys.status());
   handle(CHANNELS.setOpenAIKey, (key) => keys.set(key));
   handle(CHANNELS.clearOpenAIKey, () => keys.clear());
+  handle(CHANNELS.setTheme, async (next) => {
+    if (!isTheme(next)) throw new Error("unknown theme");
+    applyNativeTheme(next);
+    await saveTheme(themeFile, next);
+  });
 }
 
 /** Navigation rules for every window and frame: stay on the local server, https links go to the browser. */
@@ -161,9 +179,12 @@ function createWindow() {
     minWidth: 960,
     minHeight: 600,
     show: false,
-    backgroundColor: "#16161a",
+    // The page's --bg, so neither theme flashes before the first paint.
+    backgroundColor: windowBackground(theme, nativeTheme.shouldUseDarkColors),
     webPreferences: {
       preload: PRELOAD,
+      // The stored theme for public/theme-init.js, via the preload (window.tattooDesktop.initialTheme).
+      additionalArguments: [`${THEME_ARG}${theme}`],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -195,6 +216,12 @@ async function main() {
 
   await app.whenReady();
   const userData = app.getPath("userData");
+  themeFile = path.join(userData, "theme.json");
+  applyNativeTheme(await loadTheme(themeFile));
+  // "system" and the OS switches: repaint the window behind the page too.
+  nativeTheme.on("updated", () =>
+    mainWindow?.setBackgroundColor(windowBackground(theme, nativeTheme.shouldUseDarkColors)),
+  );
   const keys = new KeyStore({
     file: path.join(userData, "openai-key.bin"),
     safeStorage: systemSafeStorage(),

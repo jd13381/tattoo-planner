@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AssetBrowser } from "../assets/AssetBrowser.tsx";
-import { stepAsset } from "../assets/filter.ts";
 import { ImagePicker } from "../assets/ImagePicker.tsx";
 import type { AssetInfo } from "../assets/types.ts";
 import { useAssetListing } from "../assets/useAssets.ts";
@@ -10,6 +9,9 @@ import { defaultFilter, isFigureLike } from "../layout/imageFit.ts";
 import { layoutSchema, type ElementType, type Layout, type LayoutElement } from "../layout/schema.ts";
 import { classify, resolveElement } from "../layout/shapes.ts";
 import { useLayouts, type StoredLayout, type WorkingLayout } from "../layout/useLayouts.ts";
+import { activeVariant } from "../project/persons.ts";
+import { usePersons, setActiveVariant } from "../project/personsStore.ts";
+import { projectStatus } from "../project/projectData.ts";
 import { layoutRegion, parseLayout } from "../layout/yamlDoc.ts";
 import { coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
@@ -35,6 +37,7 @@ import {
   RedLineIcon,
   RedoIcon,
   SelectIcon,
+  StarIcon,
   UndoIcon,
   WarnIcon,
 } from "../ui/icons.tsx";
@@ -131,9 +134,20 @@ type Props = {
   /** Whether the tab is open; the page stays mounted while hidden and then leaves the top bar alone. */
   active?: boolean;
   header?: HeaderSlots;
+  /**
+   * Opens a region from elsewhere (Home): its `variant`, or with null its last opened or active
+   * one. A new `nonce` asks again for the same region.
+   */
+  openRequest?: LayoutRequest | null;
 };
 
-export function LayoutPage({ arm, pose, onWorking, active = true, header }: Props) {
+/** A request to open a region's layout in the Layout tab (Home → region card). */
+export type LayoutRequest = { region: RegionId; variant: string | null; nonce: number };
+
+export function LayoutPage({ arm, pose, onWorking, active = true, header, openRequest }: Props) {
+  const { current: person } = usePersons();
+  const readOnlyProject = projectStatus?.sample === true;
+  const activeMap = useMemo(() => person?.active ?? {}, [person]);
   // The body region being edited; every layout belongs to one (docs/adr/0011).
   const [region, setRegion] = useState<RegionId>(DEFAULT_REGION);
   const profile = arm.region(region);
@@ -229,13 +243,19 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
     error: loadError,
     save,
   } = useLayouts((list) => {
-    // Open v1-baseline (or the first variant) once the list arrives.
-    const first = list.find((f) => f.name === "v1-baseline") ?? list[0];
+    // Open the left arm's active variant (else v1-baseline, else the first variant) once the list
+    // arrives.
+    const marked = activeMap[DEFAULT_REGION];
+    const first =
+      list.find((f) => f.name === marked && layoutRegion(f.text) === DEFAULT_REGION) ??
+      list.find((f) => f.name === "v1-baseline") ??
+      list[0];
     if (first) open(first.name, list);
   });
 
   // Assets: the manifest listing and the decoded images of every asset the layout uses.
   const { listing, reload: reloadAssets, scanNote } = useAssetListing();
+  const allAssets = listing?.status === "ok" ? listing.assets : null;
   const assetMap = useMemo(
     () => (listing?.status === "ok" ? new Map(listing.assets.map((a) => [a.id, a])) : null),
     [listing],
@@ -544,6 +564,23 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const variantNames = (files ?? []).filter((f) => regionByFile.get(f.name) === region).map((f) => f.name);
   if (name && !variantNames.includes(name)) variantNames.push(name);
   const countByRegion = (id: RegionId) => (files ?? []).filter((f) => regionByFile.get(f.name) === id).length;
+  // The active variant per region (docs/adr/0017-persons.md): the one Home shows.
+  const variantList = useMemo(
+    () => (files ?? []).map((f) => ({ name: f.name, region: regionByFile.get(f.name) ?? DEFAULT_REGION })),
+    [files, regionByFile],
+  );
+  const activeOf = (id: RegionId) => activeVariant(id, variantList, activeMap);
+  const isActive = name !== null && activeOf(region) === name;
+  const savedVariant = name !== null && files?.some((f) => f.name === name) === true;
+  const markActive = async () => {
+    if (!name || !savedVariant || isActive) return;
+    try {
+      await setActiveVariant(region, name);
+      toast.show(`${name} is now the active ${REGIONS[region].label.toLowerCase()} layout on Home`);
+    } catch (e) {
+      toast.show(`Could not set the active variant: ${e instanceof Error ? e.message : String(e)}`, "error");
+    }
+  };
 
   /**
    * Opens a region: its last or first variant, or a new empty layout that becomes a file on the first
@@ -560,7 +597,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
   const openRegion = (next: RegionId) => {
     const names = (files ?? []).filter((f) => regionByFile.get(f.name) === next).map((f) => f.name);
     const last = lastByRegion[next];
-    const target = last && names.includes(last) ? last : names[0];
+    const target = last && names.includes(last) ? last : activeOf(next);
     if (target) return open(target, files);
     const draft: Layout = {
       name: draftName(
@@ -579,7 +616,24 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
     setSavedJson(JSON.stringify(draft));
   };
 
-  // Full-body view: the other regions show their last opened (or first) variant.
+  // A region opened from Home. The latest switch functions are kept in a ref, so the effect runs only
+  // when a new request arrives (or the layouts finish loading).
+  const handledRequest = useRef<number | null>(null);
+  const requestHandlers = useRef<{ switchRegion: (r: RegionId) => void; switchTo: (n: string) => void }>(
+    null!,
+  );
+  useEffect(() => {
+    requestHandlers.current = { switchRegion, switchTo };
+  });
+  useEffect(() => {
+    if (!openRequest || !files || handledRequest.current === openRequest.nonce) return;
+    handledRequest.current = openRequest.nonce;
+    const { region: r, variant } = openRequest;
+    if (variant && files.some((f) => f.name === variant)) requestHandlers.current.switchTo(variant);
+    else requestHandlers.current.switchRegion(r);
+  }, [openRequest, files]);
+
+  // Full-body view: the other regions show their last opened (or active) variant.
   const [bodyTextures, setBodyTextures] = useState<Partial<Record<RegionId, RegionTexture>>>({});
   const onRegionTexture = useCallback(
     (id: RegionId, t: RegionTexture | null) =>
@@ -593,11 +647,13 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
     if (view3d !== "body") return [];
     return REGION_IDS.filter((id) => id !== region).flatMap((id) => {
       const names = (files ?? []).filter((f) => regionByFile.get(f.name) === id);
-      const file = names.find((f) => f.name === lastByRegion[id]) ?? names[0];
+      const file =
+        names.find((f) => f.name === lastByRegion[id]) ??
+        names.find((f) => f.name === activeVariant(id, variantList, activeMap));
       const r = file ? parseLayout(file.text) : null;
       return r?.ok ? [{ id, layout: r.layout }] : [];
     });
-  }, [view3d, region, files, regionByFile, lastByRegion]);
+  }, [view3d, region, files, regionByFile, lastByRegion, variantList, activeMap]);
 
   const sel = selected !== null && layout ? layout.elements[selected] : undefined;
   const appendTarget = appendStrokes && sel?.type === "line" && !sel.locked ? selected : null;
@@ -623,17 +679,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
     // A new image gets its own cut-out: drop a crop that belonged to the old one. One undo step.
     setElement(selected, { ...sel, asset: a.id, crop: undefined });
   };
-  const allAssets = listing?.status === "ok" ? listing.assets : null;
   const canChangeImage = !!sel && isFigureLike(sel) && !sel.locked;
-  const stepImage =
-    canChangeImage && allAssets && sel && isFigureLike(sel)
-      ? (dir: 1 | -1) => {
-          const next = stepAsset(allAssets, sel.asset, dir, sel.type === "existing" ? "existing" : undefined);
-          if (next) pickAsset(next);
-        }
-      : null;
-  const canStep =
-    !!stepImage && !!sel && isFigureLike(sel) && stepAsset(allAssets ?? [], sel.asset, 1) !== null;
   // The picker belongs to the selection: it closes when the selection changes.
   const [pickerFor, setPickerFor] = useState<number | null>(null);
   if (pickerAnchor && pickerFor !== selected) {
@@ -881,6 +927,27 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
           </div>
         </Popover>
       </span>
+      <button
+        type="button"
+        className={`ghost icon-button active-star${isActive ? " on" : ""}`}
+        onClick={() => void markActive()}
+        disabled={!savedVariant || readOnlyProject || !person}
+        aria-pressed={isActive}
+        aria-label={isActive ? "Active variant" : "Set as active variant"}
+        title={
+          !savedVariant
+            ? "Save this variant first, then mark it as the one Home shows"
+            : isActive
+              ? `Active: Home shows ${name} on the ${REGIONS[region].label.toLowerCase()}`
+              : readOnlyProject
+                ? "The sample is read-only"
+                : !person
+                  ? "Move this folder into a project first (Settings → Project)"
+                  : `Set as active: show ${name} on Home`
+        }
+      >
+        <StarIcon filled={isActive} />
+      </button>
       <button
         type="button"
         className="ghost icon-button"
@@ -1507,7 +1574,6 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header }: Prop
                     onDelete={deleteSelected}
                     onDuplicate={() => apply((l) => duplicateAt(l, selected))}
                     onChangeImage={canChangeImage ? openPicker : undefined}
-                    onStepImage={canStep ? stepImage : null}
                     idError={issueSplit?.idErrors.get(selected) ?? null}
                     keys={{
                       duplicate: keyHint("Mod+D"),

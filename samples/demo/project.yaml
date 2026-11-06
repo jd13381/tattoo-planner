@@ -4,3 +4,12 @@
 version: 1
 name: Sample project
 body: female
+# Two people in one project (docs/adr/0017-persons.md): Alex's data is the top-level folders, Sam's
+# lives in persons/sam/. Each has own layouts and measurements; the images are shared.
+persons:
+  - id: me
+    name: Alex
+  - id: sam
+    name: Sam
+    body: male
+    height_cm: 182

@@ -17,6 +17,13 @@ async function call<T>(channel: string, ...args: unknown[]): Promise<T> {
   return reply.value as T;
 }
 
+/** The stored theme, passed by the main process as a switch (desktop/themeFile.ts, THEME_ARG). */
+function initialTheme(): "light" | "dark" | "system" | undefined {
+  const arg = process.argv.find((a) => a.startsWith("--tattoo-theme="));
+  const value = arg?.slice("--tattoo-theme=".length);
+  return value === "light" || value === "dark" || value === "system" ? value : undefined;
+}
+
 const bridge: import("../src/desktop/bridge.ts").TattooDesktop = {
   pickFolder: (opts) => call("tattoo:pick-folder", opts),
   revealInFinder: (path) => call("tattoo:reveal-in-finder", path),
@@ -24,6 +31,8 @@ const bridge: import("../src/desktop/bridge.ts").TattooDesktop = {
   getKeyStatus: () => call("tattoo:key-status"),
   setOpenAIKey: (key) => call("tattoo:set-openai-key", key),
   clearOpenAIKey: () => call("tattoo:clear-openai-key"),
+  initialTheme: initialTheme(),
+  setTheme: (theme) => call("tattoo:set-theme", theme),
 };
 
 contextBridge.exposeInMainWorld("tattooDesktop", bridge);
