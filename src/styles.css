@@ -1,8 +1,10 @@
 /* Tattoo Planner styles. Sections: tokens, base, controls, components, app shell, canvases, pages.
  *
- * Design direction: "Pro creative tool" (docs/claude-decisions.md, 2026-11-04). Dark only. The
- * chrome recedes into near-black graphite so the skin is the only light surface; canvases are
- * full-bleed and controls float over them in translucent panels (.float).
+ * Design direction: "Pro creative tool" (docs/claude-decisions.md, 2026-11-04). Dark by default:
+ * the chrome recedes into near-black graphite so the skin is the only light surface; canvases are
+ * full-bleed and controls float over them in translucent panels (.float). A light palette
+ * (:root.light, docs/adr/0018-light-theme.md) swaps the colour tokens only; never hard-code a chrome
+ * colour below the tokens, add a token with a value in both palettes instead.
  *
  * Colour rules:
  * - --accent (blue-violet) is the one interaction colour: selection, focus, the primary button,
@@ -37,6 +39,26 @@
   --panel-blur: blur(18px) saturate(140%);
   --field-bg: #0e0e13; /* inputs, selects, textareas */
   --hover: rgba(255, 255, 255, 0.045);
+  --press: rgba(255, 255, 255, 0.07); /* pressed button, selected tab, code, meter track */
+  --press-soft: rgba(255, 255, 255, 0.06);
+  --row-hover: rgba(255, 255, 255, 0.03);
+  --popover-bg: rgba(24, 24, 30, 0.96);
+  --toast-bg: rgba(30, 30, 38, 0.92);
+  --canvas-action-press: rgba(30, 30, 38, 0.95);
+  --badge-bg: rgba(14, 14, 19, 0.85); /* small badges over images */
+  --badge-bg-hover: rgba(30, 30, 38, 0.95);
+  --badge-bg-soft: rgba(14, 14, 19, 0.8);
+  --placeholder-bg: rgba(10, 10, 13, 0.55);
+  --scrim: rgba(0, 0, 0, 0.55); /* behind a modal picker */
+  --scrim-soft: rgba(0, 0, 0, 0.25);
+  --seg-bg: rgba(0, 0, 0, 0.35); /* the track of a .segmented control */
+  --switch-off: rgba(255, 255, 255, 0.14);
+  --switch-line: rgba(255, 255, 255, 0.12);
+  --switch-knob: #fff;
+  --scrollbar: rgba(255, 255, 255, 0.14);
+  --selection: rgba(143, 132, 255, 0.35);
+  --brand-tile-a: #2a2a33;
+  --brand-tile-b: #18181e;
 
   /* hairlines */
   --border: rgba(255, 255, 255, 0.07);
@@ -47,7 +69,12 @@
   --text: #e9e9ef;
   --muted: #a3a3b0; /* text 2: labels, secondary */
   --faint: #868693; /* text 3: hints, units, captions */
-  --on-ink: #0d0b1a; /* text on light fills (--text, --accent) */
+  --on-ink: #0d0b1a; /* text on the accent and status fills */
+  --text-strong: #fff; /* the selected row's name */
+  --zero-text: #4a4a56; /* zero cells in the compact metrics table */
+  --view-side: rgba(236, 232, 226, 0.55); /* "(inner)" on the 3D view buttons */
+  --kbd-on-primary: rgba(13, 11, 26, 0.65);
+  --kbd-on-primary-line: rgba(13, 11, 26, 0.25);
 
   /* interaction accent */
   --accent: #8f84ff;
@@ -57,6 +84,11 @@
   --accent-line: rgba(143, 132, 255, 0.45);
   --focus: #8f84ff;
   --focus-ring: 0 0 0 3px rgba(143, 132, 255, 0.28);
+  --primary-sheen: rgba(255, 255, 255, 0.25);
+  --primary-ring: rgba(143, 132, 255, 0.5);
+  --primary-ring-strong: rgba(143, 132, 255, 0.6);
+  --info-line: rgba(143, 132, 255, 0.3);
+  --share-fill: #6e6a8f; /* coverage share bars */
 
   /* content and status */
   --red: #d8262c; /* the sleeve's red line */
@@ -69,8 +101,12 @@
   --warn-text: #ecc985;
   --warn-soft: rgba(230, 179, 90, 0.12);
   --warn-line: rgba(230, 179, 90, 0.28);
+  --warn-pressed: rgba(230, 179, 90, 0.18);
+  --warn-pressed-line: rgba(230, 179, 90, 0.45);
   --ok: #5fc08a;
   --ok-soft: rgba(95, 192, 138, 0.12);
+  --ok-line: rgba(95, 192, 138, 0.3);
+  --danger-panel: rgba(60, 22, 26, 0.85); /* opaque error notice over a 3D view */
   --info: var(--accent);
   --info-soft: var(--accent-soft);
   --control-accent: var(--accent); /* range and checkbox fill */
@@ -80,12 +116,27 @@
   /* canvases */
   --canvas: #0c0c10; /* 2D workspace, image wells */
   --canvas-2d: #0c0c10 radial-gradient(rgba(255, 255, 255, 0.075) 1px, transparent 1.2px) 4px 4px / 16px 16px; /* dot grid */
-  --canvas-3d: radial-gradient(ellipse 60% 55% at 50% 44%, #1d1c26 0%, #121218 45%, #0a0a0d 100%);
+  --stage-1: #1d1c26; /* 3D stage spotlight: centre, middle, edge */
+  --stage-2: #121218;
+  --stage-3: #0a0a0d;
+  --canvas-3d: radial-gradient(
+    ellipse 60% 55% at 50% 44%,
+    var(--stage-1) 0%,
+    var(--stage-2) 45%,
+    var(--stage-3) 100%
+  );
   --canvas-edge: rgba(255, 255, 255, 0.07);
   --canvas-label-bg: rgba(22, 22, 28, 0.8);
   --skin: #e4ddd3;
   --figure: #3a3940;
   --filler: #bdb7af;
+  --diagram-ink: var(--skin); /* the measuring diagram's body outline */
+  --thumb-checker-a: #15151b; /* asset thumbnails and missing images */
+  --thumb-checker-b: #111116;
+  --studio-checker-a: #1b1b22; /* Image studio, dark backdrop */
+  --studio-checker-b: #24242c;
+  --artboard-checker-a: #18181e; /* an empty transparent artboard */
+  --artboard-checker-b: #1e1e25;
 
   /* radii */
   --r-xs: 3px; /* tags */
@@ -109,6 +160,11 @@
   --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --shadow-seg: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 0 0 1px var(--border-strong);
   --shadow-canvas: none;
+  --shadow-tip: 0 6px 20px rgba(0, 0, 0, 0.4);
+  --shadow-sheet: 0 10px 28px rgba(0, 0, 0, 0.55); /* the 2D unwrap sheet */
+  --shadow-color-deep: rgba(0, 0, 0, 0.5);
+  --drop-sheet: 0 10px 28px rgba(0, 0, 0, 0.55);
+  --drop-sheet-sm: 0 8px 22px rgba(0, 0, 0, 0.5);
 
   /* type: Inter for labels, JetBrains Mono for every number (bundled, see src/main.tsx) */
   --font-ui: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
@@ -136,6 +192,112 @@
   font-feature-settings: "tnum", "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Light theme (docs/adr/0018-light-theme.md): html.light, set by src/ui/theme.ts and, before the
+ * first paint, by public/theme-init.js. Only colour tokens change; the dark values above stay the
+ * default. Cool light greys with white panels, the same blue-violet accent darkened for white,
+ * text tokens AA on --bg, --surface and --surface-2. Content colours (--skin, --figure, --filler,
+ * --red) and the drawn canvases stay as they are, so the sleeve looks the same in both themes. */
+:root.light {
+  --bg: #f3f3f6;
+  --chrome: #ffffff;
+  --rail: #fafafb;
+  --surface: #ffffff;
+  --surface-2: #f2f2f6;
+  --surface-3: #e7e7ee;
+  --panel: rgba(255, 255, 255, 0.86);
+  --field-bg: #f8f8fb;
+  --hover: rgba(20, 20, 45, 0.045);
+  --press: rgba(20, 20, 45, 0.07);
+  --press-soft: rgba(20, 20, 45, 0.06);
+  --row-hover: rgba(20, 20, 45, 0.03);
+  --popover-bg: rgba(255, 255, 255, 0.98);
+  --toast-bg: rgba(255, 255, 255, 0.96);
+  --canvas-action-press: rgba(232, 232, 239, 0.96);
+  --badge-bg: rgba(255, 255, 255, 0.92);
+  --badge-bg-hover: rgba(242, 242, 246, 0.98);
+  --badge-bg-soft: rgba(255, 255, 255, 0.88);
+  --placeholder-bg: rgba(255, 255, 255, 0.6);
+  --scrim: rgba(20, 20, 40, 0.32);
+  --scrim-soft: rgba(20, 20, 40, 0.06);
+  --seg-bg: rgba(20, 20, 45, 0.06);
+  --switch-off: rgba(20, 20, 45, 0.18);
+  --switch-line: rgba(20, 20, 45, 0.1);
+  --switch-knob: #fff;
+  --scrollbar: rgba(20, 20, 45, 0.24);
+  --selection: rgba(90, 77, 224, 0.22);
+  --brand-tile-a: #2a2a33;
+  --brand-tile-b: #18181e;
+
+  --border: rgba(20, 20, 45, 0.1);
+  --border-strong: rgba(20, 20, 45, 0.16);
+  --border-hover: rgba(20, 20, 45, 0.26);
+
+  /* text: AA (4.5:1) on --bg, --surface and --surface-2; --accent-text, --danger, --warn and --ok
+   * also on their own -soft tints */
+  --text: #17171f;
+  --muted: #545466;
+  --faint: #646475;
+  --on-ink: #ffffff;
+  --text-strong: #0b0b10;
+  --zero-text: #b4b4c0;
+  --view-side: var(--faint);
+  --kbd-on-primary: rgba(255, 255, 255, 0.82);
+  --kbd-on-primary-line: rgba(255, 255, 255, 0.4);
+
+  --accent: #5a4de0;
+  --accent-hover: #4a3dd2;
+  --accent-text: #4b3fd0;
+  --accent-soft: rgba(90, 77, 224, 0.1);
+  --accent-line: rgba(90, 77, 224, 0.4);
+  --focus: #5a4de0;
+  --focus-ring: 0 0 0 3px rgba(90, 77, 224, 0.24);
+  --primary-sheen: rgba(255, 255, 255, 0.18);
+  --primary-ring: rgba(90, 77, 224, 0.5);
+  --primary-ring-strong: rgba(90, 77, 224, 0.65);
+  --info-line: rgba(90, 77, 224, 0.3);
+  --share-fill: #8c87c4;
+
+  --danger: #b8222a;
+  --danger-soft: rgba(184, 34, 42, 0.08);
+  --danger-line: rgba(184, 34, 42, 0.32);
+  --warn: #925500; /* deep ochre: also used as text */
+  --warn-text: #7f4a00;
+  --warn-soft: rgba(146, 85, 0, 0.09);
+  --warn-line: rgba(146, 85, 0, 0.3);
+  --warn-pressed: rgba(146, 85, 0, 0.14);
+  --warn-pressed-line: rgba(146, 85, 0, 0.42);
+  --ok: #166c3e;
+  --ok-soft: rgba(22, 108, 62, 0.09);
+  --ok-line: rgba(22, 108, 62, 0.3);
+  --danger-panel: rgba(255, 240, 240, 0.94);
+  --seg-active: #ffffff;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23545466' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  --canvas: #e8e8ed;
+  --canvas-2d: #e8e8ed radial-gradient(rgba(20, 20, 45, 0.14) 1px, transparent 1.2px) 4px 4px / 16px 16px;
+  --stage-1: #efeff3;
+  --stage-2: #dedee5;
+  --stage-3: #cbcbd4;
+  --canvas-edge: rgba(20, 20, 45, 0.1);
+  --canvas-label-bg: rgba(255, 255, 255, 0.86);
+  --diagram-ink: #8b7a68;
+  --thumb-checker-a: #f1f1f4;
+  --thumb-checker-b: #e6e6eb;
+  --artboard-checker-a: #f6f6f8;
+  --artboard-checker-b: #ebebf0;
+
+  --shadow-2: 0 10px 30px rgba(20, 20, 45, 0.12), 0 1px 3px rgba(20, 20, 45, 0.08);
+  --shadow-float: 0 10px 30px rgba(20, 20, 45, 0.12), 0 1px 3px rgba(20, 20, 45, 0.08);
+  --shadow-seg: 0 1px 2px rgba(20, 20, 45, 0.14), inset 0 0 0 1px var(--border-strong);
+  --shadow-tip: 0 6px 20px rgba(20, 20, 45, 0.18);
+  --shadow-sheet: 0 8px 24px rgba(20, 20, 45, 0.18);
+  --shadow-color-deep: rgba(20, 20, 45, 0.16);
+  --drop-sheet: 0 8px 22px rgba(20, 20, 45, 0.2);
+  --drop-sheet-sm: 0 6px 18px rgba(20, 20, 45, 0.18);
+
+  color-scheme: light;
 }
 
 /* ── Base ─────────────────────────────────────────────────────────────────────────────────────── */
@@ -180,12 +342,12 @@ code {
 }
 
 ::selection {
-  background: rgba(143, 132, 255, 0.35);
+  background: var(--selection);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  scrollbar-color: var(--scrollbar) transparent;
 }
 
 .muted {
@@ -269,7 +431,7 @@ button:hover:not(:disabled) {
 }
 
 button:active:not(:disabled) {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--press);
 }
 
 button[aria-pressed="true"],
@@ -285,16 +447,16 @@ a.button.primary {
   color: var(--on-ink);
   font-weight: 600;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 0 0 1px rgba(143, 132, 255, 0.5);
+    inset 0 1px 0 var(--primary-sheen),
+    0 0 0 1px var(--primary-ring);
 }
 
 button.primary:hover:not(:disabled),
 button.primary:active:not(:disabled) {
   background: var(--accent-hover);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 0 0 1px rgba(143, 132, 255, 0.6);
+    inset 0 1px 0 var(--primary-sheen),
+    0 0 0 1px var(--primary-ring-strong);
 }
 
 button.ghost {
@@ -364,7 +526,7 @@ button.icon-button.small-button {
   align-items: center;
   gap: 0;
   padding: 2px;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--seg-bg);
   border-radius: 7px;
   box-shadow: inset 0 0 0 1px var(--border);
 }
@@ -387,8 +549,10 @@ button.icon-button.small-button {
 
 .segmented button.active,
 .segmented button[aria-pressed="true"],
+.segmented button[aria-checked="true"],
 .segmented button.active:hover,
-.segmented button[aria-pressed="true"]:hover {
+.segmented button[aria-pressed="true"]:hover,
+.segmented button[aria-checked="true"]:hover {
   background: var(--seg-active);
   color: var(--text);
   box-shadow: var(--shadow-seg);
@@ -499,8 +663,8 @@ input.switch {
   height: 14px;
   margin: 0;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  background: var(--switch-off);
+  box-shadow: inset 0 0 0 1px var(--switch-line);
   cursor: pointer;
   transition: background-color 120ms ease;
 }
@@ -513,7 +677,7 @@ input.switch::after {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--switch-knob);
   transition: transform 120ms ease;
 }
 
@@ -652,8 +816,8 @@ button.chip:hover:not(:disabled) {
 
 button.chip.warn:hover:not(:disabled),
 button.chip.warn[aria-expanded="true"] {
-  background: rgba(230, 179, 90, 0.18);
-  box-shadow: inset 0 0 0 1px rgba(230, 179, 90, 0.45);
+  background: var(--warn-pressed);
+  box-shadow: inset 0 0 0 1px var(--warn-pressed-line);
   color: var(--warn);
 }
 
@@ -829,7 +993,7 @@ legend,
 
 .notice.info {
   background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px rgba(143, 132, 255, 0.3);
+  box-shadow: inset 0 0 0 1px var(--info-line);
 }
 
 .notice.info::before {
@@ -839,7 +1003,7 @@ legend,
 
 .notice.ok {
   background: var(--ok-soft);
-  box-shadow: inset 0 0 0 1px rgba(95, 192, 138, 0.3);
+  box-shadow: inset 0 0 0 1px var(--ok-line);
 }
 
 .notice.ok::before {
@@ -861,7 +1025,7 @@ legend,
 }
 
 .notice code {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--press);
   padding: 0 4px;
   border-radius: var(--r-xs);
 }
@@ -978,7 +1142,7 @@ button .icon {
   min-width: 260px;
   max-width: min(380px, calc(100vw - 32px));
   padding: var(--s-3);
-  background: rgba(24, 24, 30, 0.96);
+  background: var(--popover-bg);
   backdrop-filter: var(--panel-blur);
   -webkit-backdrop-filter: var(--panel-blur);
   color: var(--text);
@@ -1061,8 +1225,8 @@ kbd.kbd {
 }
 
 button.primary kbd.kbd {
-  color: rgba(13, 11, 26, 0.65);
-  box-shadow: inset 0 0 0 1px rgba(13, 11, 26, 0.25);
+  color: var(--kbd-on-primary);
+  box-shadow: inset 0 0 0 1px var(--kbd-on-primary-line);
 }
 
 /* Toast: a short confirmation at the bottom centre ("Saved v1-baseline"). */
@@ -1081,7 +1245,7 @@ button.primary kbd.kbd {
   gap: var(--s-2);
   padding: 8px 14px;
   border-radius: var(--r-pill);
-  background: rgba(30, 30, 38, 0.92);
+  background: var(--toast-bg);
   backdrop-filter: var(--panel-blur);
   -webkit-backdrop-filter: var(--panel-blur);
   border: 1px solid var(--border-strong);
@@ -1169,7 +1333,7 @@ td.num {
 }
 
 tbody tr:hover td {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--row-hover);
 }
 
 /* Coverage tables */
@@ -1289,7 +1453,7 @@ tbody tr:hover td {
 }
 
 .metrics.compact td.zero {
-  color: #4a4a56;
+  color: var(--zero-text);
 }
 
 .metrics.compact td.line:not(.zero) {
@@ -1307,7 +1471,7 @@ tbody tr:hover td {
   margin-right: 6px;
   vertical-align: 2px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--press);
   overflow: hidden;
 }
 
@@ -1315,7 +1479,7 @@ tbody tr:hover td {
   display: block;
   height: 100%;
   border-radius: 2px;
-  background: #6e6a8f;
+  background: var(--share-fill);
 }
 
 .metrics.compact tr.total td {
@@ -1330,7 +1494,7 @@ tbody tr:hover td {
 }
 
 .metrics.compact tbody tr:hover td {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--row-hover);
 }
 
 .metrics-note {
@@ -1414,7 +1578,7 @@ th.cat-open::before {
   border-radius: 4px;
   background:
     linear-gradient(var(--red), var(--red)) center / 2.5px 12px no-repeat,
-    linear-gradient(135deg, #2a2a33, #18181e);
+    linear-gradient(135deg, var(--brand-tile-a), var(--brand-tile-b));
   box-shadow: inset 0 0 0 1px var(--border-hover);
 }
 
@@ -1467,7 +1631,7 @@ th.cat-open::before {
 .tabs button[aria-selected="true"],
 .tabs button[aria-selected="true"]:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--press);
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
@@ -1673,7 +1837,7 @@ button.canvas-action {
 
 button.canvas-action:hover:not(:disabled),
 button.canvas-action:active:not(:disabled) {
-  background: rgba(30, 30, 38, 0.95);
+  background: var(--canvas-action-press);
   color: var(--text);
 }
 
@@ -1854,7 +2018,7 @@ button.tool.draw-tool[aria-pressed="true"]:hover {
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-tip);
   color: var(--text);
   font-size: 11.5px;
   font-weight: 500;
@@ -1968,7 +2132,7 @@ button.tool.draw-tool[aria-pressed="true"]:hover {
 }
 
 .ws-2d .unwrap-image-host {
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-sheet);
 }
 
 /* 3D view: the canvas fills the column, the right stack floats over its right edge (as in the
@@ -2100,7 +2264,7 @@ button.panel-tab:hover:not(:disabled) {
 
 button.panel-tab[aria-selected="true"] {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--press-soft);
 }
 
 button.panel-tab .count {
@@ -2643,7 +2807,7 @@ button.element-select:active:not(:disabled) {
 }
 
 .element-row.selected .element-id {
-  color: #fff;
+  color: var(--text-strong);
 }
 
 .element-id {
@@ -2779,7 +2943,8 @@ button.asset-card {
   width: 100%;
   aspect-ratio: 1;
   object-fit: contain;
-  background: repeating-conic-gradient(#15151b 0 25%, #111116 0 50%) 0 0 / 12px 12px;
+  background: repeating-conic-gradient(var(--thumb-checker-a) 0 25%, var(--thumb-checker-b) 0 50%) 0 0 / 12px
+    12px;
   border-radius: var(--r-sm);
 }
 
@@ -2810,7 +2975,8 @@ button.asset-card {
 .asset-thumb {
   position: relative;
   line-height: 0;
-  background: repeating-conic-gradient(#15151b 0 25%, #111116 0 50%) 0 0 / 12px 12px;
+  background: repeating-conic-gradient(var(--thumb-checker-a) 0 25%, var(--thumb-checker-b) 0 50%) 0 0 / 12px
+    12px;
   border-radius: 7px;
   box-shadow: inset 0 0 0 1px var(--border);
   overflow: hidden;
@@ -2916,9 +3082,9 @@ a.button.small-button {
   overflow: hidden;
   background: radial-gradient(
     ellipse 520px 62% at calc((100% - var(--arm-side-w) - 24px) / 2) 46%,
-    #1d1c26 0%,
-    #121218 48%,
-    #0a0a0d 100%
+    var(--stage-1) 0%,
+    var(--stage-2) 48%,
+    var(--stage-3) 100%
   );
 }
 
@@ -3278,28 +3444,28 @@ button.field-reset:disabled {
 
 .md-outline,
 .md-neutral {
-  fill: color-mix(in srgb, var(--skin) 26%, transparent);
-  stroke: color-mix(in srgb, var(--skin) 70%, transparent);
+  fill: color-mix(in srgb, var(--diagram-ink) 26%, transparent);
+  stroke: color-mix(in srgb, var(--diagram-ink) 70%, transparent);
   stroke-width: 1.4;
   stroke-linejoin: round;
 }
 
 .md-neutral {
-  fill: color-mix(in srgb, var(--skin) 7%, transparent);
-  stroke: color-mix(in srgb, var(--skin) 35%, transparent);
+  fill: color-mix(in srgb, var(--diagram-ink) 7%, transparent);
+  stroke: color-mix(in srgb, var(--diagram-ink) 35%, transparent);
 }
 
 .md-axis {
-  stroke: color-mix(in srgb, var(--skin) 22%, transparent);
+  stroke: color-mix(in srgb, var(--diagram-ink) 22%, transparent);
   stroke-dasharray: 3 4;
 }
 
 .md-landmark circle {
-  fill: var(--skin);
+  fill: var(--diagram-ink);
 }
 
 .md-landmark .md-leader {
-  stroke: color-mix(in srgb, var(--skin) 30%, transparent);
+  stroke: color-mix(in srgb, var(--diagram-ink) 30%, transparent);
   stroke-dasharray: 2 3;
 }
 
@@ -3461,7 +3627,7 @@ button.field-reset:disabled {
 }
 
 .canvas-toolbar .view-side {
-  color: rgba(236, 232, 226, 0.55);
+  color: var(--view-side);
 }
 
 /* === Compare (Pro) === ─────────────────────────────────────────────────────────────────────── */
@@ -3515,7 +3681,12 @@ button.field-reset:disabled {
   min-width: 0;
   overflow: hidden;
   --cmp-frame: calc(var(--cmp-cov-w) + 24px);
-  background: radial-gradient(ellipse 280px 62% at var(--arm-x) 48%, #1d1c26 0%, #121218 52%, #0a0a0d 100%);
+  background: radial-gradient(
+    ellipse 280px 62% at var(--arm-x) 48%,
+    var(--stage-1) 0%,
+    var(--stage-2) 52%,
+    var(--stage-3) 100%
+  );
 }
 
 .cmp-side-a {
@@ -3588,7 +3759,7 @@ button.field-reset:disabled {
 }
 
 .cmp-side-status .notice.error {
-  background: rgba(60, 22, 26, 0.85);
+  background: var(--danger-panel);
   color: var(--text);
 }
 
@@ -3734,7 +3905,7 @@ button.link.cmp-summary-line:hover:not(:disabled) {
   gap: 8px;
   padding: 8px 10px;
   border-radius: var(--r-md);
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--scrim-soft);
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
@@ -4127,7 +4298,7 @@ button.link.cmp-summary-line:hover:not(:disabled) {
   width: 100%;
   height: 100%;
   touch-action: none;
-  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(var(--drop-sheet));
 }
 
 .photo-editor .handle {
@@ -4137,7 +4308,7 @@ button.link.cmp-summary-line:hover:not(:disabled) {
 .photo-frame.placeholder {
   border: 1px dashed var(--border-strong);
   border-radius: var(--r-lg);
-  background: rgba(10, 10, 13, 0.55);
+  background: var(--placeholder-bg);
 }
 
 .photo-placeholder {
@@ -4257,7 +4428,7 @@ button.link.cmp-summary-line:hover:not(:disabled) {
   height: 100%;
   object-fit: contain;
   object-position: center top;
-  filter: drop-shadow(0 8px 22px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(var(--drop-sheet-sm));
 }
 
 .proj-patch-label {
@@ -4398,7 +4569,7 @@ button.share-row.active:hover {
   width: 100%;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--press);
   overflow: hidden;
 }
 
@@ -4537,7 +4708,7 @@ fieldset:disabled .props {
 
 .df-head.tone-ok .df-head-icon {
   background: var(--ok-soft);
-  box-shadow: inset 0 0 0 1px rgba(95, 192, 138, 0.3);
+  box-shadow: inset 0 0 0 1px var(--ok-line);
   color: var(--ok);
 }
 
@@ -4957,9 +5128,9 @@ fieldset:disabled .props {
   --studio-inspector-w: 320px;
   /* Dark by default, like the rest of the planner; the canvas bar's Light switch is for black line
      work on a transparent background. */
-  --checker-a: #1b1b22;
-  --checker-b: #24242c;
-  --thumb-bg: #1b1b22;
+  --checker-a: var(--studio-checker-a);
+  --checker-b: var(--studio-checker-b);
+  --thumb-bg: var(--studio-checker-a);
   display: grid;
   grid-template-columns: var(--studio-assets-w) minmax(0, 1fr) var(--studio-inspector-w);
   height: calc(100dvh - var(--header-h));
@@ -5160,7 +5331,7 @@ button.ref-badge {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(14, 14, 19, 0.85);
+  background: var(--badge-bg);
   box-shadow: inset 0 0 0 1px var(--border-hover);
   color: var(--text);
   font: 600 var(--fs-2xs) / 1 var(--font-mono);
@@ -5185,7 +5356,7 @@ button.ref-badge.on:hover {
 }
 
 button.ref-badge:hover:not(:disabled, .on) {
-  background: rgba(30, 30, 38, 0.95);
+  background: var(--badge-bg-hover);
   box-shadow: inset 0 0 0 1px var(--accent-line);
 }
 
@@ -5288,7 +5459,7 @@ figure.studio-hero {
   max-height: calc(100% - 28px);
   box-shadow:
     0 0 0 1px var(--border-strong),
-    0 20px 60px rgba(0, 0, 0, 0.5);
+    0 20px 60px var(--shadow-color-deep);
 }
 
 .studio-hero .checker img {
@@ -5328,8 +5499,8 @@ figure.studio-artboard {
 }
 
 .artboard-frame.checker {
-  --checker-a: #18181e;
-  --checker-b: #1e1e25;
+  --checker-a: var(--artboard-checker-a);
+  --checker-b: var(--artboard-checker-b);
 }
 
 /* Session: the version strip, a head line for the version on view, then its results. */
@@ -5674,7 +5845,7 @@ button.tile-image:hover:not(:disabled) {
   bottom: 6px;
   padding: 2px 6px;
   border-radius: var(--r-xs);
-  background: rgba(14, 14, 19, 0.8);
+  background: var(--badge-bg-soft);
   color: var(--muted);
   font-size: var(--fs-2xs);
 }
@@ -6783,7 +6954,7 @@ button.facing-choice.current {
 }
 
 .settings-nav a[aria-current="page"] {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--press);
   box-shadow: inset 0 0 0 1px var(--border);
   color: var(--text);
 }
@@ -6820,6 +6991,36 @@ button.facing-choice.current {
 .settings-section-head h2 {
   margin: 0;
   font-size: var(--fs-lg);
+}
+
+/* Settings → Appearance */
+.appearance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.appearance-row p {
+  margin: 0;
+}
+
+.appearance-label {
+  font-weight: 600;
+  font-size: var(--fs-md);
+  margin-bottom: 2px;
+}
+
+.theme-control button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 12px;
 }
 
 .settings-section .df-panel-note {
@@ -6952,7 +7153,8 @@ button.facing-choice.current {
 .asset-detail-image {
   display: grid;
   place-items: center;
-  background: repeating-conic-gradient(#15151b 0 25%, #111116 0 50%) 0 0 / 12px 12px;
+  background: repeating-conic-gradient(var(--thumb-checker-a) 0 25%, var(--thumb-checker-b) 0 50%) 0 0 / 12px
+    12px;
   border-radius: var(--r-md);
   box-shadow: inset 0 0 0 1px var(--border);
   min-height: 160px;
@@ -7330,7 +7532,7 @@ button.swatch-button.on {
   display: grid;
   place-items: center;
   padding: var(--s-4);
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--scrim);
 }
 
 .picker {

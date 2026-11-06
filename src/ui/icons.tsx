@@ -183,3 +183,24 @@ export const SwapIcon = () => (
     <path d="M7 4L3.5 7.5 7 11M3.5 7.5h14M17 13l3.5 3.5L17 20M20.5 16.5h-14" />
   </Pro>
 );
+
+// Theme choice (Settings → Appearance).
+export const SunIcon = () => (
+  <Pro size={14}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+  </Pro>
+);
+
+export const MonitorIcon = () => (
+  <Pro size={14}>
+    <rect x="3" y="4.5" width="18" height="12" rx="2" />
+    <path d="M8.5 20.5h7M12 16.5v4" />
+  </Pro>
+);
+
+export const MoonIcon = () => (
+  <Pro size={14}>
+    <path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" />
+  </Pro>
+);
