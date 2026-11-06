@@ -8,7 +8,9 @@ import { isProcedural } from "./procedural.ts";
 
 /** Folder of the standard background images in the repo (the one sanctioned image folder, CLAUDE.md). */
 export const STANDARD_FOLDER = "assets/backgrounds";
-export const CATALOGUE_FILE = `${STANDARD_FOLDER}/backgrounds.yaml`;
+/** The catalogue inside STANDARD_FOLDER. */
+export const CATALOGUE_NAME = "backgrounds.yaml";
+export const CATALOGUE_FILE = `${STANDARD_FOLDER}/${CATALOGUE_NAME}`;
 /** Asset kind of a project's own tileable backgrounds (Image studio, Background mode). */
 export const BACKGROUND_KIND = "background";
 

@@ -49,7 +49,7 @@ describe("layer list operations", () => {
   });
 
   it("builds ids from the source name", () => {
-    expect(layerIdFor({ image: "night-sky" })).toBe("bg-night-sky");
+    expect(layerIdFor({ image: "night-sky", tile_cm: 10 })).toBe("bg-night-sky");
     expect(layerIdFor({ pattern: "hatching" })).toBe("bg-hatching");
   });
 
