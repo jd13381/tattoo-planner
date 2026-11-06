@@ -1,18 +1,20 @@
 // The planner's HTTP API as one Connect-style middleware (docs/adr/0012-project-folder.md).
 // Vite mounts it in dev and preview (vite.config.ts); server/standalone.ts mounts it next to the built
 // page, as the desktop shell does. Requests outside /api/ go to `next`.
-import { assetsHandler } from "./assetsApi.ts";
+import { assetsHandler } from "./assetsHandler.ts";
 import { dataFilesHandler } from "./dataFilesApi.ts";
 import { editsHandler } from "./editsApi.ts";
 import { exportsHandler } from "./exportsApi.ts";
 import { sendError, type Handler, type Middleware } from "./http.ts";
 import { layoutsHandler } from "./layoutsApi.ts";
 import { openaiKeyHandler } from "./openaiKeyApi.ts";
+import { projectPersons } from "./persons.ts";
 import { projectHandler } from "./projectApi.ts";
 import { projectionsHandler } from "./projectionsApi.ts";
 import { handleSampleRequest } from "./sampleApi.ts";
 import type { ProjectStore } from "./project/store.ts";
 import type { ServerSettings } from "./settings.ts";
+import { defaultTrasher, PendingDeletes, type Trasher } from "./trash.ts";
 
 export type ApiContext = {
   /** The current project; asked on every request, so a project opened meanwhile takes effect at once. */
@@ -20,6 +22,8 @@ export type ApiContext = {
   /** The user's home folder: the in-browser folder picker stays inside it. */
   home: string;
   settings: ServerSettings;
+  /** Where deleted images go; default: macOS ~/.Trash, elsewhere the project's .trash/ (server/trash.ts). */
+  trash?: Trasher;
 };
 
 export type Api = Middleware & { close: () => Promise<void> };
@@ -42,9 +46,16 @@ export function createApi(context: ApiContext): Api {
   const dir = async () => (await paths()).dir;
   // The settings object itself, not a copy of its key: the desktop app can set a key at runtime.
   const edits = editsHandler(dir, context.settings);
+  const pending = new PendingDeletes(context.trash ?? defaultTrasher());
+  const assets = assetsHandler({
+    dir,
+    persons: async () => projectPersons(await paths(), await context.projects.persons()),
+    sessions: (folder) => edits.sessionAssets(folder),
+    pending,
+  });
   const routes = new Map<string, Handler>([
     ["/api/data-files", dataFilesHandler(dir)],
-    ["/api/assets", assetsHandler(dir)],
+    ["/api/assets", assets],
     ["/api/exports", exportsHandler(dir)],
     ["/api/edits", edits.handle],
     ["/api/openai-key", openaiKeyHandler(context.settings.keys)],
@@ -63,5 +74,10 @@ export function createApi(context: ApiContext): Api {
     };
     run().catch((e: unknown) => sendError(res, e));
   };
-  return Object.assign(middleware, { close: edits.close });
+  // Stopping the server makes pending deletes final (their undo toast is gone with the page).
+  const close = async () => {
+    await pending.commitAll();
+    await edits.close();
+  };
+  return Object.assign(middleware, { close });
 }

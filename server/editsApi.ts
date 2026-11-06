@@ -40,6 +40,7 @@ import { MANIFEST_FILE, type Asset } from "../src/assets/manifest.ts";
 import { mergeManifest } from "../src/assets/manifestDoc.ts";
 import { imageContentType, isInside, listAssets, resolveInside } from "./assetsApi.ts";
 import { HttpError, isCrossSite, readRawBody, send, sendError, type Handler } from "./http.ts";
+import { withManifestLock } from "./manifestLock.ts";
 import { BUILTIN_TOOL } from "../src/edits/builtin.ts";
 import {
   checkInstruction,
@@ -146,7 +147,6 @@ export class EditManager {
   private readonly sessions = new Map<string, EditSession>();
   private sessionCounter = 0;
   private counter = 0;
-  private manifestLock: Promise<unknown> = Promise.resolve();
 
   private readonly dataDir: string | null;
   private readonly opts: EditOptions;
@@ -722,9 +722,13 @@ export class EditManager {
 
   /** Writes the result into edits/ (or generated/) and appends its manifest entry; never overwrites. */
   keep(id: string): Promise<EditJob> {
-    const run = this.manifestLock.then(() => this.keepNow(id));
-    this.manifestLock = run.catch(() => undefined);
-    return run;
+    // The one manifest lock of the process, shared with the scan and the Assets tab's actions.
+    return withManifestLock(() => this.keepNow(id));
+  }
+
+  /** Asset ids with an open editing session: the Assets tab refuses to delete them. */
+  sessionAssets(): string[] {
+    return [...this.sessions.values()].flatMap((s) => (s.mode === "edit" && s.assetId ? [s.assetId] : []));
   }
 
   private async keepNow(id: string): Promise<EditJob> {
@@ -914,5 +918,11 @@ export function editsHandler(dir: () => Promise<string | null>, opts: EditOption
       sendError(res, e, 500);
     }
   };
-  return { handle, close: async () => current?.manager.close() };
+  return {
+    handle,
+    close: async () => current?.manager.close(),
+    /** Asset ids open in the Image studio of the current project. */
+    sessionAssets: (folder: string | null): string[] =>
+      current && current.dir === folder ? current.manager.sessionAssets() : [],
+  };
 }

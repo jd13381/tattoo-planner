@@ -6,6 +6,8 @@ import {
   ManifestError,
   mergeManifest,
   NEW_MANIFEST_TEXT,
+  removeManifestEntries,
+  updateManifestEntries,
   updateManifestEntry,
 } from "../src/assets/manifestDoc.ts";
 
@@ -172,5 +174,105 @@ assets:
   it("refuses an unknown id and a broken manifest", () => {
     expect(() => updateManifestEntry(text, "nope", { hidden: true })).toThrow(ManifestError);
     expect(() => updateManifestEntry("assets: [{ id: 1 }]", "x", {})).toThrow(ManifestError);
+  });
+
+  it("writes category and person after kind, and leaves an unchanged entry byte-identical", () => {
+    const moved = updateManifestEntry(text, "skull", { category: "existing", person: "anna" });
+    expect(Object.keys(parse(moved).assets[1])).toEqual(["id", "file", "kind", "category", "person"]);
+    expect(updateManifestEntry(moved, "skull", { category: null, person: null })).not.toContain("category");
+    // Hiding what is shown already, or setting the same value, writes nothing new.
+    expect(updateManifestEntry(text, "skull", { hidden: false })).toBe(text);
+    expect(updateManifestEntry(text, "medusa", { tags: ["medusa"] })).toBe(text);
+  });
+
+  it("applies a batch all or nothing", () => {
+    const out = updateManifestEntries(text, [
+      { id: "medusa", patch: { hidden: true } },
+      { id: "skull", patch: { hidden: true } },
+    ]);
+    expect(parse(out).assets.map((a: Asset) => a.hidden)).toEqual([true, true]);
+    expect(() =>
+      updateManifestEntries(text, [
+        { id: "medusa", patch: { hidden: true } },
+        { id: "nope", patch: { hidden: true } },
+      ]),
+    ).toThrow(ManifestError);
+  });
+});
+
+describe("removeManifestEntries", () => {
+  // Shaped like Jan's real manifest: header comments, block entries, blank lines, a flow entry.
+  const text = `# Jan's catalogue
+version: 1
+assets:
+  # Pinterest finds
+  - id: medusa
+    file: refs/medusa.jpg   # the face
+    kind: reference
+    tags: [medusa]
+
+  - id: arm-photos-front
+    file: arm-photos/front.JPG
+    kind: arm-photo
+    # straight from the front
+    tags: []
+  # comment between entries
+
+  - id: arm-photos-anubis1-nr
+    file: arm-photos/anubis1_nr.JPG
+    kind: arm-photo
+    tags: []
+
+  - { id: cards-rhonas, file: cards/rhonas.jpg, kind: card-art, tags: [] }
+# end of file
+`;
+
+  it("cuts a middle entry and keeps every other byte, comments included", () => {
+    const { text: out, removed } = removeManifestEntries(text, ["arm-photos-front"]);
+    expect(removed).toEqual(["arm-photos-front"]);
+    expect(out).toBe(text.replace(/ {2}- id: arm-photos-front\n[\s\S]*?tags: \[\]\n/, ""));
+    expect(out).toContain("# comment between entries");
+    expect(out).toContain("# Pinterest finds");
+  });
+
+  it("cuts the first, the last (flow) and several entries", () => {
+    const first = removeManifestEntries(text, ["medusa"]).text;
+    expect(first).toContain("  # Pinterest finds\n  - id: arm-photos-front\n");
+    const last = removeManifestEntries(text, ["cards-rhonas"]).text;
+    expect(last).toContain("    tags: []\n# end of file\n");
+    expect(last).not.toContain("rhonas");
+    const several = removeManifestEntries(text, ["medusa", "arm-photos-anubis1-nr"]).text;
+    const ids = parse(several).assets.map((a: Asset) => a.id);
+    expect(ids).toEqual(["arm-photos-front", "cards-rhonas"]);
+    expect(several.startsWith("# Jan's catalogue\nversion: 1\nassets:\n  # Pinterest finds\n")).toBe(true);
+  });
+
+  it("leaves `assets: []` when every entry goes and ignores unknown ids", () => {
+    const all = removeManifestEntries(text, [
+      "medusa",
+      "arm-photos-front",
+      "arm-photos-anubis1-nr",
+      "cards-rhonas",
+    ]);
+    expect(manifestSchema.parse(parse(all.text)).assets).toEqual([]);
+    expect(all.text).toContain("# Jan's catalogue");
+    expect(removeManifestEntries(text, ["nope"])).toEqual({ text, removed: [] });
+  });
+
+  it("appends new entries as text, so the existing ones keep every byte", () => {
+    const r = mergeManifest(text, [{ id: "photos-a", file: "photos/a.jpg", kind: "arm-photo", tags: [] }]);
+    expect(r.added).toEqual(["photos-a"]);
+    expect(r.text.startsWith(text.replace("# end of file\n", ""))).toBe(true);
+    expect(r.text).toContain(
+      "  - { id: cards-rhonas, file: cards/rhonas.jpg, kind: card-art, tags: [] }\n\n  - id: photos-a\n",
+    );
+    expect(r.text.endsWith("# end of file\n")).toBe(true);
+  });
+
+  it("handles a flow-style list by re-serialising", () => {
+    const flow =
+      "version: 1\nassets: [{ id: a, file: a.png, kind: reference }, { id: b, file: b.png, kind: reference }]\n";
+    const out = removeManifestEntries(flow, ["a"]).text;
+    expect(parse(out).assets.map((x: Asset) => x.id)).toEqual(["b"]);
   });
 });

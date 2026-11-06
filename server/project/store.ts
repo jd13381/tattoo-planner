@@ -233,6 +233,12 @@ export class ProjectStore {
     );
   }
 
+  /** Everyone in the open project (empty for a legacy folder or a broken project.yaml). */
+  async persons(): Promise<PersonInfo[]> {
+    const c = await this.current();
+    return c.status === "project" ? c.persons : [];
+  }
+
   async status(): Promise<ProjectStatus> {
     const [c, config] = await Promise.all([this.current(), readUserConfig(this.opts.configFile)]);
     const base = {

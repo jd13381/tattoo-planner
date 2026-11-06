@@ -1,12 +1,14 @@
 // "Change image": a large panel with the asset grid and a search field (sized to the window,
-// src/assets/pickerPlacement.ts), opened next to the button that asked for it (the element panel or the floating button on the 2D editor). Click an image to
+// src/assets/pickerPlacement.ts), opened next to the button that asked for it (the element panel or
+// the floating button on the 2D editor). Click an image to
 // assign it; Esc, a click outside or the close button closes the panel. Rendered into <body> so
 // the scrolling inspector and the clipped editor do not cut it off.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { facets, filterAssets, NO_FILTER, pickableAssets, type AssetFilter } from "./filter.ts";
+import { filterAssets, NO_FILTER, type AssetFilter } from "./filter.ts";
 import { pickerBox } from "./pickerPlacement.ts";
 import { assetImageUrl, type AssetInfo, type AssetListing } from "./types.ts";
+import { PickerScopeControls, usePickerScope } from "./usePickerScope.tsx";
 
 type Props = {
   listing: AssetListing | null;
@@ -18,13 +20,15 @@ type Props = {
   anchor: HTMLElement;
   onPick: (asset: AssetInfo) => void;
   onClose: () => void;
+  /** Offer photos from the start (an existing tattoo shows a photo). */
+  photos?: boolean;
 };
 
 function placement(r: DOMRect) {
   return pickerBox(r, window.innerWidth, window.innerHeight);
 }
 
-export function ImagePicker({ listing, current, elementId, anchor, onPick, onClose }: Props) {
+export function ImagePicker({ listing, current, elementId, anchor, onPick, onClose, photos }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const onCloseRef = useRef(onClose);
@@ -38,11 +42,9 @@ export function ImagePicker({ listing, current, elementId, anchor, onPick, onClo
     return () => window.removeEventListener("resize", update);
   }, [anchor]);
 
-  const assets = useMemo(
-    () => (listing?.status === "ok" ? pickableAssets(listing.assets, current) : []),
-    [listing, current],
-  );
-  const kinds = useMemo(() => facets(assets.map((a) => a.kind)), [assets]);
+  // The library by default; photos on request. Hidden images only when in use.
+  const scope = usePickerScope(listing, current, photos);
+  const assets = scope.assets;
   const [filter, setFilter] = useState<AssetFilter>(NO_FILTER);
   const shown = useMemo(() => filterAssets(assets, filter), [assets, filter]);
 
@@ -78,7 +80,7 @@ export function ImagePicker({ listing, current, elementId, anchor, onPick, onClo
       </p>
     );
   else if (listing.status === "error") body = <p className="small error-text">{listing.message}</p>;
-  else if (assets.length === 0)
+  else if (listing.assets.length === 0)
     body = (
       <p className="muted small">
         No images catalogued yet. Add some in the <a href="#assets">Assets</a> tab.
@@ -102,18 +104,7 @@ export function ImagePicker({ listing, current, elementId, anchor, onPick, onClo
             }}
             aria-label="Search images"
           />
-          <select
-            value={filter.kind}
-            onChange={(e) => setFilter({ ...filter, kind: e.target.value })}
-            aria-label="Kind"
-          >
-            <option value="">All kinds</option>
-            {kinds.map((k) => (
-              <option key={k.value} value={k.value}>
-                {k.value} ({k.count})
-              </option>
-            ))}
-          </select>
+          <PickerScopeControls scope={scope} />
         </div>
         {shown.length === 0 ? (
           <p className="muted small">Nothing matches.</p>

@@ -22,7 +22,7 @@ export const PERSONS_FOLDER = "persons";
 export const PERSON_FOLDERS = ["layouts", "projections", "photos"] as const;
 export const MAX_PERSONS = 12;
 
-const PERSON_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
+export const PERSON_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 /** Layout file names (server/layoutsApi.ts). */
 const LAYOUT_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 

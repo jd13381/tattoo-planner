@@ -5,6 +5,7 @@ import { ImagePicker } from "../assets/ImagePicker.tsx";
 import type { AssetInfo } from "../assets/types.ts";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { useLayoutSources } from "../assets/useLayoutSources.ts";
+import { SHOW_ELEMENT_EVENT, type ShowElement } from "../assets/navigation.ts";
 import { defaultFilter, isFigureLike } from "../layout/imageFit.ts";
 import { layoutSchema, type ElementType, type Layout, type LayoutElement } from "../layout/schema.ts";
 import { classify, resolveElement } from "../layout/shapes.ts";
@@ -548,6 +549,26 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header, openRe
     }
     open(next, files);
   };
+  // "Used in" links of the Assets tab: open that layout and select the element.
+  const [pendingShow, setPendingShow] = useState<ShowElement | null>(null);
+  const switchToRef = useRef(switchTo);
+  useEffect(() => {
+    switchToRef.current = switchTo;
+  });
+  useEffect(() => {
+    const onShow = (e: Event) => {
+      const target = (e as CustomEvent<ShowElement>).detail;
+      setPendingShow(target);
+      switchToRef.current(target.layout);
+    };
+    window.addEventListener(SHOW_ELEMENT_EVENT, onShow);
+    return () => window.removeEventListener(SHOW_ELEMENT_EVENT, onShow);
+  }, []);
+  if (pendingShow && layout && name === pendingShow.layout) {
+    const index = layout.elements.findIndex((el) => el.id === pendingShow.element);
+    setPendingShow(null);
+    if (index >= 0) setSelected(index);
+  }
   const resolveSwitch = async (choice: "save" | "discard" | "cancel") => {
     const next = pendingSwitch;
     setPendingSwitch(null);
@@ -1517,6 +1538,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header, openRe
                       onReload={reloadAssets}
                       note={scanNote}
                       current={sel && isFigureLike(sel) ? sel.asset : undefined}
+                      photos={sel?.type === "existing"}
                       assignBlocked={assignBlocked}
                       onPick={pickAsset}
                     />
@@ -1617,6 +1639,7 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header, openRe
         <ImagePicker
           listing={listing}
           current={sel.asset}
+          photos={sel.type === "existing"}
           elementId={sel.id}
           anchor={pickerAnchor}
           onPick={(a) => {

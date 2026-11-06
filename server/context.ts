@@ -10,6 +10,7 @@ import { SAMPLE_FOLDER } from "./project/sample.ts";
 import { ProjectStore } from "./project/store.ts";
 import { userConfigFile } from "./project/userConfig.ts";
 import { SAVED_KEY_FILE, settingsFromEnv, type Env, type KeyProvider } from "./settings.ts";
+import { defaultTrasher, systemTrasher } from "./trash.ts";
 
 /** The checkout's git-ignored .env merged under the shell environment (the shell wins), as Vite does. */
 export function readEnv(root: string, shell: Env = process.env): Env {
@@ -29,6 +30,8 @@ export type ContextOptions = {
   sampleDir?: string | null;
   /** The desktop shell's Keychain key; wins over TATTOO_OPENAI_API_KEY when it returns one. */
   openaiKey?: KeyProvider;
+  /** The desktop shell's system Trash (Electron shell.trashItem); default: defaultTrasher in server/trash.ts. */
+  trashItem?: (file: string) => Promise<void>;
 };
 
 export function createContext({
@@ -38,6 +41,7 @@ export function createContext({
   configFile,
   sampleDir,
   openaiKey,
+  trashItem,
 }: ContextOptions): ApiContext {
   const config = configFile ?? userConfigFile(env, home);
   const legacyConfigDir = path.join(root, "config");
@@ -56,5 +60,10 @@ export function createContext({
     file: openaiKey ? null : path.join(path.dirname(config), SAVED_KEY_FILE),
     configFile: config,
   });
-  return { projects, home, settings };
+  return {
+    projects,
+    home,
+    settings,
+    trash: trashItem ? systemTrasher(trashItem) : defaultTrasher(process.platform, home),
+  };
 }
