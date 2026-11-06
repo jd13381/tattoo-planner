@@ -3,14 +3,15 @@
 name: sam-right-leg
 region: leg-right
 description: "Wave on the outer thigh with a starfield around it"
+backgrounds:
+  - id: stars
+    source: { pattern: starfield, density: 0.35 }
+    cover: area
+    shapes:
+      - { kind: span, u: [0.1, 0.4], v: [0.55, 0.88] }
 elements:
   - id: wave
     type: figure
     asset: wave
     position: { u: 0.25, v: 0.70 } # outer thigh
     size_cm: { h: 12, w: 15 }
-  - id: stars
-    type: filler
-    pattern: starfield
-    region: { u: [0.1, 0.4], v: [0.55, 0.88] }
-    density: 0.35
