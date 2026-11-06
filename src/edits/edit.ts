@@ -3,6 +3,7 @@
 // (server/editsApi.ts) wires these to requests and files.
 import type { Asset } from "../assets/manifest.ts";
 import { EDITED_TAG, EDITS_FOLDER, GENERATED_FOLDER, GENERATED_KIND, GENERATED_TAG } from "./types.ts";
+import { BACKGROUNDS_FOLDER } from "./background.ts";
 
 export const INPUT_BASENAME = "input";
 export const OUTPUT_FILE = "output.png";
@@ -71,12 +72,17 @@ export function nextVariant(
   rootId: string,
   takenIds: ReadonlySet<string>,
   takenFiles: ReadonlySet<string>,
-  /** Kept new images: `<name>-N` in `generated/` instead of `<root>-edit-N` in `edits/`. */
-  kind: "edit" | "created" = "edit",
+  /**
+   * Kept new images: `<name>-N` in `generated/` instead of `<root>-edit-N` in `edits/`; kept
+   * backgrounds: `<name>-N` in `backgrounds/`.
+   */
+  kind: "edit" | "created" | "background" = "edit",
 ): { id: string; file: string } {
+  const folder =
+    kind === "background" ? BACKGROUNDS_FOLDER : kind === "created" ? GENERATED_FOLDER : EDITS_FOLDER;
   for (let n = 1; n <= MAX_VARIANTS; n++) {
-    const id = kind === "created" ? `${rootId}-${n}` : `${rootId}-edit-${n}`;
-    const file = `${kind === "created" ? GENERATED_FOLDER : EDITS_FOLDER}/${id}.png`;
+    const id = kind === "edit" ? `${rootId}-edit-${n}` : `${rootId}-${n}`;
+    const file = `${folder}/${id}.png`;
     if (!takenIds.has(id) && !takenFiles.has(file.toLowerCase())) return { id, file };
   }
   throw new Error(`more than ${MAX_VARIANTS} edits of ${rootId}`);

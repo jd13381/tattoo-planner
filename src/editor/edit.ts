@@ -14,17 +14,6 @@ export function moveElement(el: LayoutElement, du: number, dv: number): LayoutEl
         ...el,
         position: { u: round(wrapU(el.position.u + du)), v: round(clamp01(el.position.v + dv)) },
       };
-    case "filler": {
-      const span = el.region.v[1] - el.region.v[0];
-      const v0 = round(Math.min(1 - span, Math.max(0, el.region.v[0] + dv)));
-      return {
-        ...el,
-        region: {
-          u: [round(wrapU(el.region.u[0] + du)), round(wrapU(el.region.u[1] + du))],
-          v: [v0, round(v0 + span)],
-        },
-      };
-    }
     case "band":
       return { ...el, v: round(clamp01(el.v + dv)) };
     case "line":
@@ -67,17 +56,6 @@ export function newElement(
     case "figure":
     case "existing":
       return { id, type, position: at, size_cm: { ...NEW_FIGURE_SIZE_CM } };
-    case "filler":
-      return {
-        id,
-        type,
-        pattern: "snake-scales",
-        region: {
-          u: [round(wrapU(u - 0.05)), round(wrapU(u + 0.05))],
-          v: [round(Math.max(0, v - 0.1)), round(Math.min(1, v + 0.1))],
-        },
-        density: 0.3,
-      };
     case "band":
       return { id, type, pattern: "meander", v: at.v, width_cm: 2 };
     case "line":

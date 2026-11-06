@@ -61,8 +61,11 @@ export type EditJob = {
   /** Progress lines of a generative request. */
   log: string[];
   error?: string;
-  /** Set for a new image (mode "create"): the name its kept file and id are built from. */
-  created?: { name: string };
+  /**
+   * Set for a new image (mode "create"): the name its kept file and id are built from; `tileable`
+   * for a background (Background mode, docs/adr/0019): seam-fixed and kept in backgrounds/.
+   */
+  created?: { name: string; tileable?: boolean };
   /** Asset ids sent as reference images with this job. */
   references?: string[];
   /** Rough cost in USD of a generative edit, from the token usage the API reported. */
@@ -85,8 +88,8 @@ export type EditSession = {
   mode: EditMode;
   /** Mode "edit": the image the session edits (may itself be a kept edit). */
   assetId?: string;
-  /** Mode "create": name, size and background of the new image. */
-  create?: { name: string; size: CreateSize; background: CreateBackground };
+  /** Mode "create": name, size and background of the new image; `tileable` for a background tile. */
+  create?: { name: string; size: CreateSize; background: CreateBackground; tileable?: boolean };
   /** Job ids of v1 … vN, oldest first. */
   versions: string[];
   startedAt: string;
@@ -95,7 +98,7 @@ export type EditSession = {
 /** POST /api/edits/sessions: open a session on an image, or for a new image. */
 export type SessionRequest =
   | { mode: "edit"; assetId: string }
-  | { mode: "create"; name?: string; size?: CreateSize; background?: CreateBackground };
+  | { mode: "create"; name?: string; size?: CreateSize; background?: CreateBackground; tileable?: boolean };
 
 export type EditOverview = {
   /** Built-in operations (they need only the data folder). */
@@ -125,6 +128,8 @@ export type EditRequest = {
   /** Mode "create": output size and background. */
   size?: CreateSize;
   background?: CreateBackground;
+  /** Mode "create": a seamless background tile (square, opaque, seam-fixed; docs/adr/0019). */
+  tileable?: boolean;
 };
 
 /** Generative variants one click may ask for (each one is its own job). */

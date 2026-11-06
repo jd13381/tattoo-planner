@@ -42,5 +42,10 @@ exports/
 *.[pP][sS][dD]
 *.[pP][dD][fF]
 
+# The one image exception (docs/adr/0019, Jan, 2026-11-06): generated standard background tiles.
+# The pre-commit guard limits them to PNG/WebP directly in this folder, 2 MB each.
+!assets/backgrounds/*.[pP][nN][gG]
+!assets/backgrounds/*.[wW][eE][bB][pP]
+
 # Python bytecode (benchmark scripts)
 __pycache__/

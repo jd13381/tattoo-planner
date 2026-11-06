@@ -5,7 +5,7 @@ import type { Layout } from "../layout/schema.ts";
 import { classify, type Classification, type ExistingSize } from "../layout/shapes.ts";
 import { blockoutPixels } from "./blockout.ts";
 import { OVERLAY_GRID_STYLE, paintGrid } from "./cmGrid.ts";
-import { renderReference, type ReferenceSources } from "./reference.ts";
+import { renderReference, type MotifDisplay, type ReferenceSources } from "./reference.ts";
 
 export type RenderMode = "grid" | "blockout" | "reference";
 
@@ -33,6 +33,8 @@ export function renderUnwrap(
     aspects?: ElementAspects;
     /** Reference mode only: manifest entries and decoded images. */
     sources?: ReferenceSources;
+    /** The Background view dims or hides the motifs (every element); default "show". */
+    motifs?: MotifDisplay;
   },
 ): Classification | null {
   canvas.width = Math.ceil(profile.maxCircumference * opts.pxPerCm);
@@ -50,11 +52,12 @@ export function renderUnwrap(
       grid: opts.grid,
       existing: opts.existing,
       sources: opts.sources ?? { assets: null, images: new Map(), aspects: opts.aspects ?? new Map() },
+      motifs: opts.motifs,
     });
     return null;
   }
   const cls = classify(
-    layout,
+    opts.motifs === "hide" ? { ...layout, elements: [] } : layout,
     profile,
     opts.pxPerCm,
     opts.existing,
@@ -62,7 +65,11 @@ export function renderUnwrap(
     opts.aspects,
     opts.sources?.patches,
   );
-  ctx.putImageData(new ImageData(blockoutPixels(cls, opts.selected), cls.width, cls.height), 0, 0);
+  ctx.putImageData(
+    new ImageData(blockoutPixels(cls, opts.selected, opts.motifs === "dim"), cls.width, cls.height),
+    0,
+    0,
+  );
   if (opts.grid)
     paintGrid(ctx, profile, opts.pxPerCm, OVERLAY_GRID_STYLE, {
       background: false,

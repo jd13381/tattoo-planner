@@ -1524,9 +1524,9 @@ th.cat-existing::before,
   box-shadow: inset 0 0 0 1.5px #b9b6c4;
 }
 
-th.cat-filler::before,
-.metrics-legend .cat-filler::before,
-.swatch.cat-filler {
+th.cat-background::before,
+.metrics-legend .cat-background::before,
+.swatch.cat-background {
   background: #c9c3bb;
 }
 
@@ -8467,4 +8467,232 @@ button.ghost.active-star[aria-pressed="true"]:hover {
   .home-hero {
     animation: none;
   }
+}
+
+/* ── Background layers (docs/adr/0019) ────────────────────────────────────────────────────────── */
+
+.layer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.layer-empty {
+  margin: var(--s-2) 4px;
+}
+
+.layer-row .eye-toggle {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--faint);
+}
+
+.layer-row .eye-toggle.on {
+  color: var(--text);
+}
+
+.layer-row.hidden-layer .element-id,
+.layer-row.hidden-layer .element-type {
+  opacity: 0.5;
+}
+
+/* Three tabs and the + share the narrow side header: tighter tabs, icons only on the selected one. */
+.side-tabs > .float-head {
+  gap: 2px;
+  padding-left: 6px;
+}
+
+.side-tabs > .float-head button.panel-tab {
+  padding: 0 6px;
+}
+
+.side-tabs > .float-head button.panel-tab:not([aria-selected="true"]) svg {
+  display: none;
+}
+
+/* The tab header is narrow: the popover must stay above the inspector below it. */
+.side-tabs:has(.add-layer-popover) {
+  position: relative;
+  z-index: 45;
+}
+
+.add-layer-popover {
+  width: 300px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.add-layer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: var(--s-2);
+}
+
+.add-layer-grid button {
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+}
+
+.add-layer-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  object-fit: cover;
+  background: var(--skin);
+}
+
+.layer-panel .cover-switch {
+  justify-self: start;
+}
+
+.layer-panel .bg-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.layer-panel .bg-tools button.active {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--text);
+}
+
+.layer-panel .shape-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.layer-panel .shape-list li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--r-sm);
+}
+
+.layer-panel .shape-list li.selected {
+  background: var(--accent-soft);
+}
+
+.layer-panel .shape-list li > button:first-child {
+  flex: 1;
+  justify-content: flex-start;
+}
+
+/* Background view: the motifs stay visible as outlines but cannot be picked. */
+.unwrap-editor .shape.passive {
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+.unwrap-editor .area-overlay .area-shape {
+  fill: var(--accent-soft);
+  stroke: var(--accent-line);
+  vector-effect: non-scaling-stroke;
+}
+
+.unwrap-editor .area-overlay.selectable .area-shape {
+  cursor: move;
+}
+
+.unwrap-editor .area-overlay:not(.selectable) .area-shape {
+  pointer-events: none;
+}
+
+.unwrap-editor .area-overlay .area-shape.selected {
+  stroke: var(--accent);
+}
+
+.unwrap-editor .area-overlay .area-shape * {
+  fill: inherit;
+  stroke: inherit;
+}
+
+.unwrap-editor .mask-stroke {
+  fill: none;
+  stroke: var(--accent-soft);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.unwrap-editor circle.mask-stroke {
+  fill: var(--accent-soft);
+  stroke: none;
+}
+
+.unwrap-editor .mask-stroke.erase {
+  stroke: var(--danger-soft);
+}
+
+.unwrap-editor circle.mask-stroke.erase {
+  fill: var(--danger-soft);
+}
+
+.unwrap-editor .paint-preview {
+  fill: none;
+  stroke: var(--accent-line);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.unwrap-editor .paint-preview.erase {
+  stroke: var(--danger-line);
+}
+
+.unwrap-editor .draw-preview,
+.unwrap-editor .poly-preview polyline {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.unwrap-editor .poly-preview circle {
+  fill: var(--accent);
+}
+
+/* Image studio, Background mode: a tile repeated 3 × 3 and the preset buttons (docs/adr/0019). */
+.tiled-preview {
+  display: block;
+  aspect-ratio: 1;
+  width: min(100%, calc(100dvh - var(--header-h) - 150px));
+  background-repeat: repeat;
+  background-size: calc(100% / 3) calc(100% / 3);
+  background-color: var(--skin);
+}
+
+.tile-image.checker > .tiled-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.studio-focus .tiled-preview,
+.studio-hero .tiled-preview {
+  min-width: min(60vh, 100%);
+}
+
+.studio-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: var(--s-2) 0;
+}
+
+.studio-presets button {
+  font-size: var(--fs-xs);
 }

@@ -1,0 +1,45 @@
+# Standard backgrounds for background layers (docs/adr/0019).
+# `npm run backgrounds:generate` sends each prompt to GPT Image (needs TATTOO_OPENAI_API_KEY), makes the
+# result seamless (offset-and-blend), scales it to at most 1024 px and writes <name>.png here, then sets
+# `file`, `generated` and `licence` below. These PNGs are the one kind of image allowed in git
+# (CLAUDE.md, Jan, 2026-11-06). Without a file the planner shows its procedural version of the same name.
+# tile_cm = width of one tile on the skin.
+version: 1
+backgrounds:
+  - name: clouds
+    label: Clouds
+    tile_cm: 14
+    prompt: >-
+      Black and grey tattoo flash: a seamless, tileable pattern of puffy stylised clouds with clean
+      outlines and soft grey shading on their undersides, scattered loosely with open space between them.
+  - name: stars
+    label: Stars
+    tile_cm: 8
+    prompt: >-
+      Black ink tattoo flash: a seamless, tileable night-sky scatter of small four-pointed sparkle stars
+      and fine dots of a few sizes, evenly spread, lots of open space, no moon, no planets.
+  - name: smoke
+    label: Smoke / shading (dotwork)
+    tile_cm: 12
+    prompt: >-
+      Dotwork tattoo shading: a seamless, tileable texture of drifting smoke made only of fine black
+      stipple dots, dense in the swirls and fading to open space, no outlines.
+  - name: waves
+    label: Waves
+    tile_cm: 8
+    prompt: >-
+      Japanese tattoo style background: a seamless, tileable pattern of flowing water waves with crisp
+      black linework and a little grey shading, even density, no foam spray, no fish.
+  - name: geometric
+    label: Geometric lattice
+    tile_cm: 6
+    prompt: >-
+      Fine line geometric tattoo background: a seamless, tileable lattice of thin black triangles and
+      hexagons with small dots at the crossings, perfectly regular, lots of open space.
+  - name: wind-bars
+    label: Wind bars
+    tile_cm: 12
+    fallback: waves
+    prompt: >-
+      Japanese tattoo background: a seamless, tileable pattern of black wind bars (gakubori) with sweeping
+      curved strokes and grey gradients, the kind that fills the space between motifs in a sleeve.

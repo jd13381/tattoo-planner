@@ -108,7 +108,11 @@ export function JobTile({
       </div>
       {result ? (
         <button type="button" className="tile-image checker" onClick={onFocus} title="Show large">
-          <img src={resultUrl(job)} alt="Result" loading="lazy" />
+          {job.created?.tileable ? (
+            <TiledPreview src={resultUrl(job)} label="Result tiled 3 × 3" />
+          ) : (
+            <img src={resultUrl(job)} alt="Result" loading="lazy" />
+          )}
           {job.output && (
             <span className="tile-dims mono">
               {job.output.width} × {job.output.height}
@@ -141,6 +145,18 @@ export function JobTile({
   );
 }
 
+/** A background tile repeated 3 × 3, so a seam or a repeating blob shows at once (docs/adr/0019). */
+export function TiledPreview({ src, label }: { src: string; label: string }) {
+  return (
+    <span
+      className="tiled-preview"
+      role="img"
+      aria-label={label}
+      style={{ backgroundImage: `url("${src.replace(/"/g, "%22")}")` }}
+    />
+  );
+}
+
 /** One result large: before and after side by side, with the full prompt chain and the actions. */
 export function FocusView({ job, ...actions }: { job: EditJob } & AttemptActions) {
   const withInput = hasInput(job);
@@ -159,10 +175,16 @@ export function FocusView({ job, ...actions }: { job: EditJob } & AttemptActions
         )}
         <figure>
           <div className="checker">
-            <img src={resultUrl(job)} alt="After" />
+            {job.created?.tileable ? (
+              <TiledPreview src={resultUrl(job)} label="Background tiled 3 × 3" />
+            ) : (
+              <img src={resultUrl(job)} alt="After" />
+            )}
           </div>
           <figcaption>
-            <span className="tile-label">{withInput ? "After" : "New"}</span>
+            <span className="tile-label">
+              {job.created?.tileable ? "Tiled 3 × 3" : withInput ? "After" : "New"}
+            </span>
             {job.output && (
               <span className="mono faint">
                 {job.output.width} × {job.output.height} px{job.output.alpha ? " · transparent" : ""}

@@ -7,6 +7,8 @@ export const SCAN_FOLDERS: Readonly<Record<string, string>> = {
   // A project's folders (docs/adr/0012-project-folder.md) …
   images: "reference",
   photos: "arm-photo",
+  // Tileable backgrounds for background layers (docs/adr/0019); the Image studio keeps its own here too.
+  backgrounds: "background",
   // … and those of the older data folder, which stay valid.
   cards: "card-art",
   refs: "reference",

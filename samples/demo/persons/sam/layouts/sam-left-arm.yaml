@@ -3,6 +3,12 @@
 name: sam-left-arm
 region: arm-left
 description: "Mountains on the outer forearm, fern up the inner arm, meander band at the wrist"
+backgrounds:
+  - id: hatch
+    source: { pattern: hatching, density: 0.35 }
+    cover: area
+    shapes:
+      - { kind: span, u: [-0.12, 0.12], v: [0.55, 0.9] }
 elements:
   - id: mountains
     type: figure
@@ -14,11 +20,6 @@ elements:
     asset: fern
     position: { u: 0.50, v: 0.68 } # inner upper arm
     size_cm: { h: 16 }
-  - id: hatch
-    type: filler
-    pattern: hatching
-    region: { u: [-0.12, 0.12], v: [0.55, 0.9] }
-    density: 0.35
   - id: wrist-band
     type: band
     pattern: meander

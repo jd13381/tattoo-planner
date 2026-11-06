@@ -409,3 +409,20 @@ ADR 0017 (persons) and ADR 0018 (Home, active variant). Format: decision; _Alter
 - **The sample has two people**: Alex (root, female, the existing layouts) and Sam (male, 182 cm, `persons/sam/layouts/`: a left-arm sleeve in two variants, a torso, a right leg), to show the switcher and the active variant. _Change:_ `samples/demo/`.
 - **Top bar:** a person chip left of the project chip; in tabs that fill the top bar (Layout, Projection) under 1600 px it shrinks to its avatar and the brand text hides, so the tabs stay visible. The sample's project chip reads "Sample (read-only)". _Change:_ `PersonMenu`, styles.
 - **Open:** whether exports should name the person (the handout title still uses the project); per-person filtering in the Assets tab (left to the assets task).
+
+### Backgrounds (2026-11-06 test notes)
+
+Jan: patterns and fillers as background layers under the motifs, like Photoshop layers, whole body part or an area, a view of their own, standard backgrounds generated with GPT Image and committed as the one image exception. ADR 0019. Format: decision; _Alternative_; _Change_.
+
+- **Fillers are migrated on load, written on save.** A `type: filler` becomes an area layer with one `span` shape and the same id; the variant shows a notice and the file keeps the old form until it is saved. _Alternative:_ keep `filler` as an element type next to layers (two ways to say the same). _Change:_ `src/layout/migrate.ts`.
+- **Layers live in the layout file** (`backgrounds:` before `elements:`), not in a separate file per person or region, so a variant carries its background and Compare, Home and the handout need nothing new. _Alternative:_ a project-wide background per region (cannot differ between variants).
+- **Default blend is multiply** (ink on skin, like the reference images), default cover the whole region, default gap 0.3 cm for new layers (reads as "embedded"; 0 for migrated fillers, which had none). _Change:_ `NEW_LAYER_GAP_CM`.
+- **Knockout from the motif pixels, not their boxes**, so a background hugs a sun's rays; the box only when a figure has no image. Lines (red) do not knock out: they are drawn on top. _Alternative:_ boxes only (simpler, but makes rectangles of bare skin).
+- **Seam closed by a cross-fade in pattern space** (1.5 cm at the end of each ring) instead of fitting a whole number of tiles round the limb, so tiles stay cm-true; bands keep their whole-number fit. _Alternative:_ stretch each ring to a whole number of tiles (tile size changes along the arm).
+- **Procedural standard backgrounds first**, the GPT Image tiles replace them per name when committed; both under the same name, so layouts do not change when an image arrives. No images are committed in this branch (the cloud session has no key). _Change:_ `assets/backgrounds/backgrounds.yaml`, `standardBackgrounds`.
+- **Metrics use the hard area edge** (no gap, no feather) and count only skin no element covers as background. _Alternative:_ feathered partial coverage (fractional cells; not worth it for a sketch).
+- **Background view dims motifs to 30 %** and makes them unpickable; the Motifs switch over the 3D view hides them in both views. _Alternative:_ separate switches for 2D and 3D.
+- **The catalogue update edits lines**, because a YAML round trip re-folds the `>-` prompts. _Change:_ `setEntryKeys` in `server/backgrounds.ts`.
+- **Studio Background mode is a third mode button** (Edit / Create new / Background) on the create session with `tileable: true`; references are off there (a tile from a picture tends to become a picture), size and background are fixed (1024², opaque). Kept tiles go to `backgrounds/` (kind `background`), which the scan now also reads. _Alternative:_ a checkbox in Create new (easy to miss).
+- **Side header:** with three tabs the unselected tabs drop their icons and Add layer is a compact +. _Change:_ `.side-tabs` styles.
+- **Only the root of `assets/backgrounds/` is allowed**, PNG/WebP up to 2 MB, measured on the staged blob. _Change:_ `scripts/check-binaries.mjs`, `.gitignore`, CLAUDE.md.

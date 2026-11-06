@@ -54,7 +54,7 @@ const ZEBRA: RGB = [250, 248, 245];
 const SWATCH: Record<Category, RGB> = {
   figure: [74, 70, 67],
   existing: [222, 211, 199],
-  filler: [196, 190, 184],
+  background: [196, 190, 184],
   band: [140, 134, 128],
   line: [198, 40, 40],
   open: [239, 230, 220],
@@ -130,7 +130,7 @@ class Writer {
   }
 
   legend(x: number, y: number, width: number, cols: number, size = 8.5): number {
-    const cats: Category[] = ["figure", "existing", "filler", "band", "line", "open"];
+    const cats: Category[] = ["figure", "existing", "background", "band", "line", "open"];
     const colW = columns(width, Array(cols).fill(1), 6)[0]!;
     let rowY = y;
     for (let i = 0; i < cats.length; i += cols) {
