@@ -183,6 +183,8 @@ export function activeVariant(
     .sort();
   const marked = active[region];
   if (marked && names.includes(marked)) return marked;
+  // Same fallback as the Layout tab: Jan's long-standing default, else the first by name.
+  if (region === "arm-left" && names.includes("v1-baseline")) return "v1-baseline";
   return names[0] ?? null;
 }
 
