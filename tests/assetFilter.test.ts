@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { facets, filterAssets, NO_FILTER, pickableAssets, stepAsset } from "../src/assets/filter.ts";
+import {
+  facets,
+  filterAssets,
+  hiddenInSection,
+  NO_FILTER,
+  photoCount,
+  pickableAssets,
+  pickerAssets,
+  sectionAssets,
+  sectionCounts,
+  stepAsset,
+} from "../src/assets/filter.ts";
 import type { AssetInfo } from "../src/assets/types.ts";
 
 const a = (id: string, kind: string, tags: string[], extra: Partial<AssetInfo> = {}): AssetInfo => ({
@@ -47,7 +58,7 @@ describe("asset filter", () => {
 describe("pickable assets and stepping", () => {
   const list = [
     a("r1", "reference", []),
-    a("c1", "card-art", []),
+    a("c1", "card-art", [], { effectiveCategory: "background" }),
     a("r2", "reference", [], { hidden: true }),
     a("r3", "reference", []),
     a("r4", "reference", [], { exists: false }),
@@ -58,7 +69,7 @@ describe("pickable assets and stepping", () => {
     expect(pickableAssets(list, "r2").map((x) => x.id)).toContain("r2");
   });
 
-  it("steps through visible, existing images of the same kind and wraps round", () => {
+  it("steps through visible, existing images of the same section and wraps round", () => {
     expect(stepAsset(list, "r1", 1)?.id).toBe("r3");
     expect(stepAsset(list, "r3", 1)?.id).toBe("r1");
     expect(stepAsset(list, "r1", -1)?.id).toBe("r3");
@@ -68,6 +79,47 @@ describe("pickable assets and stepping", () => {
   it("starts at the first or last image without a current one", () => {
     expect(stepAsset(list, undefined, 1, "reference")?.id).toBe("r1");
     expect(stepAsset(list, undefined, -1, "reference")?.id).toBe("r3");
-    expect(stepAsset(list, "unknown", 1, "card-art")?.id).toBe("c1");
+    expect(stepAsset(list, "unknown", 1, "background")?.id).toBe("c1");
+  });
+});
+
+describe("sections and pickers", () => {
+  const list = [
+    a("idea", "reference", []),
+    a("gen", "idea", [], { effectiveCategory: "generated" }),
+    a("edit", "reference", [], { effectiveCategory: "edit", hidden: true }),
+    a("paper", "background", [], { effectiveCategory: "background" }),
+    a("front", "arm-photo", [], { effectivePerson: "me" }),
+    a("anubis", "arm-photo", [], { effectiveCategory: "existing", effectivePerson: "me" }),
+    a("anna", "arm-photo", [], { effectiveCategory: "existing", effectivePerson: "anna", exists: false }),
+  ];
+  const ctx = {
+    usage: { idea: [{ kind: "layout" as const, person: "me", layout: "l", element: "e" }] },
+    person: "me",
+    showHidden: false,
+  };
+  const ids = (xs: AssetInfo[]) => xs.map((x) => x.id);
+
+  it("shows each section's images, the current person's photos only, hidden ones apart", () => {
+    expect(ids(sectionAssets(list, "studio", ctx))).toEqual(["gen"]);
+    expect(ids(sectionAssets(list, "studio", { ...ctx, showHidden: true }))).toEqual(["gen", "edit"]);
+    expect(ids(sectionAssets(list, "existing", ctx))).toEqual(["anubis"]);
+    expect(ids(sectionAssets(list, "existing", { ...ctx, person: "anna" }))).toEqual(["anna"]);
+    expect(ids(sectionAssets(list, "hidden", ctx))).toEqual(["edit"]);
+    expect(ids(sectionAssets(list, "missing", ctx))).toEqual(["anna"]);
+    expect(ids(sectionAssets(list, "unused", ctx))).not.toContain("idea");
+    expect(sectionAssets(list, "unused", { ...ctx, usage: null })).toEqual([]);
+    expect(sectionCounts(list, ctx)).toMatchObject({ all: 6, ideas: 1, studio: 1, measuring: 1, hidden: 1 });
+    expect(hiddenInSection(list, "studio", ctx)).toBe(1);
+    expect(hiddenInSection(list, "hidden", ctx)).toBe(0);
+  });
+
+  it("offers the library in pickers, photos and backgrounds on request", () => {
+    expect(ids(pickerAssets(list))).toEqual(["idea", "gen"]);
+    expect(ids(pickerAssets(list, { backgrounds: true }))).toEqual(["idea", "gen", "paper"]);
+    expect(ids(pickerAssets(list, { photos: true }))).toEqual(["idea", "gen", "front", "anubis", "anna"]);
+    expect(ids(pickerAssets(list, {}, "front"))).toEqual(["idea", "gen", "front"]);
+    expect(ids(pickerAssets(list, {}, "edit"))).toEqual(["idea", "gen", "edit"]);
+    expect(photoCount(list)).toBe(3);
   });
 });

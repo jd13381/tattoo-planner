@@ -21,6 +21,7 @@ import {
   type BuiltinOpId,
   type BuiltinParams,
 } from "./builtin.ts";
+import { CATEGORY_LABELS, type AssetCategory } from "../assets/category.ts";
 import { showInStudio } from "./edit.ts";
 import { encodePng, loadPixels } from "./pixelsDom.ts";
 import {
@@ -155,12 +156,26 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
   const [backdrop, setBackdrop] = useBackdrop();
 
   const assets = useMemo(
-    () => (listing?.status === "ok" ? listing.assets.filter((a) => a.exists && showInStudio(a)) : []),
-    [listing],
+    () =>
+      listing?.status === "ok"
+        ? listing.assets.filter(
+            (a) =>
+              a.exists && (showInStudio(a) || (a.id === selectedId && showInStudio({ ...a, hidden: false }))),
+          )
+        : [],
+    [listing, selectedId],
   );
-  const kinds = useMemo(() => facets(assets.map((a) => a.kind)), [assets]);
+  // The section select shows the catalogue's sections, never raw kinds.
+  const kinds = useMemo(() => facets(assets.map((a) => a.effectiveCategory)), [assets]);
   const tags = useMemo(() => facets(assets.flatMap((a) => a.tags)), [assets]);
-  const shown = useMemo(() => filterAssets(assets, filter), [assets, filter]);
+  const shown = useMemo(
+    () =>
+      filterAssets(
+        assets.filter((a) => !filter.kind || a.effectiveCategory === filter.kind),
+        { ...filter, kind: "" },
+      ),
+    [assets, filter],
+  );
   const selected = assets.find((a) => a.id === selectedId) ?? null;
   const sessions = useMemo(() => overview?.sessions ?? [], [overview]);
   const allJobs = useMemo(() => overview?.jobs ?? [], [overview]);
@@ -478,12 +493,12 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
           <select
             value={filter.kind}
             onChange={(e) => setFilter({ ...filter, kind: e.target.value })}
-            aria-label="Kind"
+            aria-label="Section"
           >
-            <option value="">All kinds</option>
+            <option value="">All sections</option>
             {kinds.map((k) => (
               <option key={k.value} value={k.value}>
-                {k.value} ({k.count})
+                {CATEGORY_LABELS[k.value as AssetCategory] ?? k.value} ({k.count})
               </option>
             ))}
           </select>

@@ -2,7 +2,9 @@
 // Images are fetched and decoded once per page load and kept as ImageBitmaps, so switching render
 // modes never decodes again. Nothing is uploaded anywhere: the only source is the local dev server.
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { LAYOUT_SAVED_EVENT } from "../layout/useLayouts.ts";
 import type { AssetImage } from "../render/reference.ts";
+import { fetchUsage } from "./actions.ts";
 import {
   assetImageUrl,
   ASSETS_ENDPOINT,
@@ -10,6 +12,7 @@ import {
   scanSummary,
   type AssetListing,
   type ScanReport,
+  type UsageMap,
 } from "./types.ts";
 
 /** Longest side kept after decoding; plenty for 12 px/cm on a 30 cm piece, and light on memory. */
@@ -144,4 +147,34 @@ export function useAssetListing(): {
     return () => window.removeEventListener(MANIFEST_CHANGED_EVENT, onChange);
   }, []);
   return { listing, reload, scanNote };
+}
+
+/**
+ * Where each image is used (GET /api/assets/usage), re-read when the manifest changes or a layout
+ * is saved anywhere in the page. Null while loading or when it failed.
+ */
+export function useAssetUsage(): { usage: UsageMap | null; refresh: () => void } {
+  const [usage, setUsage] = useState<UsageMap | null>(null);
+  const [request, setRequest] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    fetchUsage().then(
+      (u) => !cancelled && setUsage(u),
+      () => !cancelled && setUsage(null),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [request]);
+  useEffect(() => {
+    const onChange = () => setRequest((n) => n + 1);
+    window.addEventListener(MANIFEST_CHANGED_EVENT, onChange);
+    window.addEventListener(LAYOUT_SAVED_EVENT, onChange);
+    return () => {
+      window.removeEventListener(MANIFEST_CHANGED_EVENT, onChange);
+      window.removeEventListener(LAYOUT_SAVED_EVENT, onChange);
+    };
+  }, []);
+  const refresh = useCallback(() => setRequest((n) => n + 1), []);
+  return { usage, refresh };
 }

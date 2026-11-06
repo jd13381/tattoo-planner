@@ -160,8 +160,14 @@ export function createdAsset(
 const STUDIO_HIDDEN_KINDS = new Set(["arm-photo", "existing"]);
 const STUDIO_HIDDEN_FOLDERS = ["arm-photos/", "existing/"];
 
-/** Whether an asset belongs in the Image studio's picker (to edit or as a reference). */
-export function showInStudio(asset: Pick<Asset, "kind" | "file">): boolean {
+/** Whether an asset belongs in the Image studio's picker (to edit or as a reference); hidden ones do not. */
+export function showInStudio(
+  asset: Pick<Asset, "kind" | "file"> & { effectiveCategory?: string; hidden?: boolean },
+): boolean {
+  if (asset.hidden) return false;
+  // The catalogue's section, when known (docs/adr/0020): body photos stay out.
+  if (asset.effectiveCategory)
+    return asset.effectiveCategory !== "measuring" && asset.effectiveCategory !== "existing";
   const file = asset.file.replaceAll("\\", "/").toLowerCase();
   return !STUDIO_HIDDEN_KINDS.has(asset.kind) && !STUDIO_HIDDEN_FOLDERS.some((f) => file.startsWith(f));
 }
