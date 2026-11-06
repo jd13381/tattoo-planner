@@ -63,13 +63,13 @@ Every file is YAML or an image; the YAML files stay hand-editable and keep their
 
 ## Image generation (bring your own key)
 
-The Image studio's generative engine uses OpenAI's GPT Image with **your own API key**. It is optional: everything else works without it. Create a key at [platform.openai.com](https://platform.openai.com/api-keys) and add some credit under Billing. In the desktop app, enter it in **Settings → Image generation**: it is stored encrypted with the macOS Keychain and only ever sent to OpenAI. A planner run from git reads it from `.env` as `TATTOO_OPENAI_API_KEY` (see [Settings for git users](#settings-for-git-users)). Each variant shows a rough cost (a few cents).
+The Image studio's generative engine uses OpenAI's GPT Image with **your own API key**. It is optional: everything else works without it. Create a key at [platform.openai.com](https://platform.openai.com/api-keys) and add some credit under Billing. Enter it in **Settings → Image generation**, which checks it right away (valid, rejected, no access to the image model, no credit, offline): the desktop app stores it encrypted with the macOS Keychain, a planner run from git in `~/.config/tattoo-planner/openai-key` (owner-only). A key in `.env` as `TATTOO_OPENAI_API_KEY` keeps working; a key entered in Settings wins over it, and `.env` is never changed. The key is only ever sent to OpenAI. At each start the planner checks the key once and says so if it stopped working (switch off in the same place). Each variant shows a rough cost (a few cents).
 
 ## Privacy
 
 - The planner runs locally. Its server listens on `127.0.0.1` only and serves the page to this computer alone.
 - Your project stays in the folder you chose. There is no account, no cloud storage, no telemetry, no analytics and no update check.
-- Only a generative edit that **you start** in the Image studio sends data out: the image (and any reference images you add) and your instruction go to OpenAI, with your key. Built-in operations run on your computer.
+- Only a generative edit that **you start** in the Image studio sends data out: the image (and any reference images you add) and your instruction go to OpenAI, with your key. Built-in operations run on your computer. The key check (on save, **Test key**, and once per start unless switched off) sends only the key to OpenAI, no images.
 
 Details: [docs/privacy.md](docs/privacy.md).
 
@@ -101,7 +101,7 @@ Details: [docs/privacy.md](docs/privacy.md).
   - **Versions and saving:** engines mix freely within a session (e.g. fewer snakes with GPT Image, then remove the background built-in). Click an earlier version in the strip to see its other results, **Continue from vK** or **Save vK**. **Save & close** writes the last version as `edits/<original>-edit-N.png` with a manifest entry (`derived_from: <original>`, tag `edited`, each step with its engine in `notes`, `From <id>.` when it was an edit of an edit), ends the session and picks the new file, ready for the next round. **Close** ends a session without saving (it asks first). Sessions survive tab switches and page reloads, not a restart of the planner. To try a version on the arm, **Save vK** keeps it as an image without closing the session; assign it in the Layout tab, then come back and carry on. **Dark / Light** switches the checkerboard behind the images (dark by default; light shows black line work on transparent backgrounds). The original is never changed. Without a project folder the tab only links to Settings → Project; in the sample project it is off (read-only).
   - **Reference images** (GPT Image only): the **+** in the corner of an image on the left (shown on hover) sends it along, up to four, numbered in the order they are sent and listed in the inspector, e.g. "Mache ein rotes Dreieck drumherum wie in diesem Referenzbild". The prompt names each reference by its id and notes.
   - **Create new** (mode switch at the top of the inspector): describe a new motif or pattern (until there is a first version, the canvas shows an empty artboard in the chosen format), optionally click up to four images on the left as references, pick a name, format (square, tall, wide) and background (transparent by default), click **New image** and then **Create with GPT Image** (1–3 variants). From v1 on the session works like any edit (built-in or GPT Image); **Save & close** writes `generated/<name>-N.png` and a manifest entry (kind `idea`, tag `generated`, prompts and references in `notes`). Design: `docs/adr/0009-create-images.md`.
-- **Settings → Image generation**: whether an OpenAI key is set for the Image studio, how to set one up, and a link to `docs/privacy.md`.
+- **Settings → Image generation**: the OpenAI key for the Image studio (enter, check, test, remove; where it comes from, masked to its last four characters), the startup-check switch, and a link to `docs/privacy.md` (`docs/adr/0016-openai-key-check.md`).
 - **Settings → Project**: the open project's name, body and height (saved in `project.yaml`), its folder (**Show in Finder** in the desktop app), **Open other project…** and **Close project**; for the sample **Save as new project**, for an older data folder **Move into project**. Below, the folder's files per sub-folder in collapsible tables, the expected structure and which features need which folder; **Check again** re-reads it.
 
 Geometry and unwrap conventions: `docs/adr/0002-arm-geometry-and-unwrap.md`, generalised to every body region in `docs/adr/0011-bodies-and-regions.md`.
@@ -182,7 +182,7 @@ To pin the planner to one folder instead (Jan's Seafile folder, CI), set `TATTOO
 TATTOO_DATA_DIR="~/Your Secure Cloud/<library>/tattoo-planner-data"
 ```
 
-The only other settings are optional and for generative edits in the Image studio: `TATTOO_OPENAI_API_KEY` and, rarely needed, `TATTOO_OPENAI_MODEL`, `TATTOO_OPENAI_FIDELITY`, `TATTOO_OPENAI_QUALITY` (see `.env.example`). In the desktop app the key is entered in Settings → Image generation instead .
+The only other settings are optional and for generative edits in the Image studio: `TATTOO_OPENAI_API_KEY` and, rarely needed, `TATTOO_OPENAI_MODEL`, `TATTOO_OPENAI_FIDELITY`, `TATTOO_OPENAI_QUALITY` (see `.env.example`). The key can also be entered in Settings → Image generation (saved in `~/.config/tattoo-planner/openai-key`, wins over `.env`, which is never changed).
 
 ### Older data folders and `npm run migrate` (Jan's workflow)
 
