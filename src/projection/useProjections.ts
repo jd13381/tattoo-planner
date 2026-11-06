@@ -99,6 +99,33 @@ export function photoAssets(
   return cal.photos.map((p) => byFile.get(fileKey(p.file)) ?? null);
 }
 
+/**
+ * Per photo, the images whose pixels a patch needs: the original (its size frames the points) and, when
+ * the photo names an edited version (`cleaned`, docs/adr/0023), that edit. Null where the manifest has
+ * no entry.
+ */
+export function sourceAssets(
+  cal: ProjectionCalibration,
+  assets: ReadonlyMap<string, AssetInfo> | null,
+): { photo: AssetInfo | null; cleaned: AssetInfo | null }[] {
+  const byFile = new Map<string, AssetInfo>();
+  for (const a of assets?.values() ?? []) byFile.set(fileKey(a.file), a);
+  return cal.photos.map((p) => ({
+    photo: byFile.get(fileKey(p.file)) ?? null,
+    cleaned: p.cleaned ? (byFile.get(fileKey(p.cleaned)) ?? null) : null,
+  }));
+}
+
+/** Ids of every image the projection's patch reads (originals and edited versions that exist). */
+export function sourceAssetIds(
+  cal: ProjectionCalibration,
+  assets: ReadonlyMap<string, AssetInfo> | null,
+): string[] {
+  return sourceAssets(cal, assets).flatMap(({ photo, cleaned }) =>
+    [photo, cleaned].flatMap((a) => (a?.exists ? [a.id] : [])),
+  );
+}
+
 const pixelCache = new WeakMap<object, PhotoPixels>();
 
 /** RGBA pixels of a decoded image (already upright by its EXIF orientation), read once and cached. */
@@ -139,12 +166,32 @@ export function patchFor(
   images: ReadonlyMap<string, AssetImage>,
 ): PatchStatus {
   if (!assets) return { status: "unavailable", reason: "no data folder" };
-  const infos = photoAssets(cal, assets);
+  const sources = sourceAssets(cal, assets);
   const missing: string[] = [];
   const pixels: (PhotoPixels | null)[] = [];
   const versions: (number | null)[] = [];
-  for (const [k, info] of infos.entries()) {
+  for (const [k, { photo: info, cleaned }] of sources.entries()) {
     const file = cal.photos[k]!.file;
+    const editFile = cal.photos[k]!.cleaned;
+    if (editFile) {
+      // The edited version stands in for the photo; the photo itself only gives the frame's size.
+      const edit = cleaned?.exists ? images.get(cleaned.id) : undefined;
+      const orig = info?.exists ? images.get(info.id) : undefined;
+      if (edit?.status === "loading" || (cleaned?.exists && !edit)) return { status: "loading" };
+      if (orig?.status === "loading" || (info?.exists && !orig)) return { status: "loading" };
+      if (edit?.status === "ready") {
+        const px = pixelsOf(edit);
+        if (px) {
+          const frame = orig?.status === "ready" ? { width: orig.width, height: orig.height } : null;
+          pixels.push({ ...px, cleaned: { frame } });
+          versions.push(edit.version * 1000 + (orig?.status === "ready" ? orig.version : 0));
+          continue;
+        }
+      }
+      missing.push(
+        `${editFile}: edited version ${cleaned ? (edit?.status === "error" ? edit.message : "file missing") : "not in manifest"}, used the photo`,
+      );
+    }
     if (!info) {
       missing.push(`${file}: not in manifest`);
     } else if (!info.exists) {

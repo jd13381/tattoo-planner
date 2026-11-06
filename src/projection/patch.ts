@@ -18,10 +18,21 @@ import {
   twistReach,
   viewWeight,
 } from "./model.ts";
+import { inkLayer } from "../render/inkOnly.ts";
 import type { ProjectionCalibration } from "./schema.ts";
 
 /** RGBA pixels of a photo as stored, already turned upright by its EXIF orientation. */
-export type PhotoPixels = { width: number; height: number; data: Uint8ClampedArray };
+export type PhotoPixels = {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+  /**
+   * An edited version of the photo (`cleaned`, docs/adr/0023): its transparent parts are bare skin, not
+   * unseen, and `frame` is the size of the photo the calibration points were placed on (the edit is
+   * stretched onto it), when known.
+   */
+  cleaned?: { frame: { width: number; height: number } | null };
+};
 
 /**
  * The patch, in skin coordinates. Row 0 is the region's end side (v1), column 0 the u1 end: the left
@@ -38,6 +49,8 @@ export type ProjectedPatch = {
   pxPerCm: number;
   /** Brightness 0..255 (255 = bare skin). */
   gray: Uint8ClampedArray;
+  /** With `cleanup.keep_color`: the ink's colour, 3 values (RGB 0..255) per pixel; else absent. */
+  rgb?: Uint8ClampedArray;
   /** Where any photo sees the skin, 0..255, feathered at the patch border. */
   alpha: Uint8ClampedArray;
   /** The tattoo's area for blockout and metrics: 1 inside, 0 outside. */
@@ -51,8 +64,12 @@ const lum = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.072
 /** Below this alpha a photo pixel counts as not photographed (a cut-out PNG's transparent background). */
 const OPAQUE_MIN = 128;
 
-/** Bilinear brightness at a stored-photo point in pixels; NaN outside the photo or on transparent pixels. */
-export function sampleLum(img: PhotoPixels, x: number, y: number): number {
+/**
+ * Bilinear brightness at a stored-photo point in pixels; NaN outside the photo or on transparent pixels
+ * (on an edited photo, transparent pixels are white skin instead). With `rgb`, the colour channels are
+ * written there too.
+ */
+export function sampleLum(img: PhotoPixels, x: number, y: number, rgb?: Float32Array, at3 = 0): number {
   const fx = x - 0.5;
   const fy = y - 0.5;
   const x0 = Math.floor(fx);
@@ -61,14 +78,28 @@ export function sampleLum(img: PhotoPixels, x: number, y: number): number {
   const tx = fx - x0;
   const ty = fy - y0;
   const d = img.data;
-  const at = (xx: number, yy: number) => {
+  const cleaned = !!img.cleaned;
+  const at = (xx: number, yy: number, c: number) => {
     const i = (yy * img.width + xx) * 4;
+    const a = d[i + 3]!;
+    if (cleaned) {
+      // An edit with the skin cut away: composite onto white skin.
+      const k = a / 255;
+      const v = c < 0 ? lum(d[i]!, d[i + 1]!, d[i + 2]!) : d[i + c]!;
+      return v * k + 255 * (1 - k);
+    }
     // Transparent pixels decode as black and would read as ink; NaN marks them unseen instead.
-    return d[i + 3]! < OPAQUE_MIN ? NaN : lum(d[i]!, d[i + 1]!, d[i + 2]!);
+    if (a < OPAQUE_MIN) return NaN;
+    return c < 0 ? lum(d[i]!, d[i + 1]!, d[i + 2]!) : d[i + c]!;
   };
-  const top = at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx;
-  const bottom = at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx;
-  return top * (1 - ty) + bottom * ty;
+  const bilinear = (c: number) => {
+    const top = at(x0, y0, c) * (1 - tx) + at(x0 + 1, y0, c) * tx;
+    const bottom = at(x0, y0 + 1, c) * (1 - tx) + at(x0 + 1, y0 + 1, c) * tx;
+    return top * (1 - ty) + bottom * ty;
+  };
+  const l = bilinear(-1);
+  if (rgb && !Number.isNaN(l)) for (let c = 0; c < 3; c++) rgb[at3 + c] = bilinear(c);
+  return l;
 }
 
 /** Sliding max over a window of 2r + 1 along rows or columns; NaN cells are ignored (stay NaN if all are). */
@@ -250,8 +281,11 @@ export function patchV(cal: ProjectionCalibration, height: number, j: number): n
   return v1 - ((j + 0.5) / height) * (v1 - v0);
 }
 
-/** One photo seen in patch space: normalised brightness (NaN = unseen) and blend weight per pixel. */
-export type PhotoLayer = { value: Float32Array; weight: Float32Array; cos: Float32Array };
+/**
+ * One photo seen in patch space: normalised brightness (NaN = unseen) and blend weight per pixel; with
+ * colour, the channels normalised the same way (3 per pixel).
+ */
+export type PhotoLayer = { value: Float32Array; weight: Float32Array; cos: Float32Array; rgb?: Float32Array };
 
 /** Projects one photo into patch space (brightness divided by the local skin brightness). */
 export function photoLayer(
@@ -260,14 +294,18 @@ export function photoLayer(
   profile: RegionProfile,
   img: PhotoPixels,
   size: { width: number; height: number },
+  color = false,
 ): PhotoLayer {
   const photo = cal.photos[index]!;
   const { width: W, height: H } = size;
-  const turned = turnedSize(img.width, img.height, photo.turn);
+  // The points were placed on the original photo; an edit is stretched onto its frame.
+  const base = img.cleaned?.frame ?? img;
+  const turned = turnedSize(base.width, base.height, photo.turn);
   const frame = photoFrame(photo, turned.width, turned.height, twistReach(profile));
   const raw = new Float32Array(W * H).fill(NaN);
   const weight = new Float32Array(W * H);
   const cosArr = new Float32Array(W * H);
+  const rawRgb = color ? new Float32Array(3 * W * H) : undefined;
   if (frame) {
     for (let j = 0; j < H; j++) {
       const s = patchV(cal, H, j) * profile.length;
@@ -280,7 +318,7 @@ export function photoLayer(
         if (cos <= 0) continue;
         const p = acrossSilhouette(sil, t);
         const st = turnedToStored(p.x / turned.width, p.y / turned.height, photo.turn);
-        const l = sampleLum(img, st.x * img.width, st.y * img.height);
+        const l = sampleLum(img, st.x * img.width, st.y * img.height, rawRgb, 3 * (j * W + i));
         if (Number.isNaN(l)) continue;
         raw[j * W + i] = l;
         weight[j * W + i] = viewWeight(cos, cal.blend.exponent, photo.weight);
@@ -294,8 +332,9 @@ export function photoLayer(
     const wv = white[k]!;
     value[k] = Number.isNaN(r) || !(wv > 0) ? NaN : Math.min(1, r / wv);
     if (Number.isNaN(value[k]!)) weight[k] = 0;
+    else if (rawRgb) for (let c = 0; c < 3; c++) rawRgb[3 * k + c] = rawRgb[3 * k + c]! / wv;
   }
-  return { value, weight, cos: cosArr };
+  return { value, weight, cos: cosArr, ...(rawRgb ? { rgb: rawRgb } : {}) };
 }
 
 /**
@@ -310,7 +349,13 @@ export function buildPatch(
   if (!photos.some((p) => p)) return null;
   const size = patchSize(cal, profile);
   const { width: W, height: H } = size;
-  const layers = photos.map((img, k) => (img ? photoLayer(cal, k, profile, img, size) : null));
+  const color = !!cal.cleanup?.keep_color;
+  const layers = photos.map((img, k) => (img ? photoLayer(cal, k, profile, img, size, color) : null));
+  const cleanup = cal.cleanup;
+  // Ink only: the blend before the levels, and its colour (NaN = unseen).
+  const blendF = cleanup ? new Float32Array(W * H).fill(NaN) : null;
+  const blendRgb = color ? new Float32Array(3 * W * H).fill(1) : null;
+  const alphaF = cleanup ? new Float32Array(W * H) : null;
   const gray = new Uint8ClampedArray(W * H);
   const alpha = new Uint8ClampedArray(W * H);
   const inkF = new Float32Array(W * H);
@@ -325,12 +370,20 @@ export function buildPatch(
       let best = -1;
       let bestW = 0;
       let maxCos = 0;
+      let r = 0;
+      let gg = 0;
+      let b = 0;
       layers.forEach((layer, n) => {
         if (!layer) return;
         const w = layer.weight[k]!;
         if (w <= 0) return;
         sum += w * layer.value[k]!;
         wsum += w;
+        if (layer.rgb) {
+          r += w * layer.rgb[3 * k]!;
+          gg += w * layer.rgb[3 * k + 1]!;
+          b += w * layer.rgb[3 * k + 2]!;
+        }
         maxCos = Math.max(maxCos, layer.cos[k]!);
         if (w > bestW) {
           bestW = w;
@@ -349,8 +402,43 @@ export function buildPatch(
       const border = Math.min(i + 0.5, W - i - 0.5, j + 0.5, H - j - 0.5);
       const a = smoothstep(0.05, 0.3, maxCos) * (featherPx > 0 ? smoothstep(0, featherPx, border) : 1);
       alpha[k] = Math.round(a * 255);
+      if (blendF && alphaF) {
+        blendF[k] = g;
+        alphaF[k] = a;
+        if (blendRgb) {
+          blendRgb[3 * k] = Math.min(1, r / wsum / cal.blend.skin_level);
+          blendRgb[3 * k + 1] = Math.min(1, gg / wsum / cal.blend.skin_level);
+          blendRgb[3 * k + 2] = Math.min(1, b / wsum / cal.blend.skin_level);
+        }
+      }
       // Faint marks (hair, pores) stay below the floor; hatching lines are darker.
       inkF[k] = Math.max(0, 1 - g - INK_FLOOR) * a;
+    }
+  }
+  let rgbOut: Uint8ClampedArray | undefined;
+  if (cleanup && blendF && alphaF) {
+    // Ink only (docs/adr/0023): the shading flattened, the skin dropped; alpha and footprint follow the ink.
+    const layer = inkLayer(
+      blendF,
+      W,
+      H,
+      {
+        radiusPx: cleanup.flatten_cm * cal.patch.px_per_cm,
+        strength: cleanup.strength,
+        keepColor: cleanup.keep_color,
+      },
+      blendRgb,
+    );
+    if (layer.rgb) rgbOut = new Uint8ClampedArray(3 * W * H).fill(255);
+    for (let k = 0; k < W * H; k++) {
+      const ink = layer.ink[k]!;
+      if (Number.isNaN(ink)) continue;
+      const a = alphaF[k]! * ink;
+      alpha[k] = Math.round(a * 255);
+      gray[k] = Math.round(layer.tone[k]! * 255);
+      if (rgbOut && layer.rgb)
+        for (let c = 0; c < 3; c++) rgbOut[3 * k + c] = Math.round(layer.rgb[3 * k + c]! * 255);
+      inkF[k] = a;
     }
   }
   // Footprint: ink smoothed over about a centimetre, so the hatching reads as one area; specks (hair,
@@ -370,6 +458,7 @@ export function buildPatch(
     height: H,
     pxPerCm: cal.patch.px_per_cm,
     gray,
+    ...(rgbOut ? { rgb: rgbOut } : {}),
     alpha,
     footprint,
     share: wins.map((n) => (seen > 0 ? n / seen : 0)),

@@ -6880,8 +6880,7 @@ button.rail-step:disabled {
   gap: 6px;
 }
 
-button.turn-choice,
-button.facing-choice {
+button.turn-choice {
   height: auto;
   padding: 4px;
   display: grid;
@@ -6905,27 +6904,202 @@ button.turn-choice {
 }
 
 button.turn-choice.current,
-button.facing-choice.current {
+button.side-choice.current {
   box-shadow: inset 0 0 0 1px var(--accent);
   outline: 2px solid var(--accent-line);
   background: var(--accent-soft);
 }
 
-.facing-choices {
+/* Where was the camera (docs/adr/0023): the person from above, four big sides, a small turn. */
+.side-picker {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-2);
+}
+
+.camera-dial {
+  width: 100%;
+  max-width: 260px;
+  justify-self: center;
+  touch-action: none;
+  cursor: grab;
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.camera-dial.dragging {
+  cursor: grabbing;
+}
+
+.camera-dial:focus-visible {
+  outline: 2px solid var(--accent-line);
+}
+
+.side-picker.compact .camera-dial {
+  max-width: 180px;
+}
+
+.camera-dial .dial-word {
+  font-size: 9px;
+  fill: var(--faint);
+}
+
+.camera-dial .dial-body,
+.camera-dial .dial-head,
+.camera-dial .dial-part {
+  fill: #d9b49a;
+  stroke: #8a6a55;
+  stroke-width: 1;
+}
+
+.camera-dial .dial-body.faint {
+  fill: none;
+  stroke: var(--faint);
+  stroke-dasharray: 3 2;
+}
+
+.camera-dial .dial-foot {
+  fill: #c9a48a;
+  opacity: 0.7;
+}
+
+.camera-dial .dial-part.on {
+  fill: var(--accent);
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.camera-dial .dial-ring {
+  fill: none;
+  stroke: var(--faint);
+  stroke-dasharray: 2 3;
+}
+
+.camera-dial .dial-stop {
+  fill: var(--faint);
+}
+
+.camera-dial .dial-sight {
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 2;
+}
+
+.camera-dial .dial-camera {
+  fill: var(--text);
+}
+
+.side-choices {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
 }
 
-.facing-choice > span {
+button.side-choice {
+  height: auto;
+  min-height: 48px;
+  padding: 6px 8px;
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  white-space: normal;
+  text-align: left;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.side-choice .side-label {
+  font-weight: 600;
+}
+
+.side-choice .side-hint {
+  color: var(--muted);
   line-height: 1.2;
+}
+
+.side-turn input[type="range"] {
+  width: 100%;
+}
+
+.side-turn-ends {
+  display: flex;
+  justify-content: space-between;
+}
+
+.wizard-advanced {
+  border-top: 1px solid var(--border);
+  padding-top: var(--s-2);
+}
+
+.wizard-advanced > summary {
+  cursor: pointer;
   color: var(--muted);
 }
 
-.facing-thumb {
-  width: 100%;
-  max-width: 72px;
-  color: var(--muted);
+.wizard-advanced[open] {
+  display: grid;
+  gap: var(--s-2);
+}
+
+/* Clean up: before above, after below (the unwrap crops are wide). */
+.wizard-cleanup {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.wizard-cleanup .wizard-unwrap:first-child {
+  border-top: 0;
+}
+
+.cleanup-controls {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.cleanup-photos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+
+.cleanup-photo {
+  display: grid;
+  gap: 4px;
+}
+
+.cleanup-photo-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cleanup-photo-row select {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+/* "Opened for the projection" (docs/adr/0023): a float under the studio bar, above the canvas. */
+.studio-errand {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 60px;
+  z-index: 3;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.studio-errand > span {
+  flex: 1;
+}
+
+.studio-stage:has(.studio-errand) .studio-canvas {
+  padding-top: 116px;
 }
 
 .wizard-preview {

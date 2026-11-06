@@ -37,6 +37,13 @@ export const photoSchema = z.strictObject({
   u_view: z.strictObject({ wrist: z.number(), elbow: z.number() }),
   /** Extra weight in the blend (1 = normal, 0 = ignore this photo). */
   weight: z.number().min(0).default(1),
+  /**
+   * An edited version of the photo in the data folder (Image studio: the ink alone, skin and body
+   * removed; docs/adr/0023): its pixels are projected instead of `file`'s. The points above stay in
+   * `file`'s frame; the edit is stretched onto it, so it should keep the photo's shape. Transparent
+   * parts of the edit count as bare skin.
+   */
+  cleaned: z.string().min(1).optional(),
 });
 export type PhotoCalibration = z.infer<typeof photoSchema>;
 
@@ -66,6 +73,20 @@ export const projectionSchema = z
         ink_threshold: unit.default(0.03),
       })
       .prefault({}),
+    /**
+     * Ink only (docs/adr/0023): flattens the skin's shading and keeps only the ink, which is then
+     * multiplied onto the planner's skin. Left out: the photos' brightness as it is (ADR 0006).
+     */
+    cleanup: z
+      .strictObject({
+        /** Window over which the skin's own brightness is estimated, cm; larger than the ink's lines. */
+        flatten_cm: z.number().min(0.5).max(30).default(4),
+        /** 0 = keep faint ink and grey tones … 1 = only clear ink, as solid line art. */
+        strength: unit.default(0.5),
+        /** Keep the ink's colour; otherwise black and grey. */
+        keep_color: z.boolean().default(false),
+      })
+      .optional(),
     photos: z.array(photoSchema).min(1),
   })
   .superRefine((p, ctx) => {
@@ -86,6 +107,10 @@ export const projectionSchema = z
   });
 
 export type ProjectionCalibration = z.infer<typeof projectionSchema>;
+export type CleanupSettings = NonNullable<ProjectionCalibration["cleanup"]>;
+
+/** Ink-only settings for a new projection (the wizard switches it on by default). */
+export const DEFAULT_CLEANUP: CleanupSettings = { flatten_cm: 4, strength: 0.5, keep_color: false };
 
 /** The region a calibration belongs to. */
 export function projectionRegion(cal: { region?: RegionId }): RegionId {

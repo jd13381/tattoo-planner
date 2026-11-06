@@ -24,6 +24,7 @@ import {
 import { CATEGORY_LABELS, type AssetCategory } from "../assets/category.ts";
 import { useResolvedTheme } from "../ui/useTheme.ts";
 import { showInStudio } from "./edit.ts";
+import { STUDIO_REQUEST_EVENT, takeStudioRequest, type StudioRequest } from "../projection/studioLink.ts";
 import { BACKGROUND_PRESETS } from "./background.ts";
 import { encodePng, loadPixels } from "./pixelsDom.ts";
 import {
@@ -168,16 +169,39 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
   const [viewIndex, setViewIndex] = useState<number | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [backdrop, setBackdrop] = useBackdrop();
+  // Opened from another page for one image (the projection wizard's clean-up, docs/adr/0023).
+  const [errand, setErrand] = useState<StudioRequest | null>(null);
+  useEffect(() => {
+    const take = () => {
+      const r = takeStudioRequest();
+      if (!r) return;
+      setErrand(r);
+      setMode("edit");
+      setSelectedId(r.assetId);
+      setInstruction(r.instruction);
+      setOpId("tattoo-ink");
+      setFilter(NO_FILTER);
+      setViewIndex(null);
+      setFocusId(null);
+    };
+    take();
+    window.addEventListener(STUDIO_REQUEST_EVENT, take);
+    return () => window.removeEventListener(STUDIO_REQUEST_EVENT, take);
+  }, []);
 
   const assets = useMemo(
     () =>
       listing?.status === "ok"
         ? listing.assets.filter(
             (a) =>
-              a.exists && (showInStudio(a) || (a.id === selectedId && showInStudio({ ...a, hidden: false }))),
+              a.exists &&
+              (showInStudio(a) ||
+                (a.id === selectedId && showInStudio({ ...a, hidden: false })) ||
+                // A photo sent here on purpose (measuring photos are otherwise left out).
+                a.id === errand?.assetId),
           )
         : [],
-    [listing, selectedId],
+    [listing, selectedId, errand],
   );
   // The section select shows the catalogue's sections, never raw kinds.
   const kinds = useMemo(() => facets(assets.map((a) => a.effectiveCategory)), [assets]);
@@ -951,6 +975,25 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
           )}
         </div>
 
+        {errand && (
+          <div className="notice studio-errand small" role="status">
+            <span>
+              {errand.purpose} Save the result with <strong>Save &amp; close</strong>, then go back: the
+              projection picks up the new version.
+            </span>
+            <a className="button" href={`#${errand.back}`} onClick={() => setErrand(null)}>
+              Back to the projection
+            </a>
+            <button
+              type="button"
+              className="ghost icon-button"
+              aria-label="Dismiss"
+              onClick={() => setErrand(null)}
+            >
+              ×
+            </button>
+          </div>
+        )}
         <div className="studio-canvas">{canvas}</div>
 
         <div className="float status-bar studio-status">
