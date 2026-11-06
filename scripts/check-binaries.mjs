@@ -32,17 +32,37 @@ export const BLOCKED_EXTENSIONS = [
  */
 export const ALLOW_PREFIXES = ["public/icons/"];
 
+/**
+ * The one exception for images: the standard backgrounds (docs/adr/0019), tileable PNG/WebP tiles
+ * generated with GPT Image by `npm run backgrounds:generate` (Jan, 2026-11-06). Only directly in
+ * that folder, only those formats, and each at most BACKGROUND_MAX_BYTES. Never a reference image,
+ * photo or export.
+ */
+export const BACKGROUND_FOLDER = "assets/backgrounds/";
+export const BACKGROUND_EXTENSIONS = ["png", "webp"];
+export const BACKGROUND_MAX_BYTES = 2 * 1024 * 1024;
+
 /** Build output folders at the repo root that never go into git (the web build, the desktop app's). */
 export const BUILD_DIRS = ["dist", "dist-desktop", "release"];
 
-/** Returns the reason a path is rejected, or null when it may be committed. */
-export function rejectReason(file) {
+/**
+ * Returns the reason a path is rejected, or null when it may be committed. `bytes` is the file's
+ * size (checked for the standard backgrounds; unknown counts as too large there).
+ */
+export function rejectReason(file, bytes) {
   const p = file.replaceAll("\\", "/");
   if (ALLOW_PREFIXES.some((prefix) => p.startsWith(prefix))) return null;
+  const ext = p.split("/").pop().split(".").slice(1).pop()?.toLowerCase();
+  if (p.startsWith(BACKGROUND_FOLDER) && !p.slice(BACKGROUND_FOLDER.length).includes("/")) {
+    if (ext && BACKGROUND_EXTENSIONS.includes(ext)) {
+      if (bytes === undefined || bytes > BACKGROUND_MAX_BYTES)
+        return `standard background over ${BACKGROUND_MAX_BYTES / 1024 / 1024} MB`;
+      return null;
+    }
+  }
   if (p === "exports" || p.startsWith("exports/") || p.includes("/exports/")) return "export";
   const top = p.split("/")[0];
   if (BUILD_DIRS.includes(top)) return "build output";
-  const ext = p.split("/").pop().split(".").slice(1).pop()?.toLowerCase();
   if (ext && BLOCKED_EXTENSIONS.includes(ext)) return `.${ext} file`;
   return null;
 }
@@ -52,10 +72,19 @@ function listFiles(all) {
   return execFileSync("git", args, { encoding: "utf8" }).split("\0").filter(Boolean);
 }
 
+/** The size of the file as staged (the index holds every tracked file too). */
+function stagedBytes(file) {
+  try {
+    return Number(execFileSync("git", ["cat-file", "-s", `:${file}`], { encoding: "utf8" }).trim());
+  } catch {
+    return undefined;
+  }
+}
+
 function main() {
   const all = process.argv.includes("--all");
   const offenders = listFiles(all)
-    .map((f) => [f, rejectReason(f)])
+    .map((f) => [f, rejectReason(f, f.startsWith(BACKGROUND_FOLDER) ? stagedBytes(f) : undefined)])
     .filter(([, reason]) => reason);
   if (offenders.length === 0) return 0;
   console.error(`check-binaries: ${offenders.length} file(s) must not be committed:`);
