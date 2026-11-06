@@ -9,7 +9,8 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ResolvedBody } from "../body/body.ts";
 import { REGION_IDS, type RegionId } from "../body/regions.ts";
 import { RegionMesh, type RegionTexture } from "../viewer/BodyViewer.tsx";
-import { armGeometry, CAP_COLOR, CAP_ROUGHNESS } from "../viewer/scene.ts";
+import { NeutralBody } from "../viewer/NeutralBody.tsx";
+import { armGeometry } from "../viewer/scene.ts";
 import { BODY_VIEWS, CAMERA_FOV, fitCamera, type BodyViewName } from "../viewer/views.ts";
 
 /** Studio lights: a warm key, a soft fill and two cool rim lights that draw the silhouette. */
@@ -29,6 +30,12 @@ const MARGIN = 1.1;
 const STAGE_INSETS = { top: 40, right: 0, bottom: 84, left: 0 };
 
 export type HomeView = { name: BodyViewName; request: number };
+
+/**
+ * The camera when Home last closed (a region opened in the Layout tab): the way back shows the body
+ * from the same angle. Per page load; a person switch reloads the page and starts fresh.
+ */
+let lastCamera: { position: [number, number, number]; target: [number, number, number] } | null = null;
 
 type Props = {
   body: ResolvedBody;
@@ -99,12 +106,7 @@ export function HomeViewer(props: Props) {
           onOut={() => onLeave(id)}
         />
       ))}
-      {body.layout.parts.map((p) => (
-        <mesh key={p.name} position={p.centre} rotation={[0, 0, p.rotZ]} scale={p.radii}>
-          <sphereGeometry args={[1, 40, 24]} />
-          <meshStandardMaterial color={CAP_COLOR} roughness={CAP_ROUGHNESS} />
-        </mesh>
-      ))}
+      <NeutralBody layout={body.layout} />
       <ContactShadows
         position={[0, floor + 0.2, 0]}
         scale={Math.max(width * 2.2, 120)}
@@ -134,6 +136,8 @@ function TurntableRig({
   const size = useThree((s) => s.size);
   const bounds = body.layout.bounds;
   const height = bounds.max[1] - bounds.min[1];
+  // The first framing after a return to Home takes the camera it left with.
+  const restore = useRef(lastCamera);
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
@@ -141,11 +145,24 @@ function TurntableRig({
     const fit = fitCamera(bounds, dir, size.width, size.height, STAGE_INSETS, MARGIN);
     if ("setViewOffset" in camera)
       camera.setViewOffset(size.width, size.height, fit.offset[0], fit.offset[1], size.width, size.height);
-    // Look a little above the middle and from a touch higher, as a photographer would.
-    camera.position.set(fit.position[0], fit.position[1] + height * 0.04, fit.position[2]);
-    c.target.set(fit.target[0], fit.target[1] + height * 0.02, fit.target[2]);
+    const saved = restore.current;
+    restore.current = null;
+    if (saved) {
+      camera.position.set(...saved.position);
+      c.target.set(...saved.target);
+    } else {
+      // Look a little above the middle and from a touch higher, as a photographer would.
+      camera.position.set(fit.position[0], fit.position[1] + height * 0.04, fit.position[2]);
+      c.target.set(fit.target[0], fit.target[1] + height * 0.02, fit.target[2]);
+    }
     c.update();
   }, [bounds, height, view, camera, size.width, size.height]);
+  useEffect(() => {
+    const c = controls.current;
+    return () => {
+      if (c) lastCamera = { position: camera.position.toArray(), target: c.target.toArray() };
+    };
+  }, [camera]);
   return (
     <OrbitControls
       ref={controls}

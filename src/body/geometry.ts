@@ -4,7 +4,7 @@
 // the left arm in the palm-forward pose that is +Z = inner (palm side), -Z = outer, +X = lateral,
 // -X = medial (docs/adr/0002). placement.ts puts the region into the body.
 import { arcLengthInverse, semiAxes } from "./ellipse.ts";
-import type { RegionKind, RegionProfile } from "./profile.ts";
+import type { LoftShape, RegionKind } from "./profile.ts";
 import { wrapU } from "./uv.ts";
 
 export type ArmMesh = {
@@ -38,7 +38,7 @@ const CAP_DEPTH: Record<RegionKind, [number, number]> = {
  * with the angle unless the region is mirrored; the ellipse is symmetric about the axis through
  * U0_ANGLE, so the mirrored lookup is the reflection of the plain one.
  */
-export function ringAngles(profile: RegionProfile, a: number, b: number): (u: number) => number {
+export function ringAngles(profile: LoftShape, a: number, b: number): (u: number) => number {
   const start = U0_ANGLE[profile.kind];
   const at = arcLengthInverse(a, b, start);
   return profile.mirrored ? (u) => 2 * start - at(u) : at;
@@ -46,7 +46,7 @@ export function ringAngles(profile: RegionProfile, a: number, b: number): (u: nu
 
 /** Point and outward normal (in the plane of the cross-section) of the skin at (u, s), local frame. */
 export function surfacePoint(
-  profile: RegionProfile,
+  profile: LoftShape,
   u: number,
   s: number,
 ): { position: [number, number, number]; normal: [number, number, number] } {
@@ -58,7 +58,7 @@ export function surfacePoint(
   return { position: [a * c, s, b * sn], normal: [(b * c) / len, 0, (a * sn) / len] };
 }
 
-export function buildLoftMesh(profile: RegionProfile, opts: MeshOptions = {}): LoftMesh {
+export function buildLoftMesh(profile: LoftShape, opts: MeshOptions = {}): LoftMesh {
   const segments = opts.segments ?? 96;
   const ringCount = Math.max(2, Math.ceil(profile.length / (opts.ringSpacingCm ?? 0.5)) + 1);
   const capRings = opts.capRings ?? 6;

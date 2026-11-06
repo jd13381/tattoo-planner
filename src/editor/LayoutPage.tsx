@@ -28,11 +28,13 @@ import { anubisSize, type ArmState, type Pose } from "../viewer/useArm.ts";
 import { Popover } from "../ui/Popover.tsx";
 import {
   BandIcon,
+  ChevronLeftIcon,
   ExistingIcon,
   FigureIcon,
   FillerIcon,
   FitIcon,
   HelpIcon,
+  HomeIcon,
   ImageIcon,
   LayersIcon,
   RedLineIcon,
@@ -140,12 +142,25 @@ type Props = {
    * one. A new `nonce` asks again for the same region.
    */
   openRequest?: LayoutRequest | null;
+  /**
+   * Set while the tab was opened from Home: the picker then starts with "‹ Home › person ›", and Esc
+   * with nothing left to clear (selection, Draw mode, a popover) returns there.
+   */
+  onBackToHome?: () => void;
 };
 
 /** A request to open a region's layout in the Layout tab (Home → region card). */
 export type LayoutRequest = { region: RegionId; variant: string | null; nonce: number };
 
-export function LayoutPage({ arm, pose, onWorking, active = true, header, openRequest }: Props) {
+export function LayoutPage({
+  arm,
+  pose,
+  onWorking,
+  active = true,
+  header,
+  openRequest,
+  onBackToHome,
+}: Props) {
   const { current: person } = usePersons();
   const readOnlyProject = projectStatus?.sample === true;
   const activeMap = useMemo(() => person?.active ?? {}, [person]);
@@ -739,15 +754,18 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header, openRe
         if (a.tool === "draw") setView3d("region");
         return setDrawing(a.tool === "draw" ? (d) => !d : false);
       case "deselect":
+        // Esc clears one thing at a time; with nothing left it goes back to Home (when opened there).
         if (inBackground) {
           if (selShape !== null) setSelShape(null);
-          else setSelLayer(null);
+          else if (selLayer !== null) setSelLayer(null);
+          else onBackToHome?.();
           return;
         }
         if (pickerAnchor) setPickerAnchor(null);
         else if (drawing) setDrawing(false);
         else if (helpOpen) setHelpOpen(false);
-        else setSelected(null);
+        else if (selected !== null) setSelected(null);
+        else onBackToHome?.();
         return;
     }
     if (inBackground) {
@@ -886,6 +904,35 @@ export function LayoutPage({ arm, pose, onWorking, active = true, header, openRe
   const headerActions = (
     <>
       <span className="header-sep" aria-hidden="true" />
+      {onBackToHome && (
+        // Opened from Home: the region and variant pickers read as the end of "Home › person ›".
+        <span className="layout-crumbs">
+          <button
+            type="button"
+            className="ghost crumb-back"
+            onClick={onBackToHome}
+            aria-keyshortcuts="Escape"
+            aria-label="Back to Home"
+            title={`Back to Home${person ? `: ${person.name}'s whole body` : ""} (Esc with nothing selected)`}
+          >
+            <ChevronLeftIcon />
+            <HomeIcon />
+            <span className="crumb-back-label">Home</span>
+          </button>
+          {person && (
+            // Hidden on narrower windows, where the person chip next to it shows the avatar anyway.
+            <span className="crumb-person" title={`Layouts of ${person.name}`}>
+              <span className="crumb-sep" aria-hidden="true">
+                ›
+              </span>
+              <span className="crumb-person-name">{person.name}</span>
+            </span>
+          )}
+          <span className="crumb-sep" aria-hidden="true">
+            ›
+          </span>
+        </span>
+      )}
       <span className="select-wrap" title="Body region: each layout belongs to one">
         <select
           className="region-select"

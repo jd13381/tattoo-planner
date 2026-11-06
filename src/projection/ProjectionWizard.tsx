@@ -1,7 +1,7 @@
 // The guided projection wizard (docs/adr/0014-guided-projection.md): brings an existing tattoo onto a body
 // region from one or more photos, one question per step, with the model's skin grid on the photo as
 // live feedback. The state and every rule live in wizard.ts and layoutLink.ts; this file only draws.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { fileKey } from "../assets/manifestDoc.ts";
 import { assetImageUrl, type AssetInfo } from "../assets/types.ts";
 import { requestImage, useAssetImages, useAssetListing } from "../assets/useAssets.ts";
@@ -22,12 +22,14 @@ import { photoStatus, type ListingState } from "./photoStatus.ts";
 import { previewCanvases } from "./preview.ts";
 import type { PhotoCalibration, ProjectionCalibration } from "./schema.ts";
 import { patchFor, saveProjection, useProjections } from "./useProjections.ts";
+import { editsOf, INK_ONLY_PROMPT, isEditOf, newEdit, shapeWarning } from "./cleanup.ts";
+import { describeFacing, joinFacing, neighbours, sideChoices, splitFacing } from "./sides.ts";
+import { openInStudio, type ParkedWizard } from "./studioLink.ts";
+import { DEFAULT_CLEANUP } from "./schema.ts";
 import {
-  facingOptions,
   farLabel,
   fromCalibration,
   moveStep,
-  nearestFacing,
   newDraft,
   slugify,
   startLabel,
@@ -45,7 +47,7 @@ import {
   type WizardPhoto,
   type WizardStep,
 } from "./wizard.ts";
-import { EdgesArt, FacingThumb, MarksArt, TurnArt } from "./wizardArt.tsx";
+import { CameraDial, EdgesArt, MarksArt, TurnArt } from "./wizardArt.tsx";
 import { useCurrentPerson } from "../assets/person.ts";
 
 const PREVIEW_PX_PER_CM = 10;
@@ -67,6 +69,8 @@ type Props = {
   onClose: () => void;
   onAdvanced: (name: string) => void;
   onAnother: () => void;
+  /** Answers parked while the photo was in the Image studio (docs/adr/0023), restored here. */
+  parked?: ParkedWizard | null;
 };
 
 /** What the region is called in running text ("left arm", "torso"). */
@@ -75,14 +79,18 @@ const partName = (r: RegionId) => REGIONS[r].label.toLowerCase();
 const limbWord = (r: RegionId) => ({ arm: "arm", leg: "leg", torso: "body" })[REGIONS[r].kind];
 
 export function ProjectionWizard(props: Props) {
-  const { arm, pose, editName, openLayout, onDirty } = props;
+  const { arm, pose, editName, openLayout, onDirty, parked } = props;
   const { files, calibrations } = useProjections();
   const editing = editName ? (calibrations.get(editName) ?? null) : null;
-  const [initial] = useState<WizardDraft>(() => (editing ? fromCalibration(editing) : newDraft()));
+  const [initial] = useState<WizardDraft>(
+    () => parked?.draft ?? (editing ? fromCalibration(editing) : newDraft()),
+  );
   const [draft, setDraft] = useState<WizardDraft>(initial);
-  const [step, setStep] = useState<WizardStep>(editing ? { kind: "preview" } : { kind: "name" });
+  const [step, setStep] = useState<WizardStep>(
+    () => parked?.step ?? (editing ? { kind: "preview" } : { kind: "name" }),
+  );
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
-  const [savedJson, setSavedJson] = useState(() => JSON.stringify(initial));
+  const [savedJson, setSavedJson] = useState(() => parked?.savedJson ?? JSON.stringify(initial));
   const dirty = JSON.stringify(draft) !== savedJson;
   useEffect(() => onDirty?.(dirty), [onDirty, dirty]);
   useEffect(() => () => onDirty?.(false), [onDirty]);
@@ -99,11 +107,29 @@ export function ProjectionWizard(props: Props) {
   );
   const { images, version: imagesVersion } = useAssetImages();
   useEffect(() => {
-    for (const p of draft.photos) {
-      const info = byFile.get(fileKey(p.file));
-      if (info?.exists) requestImage(info.id);
-    }
+    for (const p of draft.photos)
+      for (const file of [p.file, p.cleaned]) {
+        const info = file ? byFile.get(fileKey(file)) : undefined;
+        if (info?.exists) requestImage(info.id);
+      }
   }, [draft.photos, byFile]);
+  // Back from the Image studio: use the edit saved there (the newest one that was not there before).
+  const [awaitingEdit, setAwaitingEdit] = useState(() =>
+    parked ? { photo: parked.photo, known: parked.knownEdits } : null,
+  );
+  if (awaitingEdit && listing?.status === "ok") {
+    // Adjusted while rendering (once the listing is there), not in an effect.
+    setAwaitingEdit(null);
+    const photo = draft.photos[awaitingEdit.photo];
+    const edit = photo
+      ? newEdit(awaitingEdit.known, editsOf(byFile.get(fileKey(photo.file)) ?? null, listing.assets))
+      : null;
+    if (edit)
+      setDraft((d) => ({
+        ...d,
+        photos: d.photos.map((q, k) => (k === awaitingEdit.photo ? { ...q, cleaned: edit.file } : q)),
+      }));
+  }
   const readyImage = (file: string) => {
     const info = byFile.get(fileKey(file));
     const img = info ? images.get(info.id) : undefined;
@@ -149,7 +175,8 @@ export function ProjectionWizard(props: Props) {
     const t = setTimeout(() => setPreviewCal(built.ok ? built.calibration : null), 150);
     return () => clearTimeout(t);
   }, [built]);
-  const onPreview = current.kind === "preview";
+  const onPreview = current.kind === "preview" || current.kind === "cleanup";
+  const onCleanup = current.kind === "cleanup";
   const preview = useMemo(() => {
     void imagesVersion;
     if (!previewCal || !onPreview) return null;
@@ -157,6 +184,47 @@ export function ProjectionWizard(props: Props) {
     return patchFor(cal, profile, assetMap, images);
   }, [previewCal, onPreview, profile, assetMap, images, imagesVersion]);
   const patch = preview?.status === "ready" ? preview.patch : null;
+  // The clean-up step compares with the photos as they are: no ink only, no edited versions.
+  const before = useMemo(() => {
+    void imagesVersion;
+    if (!previewCal || !onCleanup) return null;
+    const { cleanup: _drop, ...rest } = previewCal;
+    void _drop;
+    const cal = {
+      ...rest,
+      patch: { ...previewCal.patch, px_per_cm: PREVIEW_PX_PER_CM },
+      photos: previewCal.photos.map(({ cleaned: _c, ...ph }) => (void _c, ph)),
+    };
+    const r = patchFor(cal, profile, assetMap, images);
+    return r.status === "ready" ? r.patch : null;
+  }, [previewCal, onCleanup, profile, assetMap, images, imagesVersion]);
+
+  /** Parks the answers and opens the photo (or its edit in use) in the Image studio. */
+  const sendToStudio = (index: number) => {
+    const photo = draft.photos[index];
+    if (!photo || listing?.status !== "ok") return;
+    const original = byFile.get(fileKey(photo.file)) ?? null;
+    const current = photo.cleaned ? byFile.get(fileKey(photo.cleaned)) : undefined;
+    const open = current?.exists ? current : original;
+    if (!open) return;
+    const edits = editsOf(original, listing.assets);
+    openInStudio(
+      {
+        assetId: open.id,
+        instruction: INK_ONLY_PROMPT,
+        purpose: `Cleaning up photo ${index + 1} of “${draft.description || draft.name || "the new tattoo"}” for its projection: keep only the ink. The built-in “Tattoo ink only” is picked; under Generative the GPT prompt is filled in.`,
+        back: "settings/projection",
+      },
+      {
+        editName: draft.base ? draft.name : null,
+        draft,
+        savedJson,
+        step: { kind: "cleanup" },
+        photo: index,
+        knownEdits: edits.map((e) => e.id),
+      },
+    );
+  };
 
   const save = async () => {
     if (!built.ok || saveState.kind === "saving") return;
@@ -259,6 +327,7 @@ export function ProjectionWizard(props: Props) {
             byFile={byFile}
             images={images}
             patch={patch}
+            before={before}
             previewCal={previewCal}
             assetMap={assetMap}
           />
@@ -282,6 +351,8 @@ export function ProjectionWizard(props: Props) {
             isNew={isNew}
             readyImage={readyImage}
             byFile={byFile}
+            assets={listing?.status === "ok" ? listing.assets : []}
+            onStudio={sendToStudio}
             scan={{ run: scanAssets, note: scanNote }}
             preview={{
               status: preview?.status ?? null,
@@ -415,6 +486,7 @@ function Stage(props: {
   byFile: ReadonlyMap<string, AssetInfo>;
   images: ReadonlyMap<string, AssetImage>;
   patch: ProjectedPatch | null;
+  before: ProjectedPatch | null;
   previewCal: ProjectionCalibration | null;
   assetMap: ReadonlyMap<string, AssetInfo> | null;
 }) {
@@ -424,20 +496,32 @@ function Stage(props: {
     renderUnwrap(c, profile, "grid", null, { pxPerCm: 8, grid: true });
     return c;
   }, [profile]);
-  const preview = useMemo(() => {
-    if (step.kind !== "preview" || !props.previewCal) return null;
-    const cal = props.previewCal;
-    return previewCanvases({
-      name: cal.name,
-      patch: props.patch,
-      profile,
-      assets: props.assetMap,
-      images: props.images,
-      v1: Math.min(1, cal.patch.v[1] + 0.03),
-      centerU: (cal.patch.u[0] + cal.patch.u[1]) / 2,
-      pxPerCm: TEXTURE_PX_PER_CM,
-    });
-  }, [step.kind, props.previewCal, props.patch, profile, props.assetMap, props.images]);
+  const { previewCal, assetMap, images } = props;
+  const canvasesOf = useCallback(
+    (patch: ProjectedPatch | null) =>
+      previewCal
+        ? previewCanvases({
+            name: previewCal.name,
+            patch,
+            profile,
+            assets: assetMap,
+            images,
+            v1: Math.min(1, previewCal.patch.v[1] + 0.03),
+            centerU: (previewCal.patch.u[0] + previewCal.patch.u[1]) / 2,
+            pxPerCm: TEXTURE_PX_PER_CM,
+          })
+        : null,
+    [previewCal, profile, assetMap, images],
+  );
+  const showsPatch = step.kind === "preview" || step.kind === "cleanup";
+  const preview = useMemo(
+    () => (showsPatch ? canvasesOf(props.patch) : null),
+    [showsPatch, canvasesOf, props.patch],
+  );
+  const beforeView = useMemo(
+    () => (step.kind === "cleanup" ? canvasesOf(props.before) : null),
+    [step.kind, canvasesOf, props.before],
+  );
 
   switch (step.kind) {
     case "name":
@@ -496,6 +580,34 @@ function Stage(props: {
         </div>
       );
     }
+    case "cleanup":
+      return (
+        <div className="wizard-cleanup">
+          <figure className="wizard-unwrap">
+            {beforeView && props.before ? (
+              <CanvasHost canvas={beforeView.innerImage} />
+            ) : (
+              <p className="faint small">Building the picture from the photos…</p>
+            )}
+            <figcaption className="faint xs">
+              Before: the photos as they are, with skin and shadows
+            </figcaption>
+          </figure>
+          <figure className="wizard-unwrap">
+            {preview && props.patch ? (
+              <CanvasHost canvas={preview.innerImage} />
+            ) : (
+              <p className="faint small">Building the picture from the photos…</p>
+            )}
+            <figcaption className="faint xs">
+              After:{" "}
+              {draft.cleanup || draft.photos.some((p) => p.cleaned)
+                ? "what goes onto the skin"
+                : "unchanged (clean-up is off)"}
+            </figcaption>
+          </figure>
+        </div>
+      );
     case "preview":
       return (
         <div className="wizard-preview">
@@ -522,13 +634,13 @@ function Stage(props: {
 
 /** What the grid lines on the photo mean. */
 function GridKey({ region }: { region: RegionId }) {
-  const def = REGIONS[region];
+  const sides = sideChoices(region);
   return (
     <p className="wizard-gridkey float xs">
-      <span className="legend-swatch" style={{ background: "#e53935" }} aria-hidden="true" /> {def.lines[2]}{" "}
-      line
-      <span className="legend-swatch" style={{ background: "#43a047" }} aria-hidden="true" /> {def.lines[1]} /{" "}
-      {def.lines[3]}
+      <span className="legend-swatch" style={{ background: "#e53935" }} aria-hidden="true" /> middle of the{" "}
+      {sides[2]!.label.toLowerCase()}
+      <span className="legend-swatch" style={{ background: "#43a047" }} aria-hidden="true" />{" "}
+      {sides[1]!.label.toLowerCase()} / {sides[3]!.label.toLowerCase()}
       <span
         className="legend-swatch"
         style={{ background: "rgba(255, 235, 59, 0.8)" }}
@@ -651,6 +763,8 @@ function Panel(props: {
   isNew: boolean;
   readyImage: (file: string) => ReadyImage | null;
   byFile: ReadonlyMap<string, AssetInfo>;
+  assets: AssetInfo[];
+  onStudio: (photo: number) => void;
   scan: { run: () => void; note: string | null };
   preview: { status: string | null; missing: string[]; reason: string | null };
   layouts: {
@@ -751,6 +865,8 @@ function Panel(props: {
       );
     case "photo":
       return <PhotoPanel {...props} task={step.task} index={step.photo} start={start} limb={limb} />;
+    case "cleanup":
+      return <CleanupPanel {...props} limb={limb} />;
     case "preview": {
       const { layouts, preview } = props;
       return (
@@ -906,98 +1022,241 @@ function PhotoPanel(props: {
       );
     case "facing": {
       const far = farLabel(region);
+      const setNear = (facing: number) => set({ facing, ...(photo.twisted ? {} : { facingFar: facing }) });
       return (
-        <StepBody title="Which side faces the camera?">
+        <StepBody title="Where was the camera?">
           <p>
-            Each drawing shows a slice through the {limb} seen from above, with the camera below. Click the
-            one that looks like the photo: the side nearest the camera is the side you see in the middle of
-            the photo.
+            Which side of the {limb} does the photo show? Click it below, or drag the camera round the{" "}
+            {partName(region)} in the picture.
           </p>
-          <FacingChoices
-            region={region}
-            value={photo.facing}
-            onChange={(facing) => set({ facing, ...(photo.twisted ? {} : { facingFar: facing }) })}
-          />
-          <FineTune
-            value={photo.facing}
-            onChange={(facing) => set({ facing, ...(photo.twisted ? {} : { facingFar: facing }) })}
-          />
-          <label className="inline switch-label">
-            <input
-              type="checkbox"
-              className="switch"
-              checked={photo.twisted}
-              onChange={(e) => set({ twisted: e.target.checked, facingFar: photo.facing })}
-            />
-            The {limb} is twisted: another side faces the camera at the {far}
-          </label>
-          {photo.twisted && (
-            <>
-              <p className="faint small">Which side faces the camera at the {far}?</p>
-              <FacingChoices
-                region={region}
-                value={photo.facingFar}
-                onChange={(facingFar) => set({ facingFar })}
-              />
-              <FineTune value={photo.facingFar} onChange={(facingFar) => set({ facingFar })} />
-            </>
-          )}
+          <SidePicker region={region} value={photo.facing} onChange={setNear} />
           <p className="faint small">
-            Check it on the photo: the red line should run down the middle of the {REGIONS[region].lines[2]}{" "}
-            side and the green lines along the sides where you see them.
+            Check it on the photo: the coloured lines should run along the {limb} and the line of the side you
+            picked down the middle of the photo. If they sit a little to one side, turn the camera a little.
           </p>
+          <details className="wizard-advanced" open={photo.twisted}>
+            <summary className="small">Advanced</summary>
+            <label className="inline switch-label">
+              <input
+                type="checkbox"
+                className="switch"
+                checked={photo.twisted}
+                onChange={(e) => set({ twisted: e.target.checked, facingFar: photo.facing })}
+              />
+              Another side faces the camera at the {far} (the {limb} is twisted in the photo)
+            </label>
+            {photo.twisted && (
+              <>
+                <p className="faint small">Where was the camera, seen from the {far}?</p>
+                <SidePicker
+                  region={region}
+                  value={photo.facingFar}
+                  onChange={(facingFar) => set({ facingFar })}
+                  compact
+                />
+              </>
+            )}
+          </details>
         </StepBody>
       );
     }
   }
 }
 
-function FacingChoices({
+/** The four sides as the picture shows them: front and back first, then its left and right. */
+const sideOrder = (region: RegionId) =>
+  [90, 270, 180, 0].map((a) => sideChoices(region).find((sd) => sd.angle === a)!);
+
+/**
+ * The camera picture, the four sides as big buttons and "a little from the side": one facing u, split
+ * into the nearest side and a small turn (src/projection/sides.ts).
+ */
+function SidePicker({
   region,
   value,
   onChange,
+  compact,
 }: {
   region: RegionId;
   value: number;
   onChange: (u: number) => void;
+  compact?: boolean;
 }) {
-  const near = nearestFacing(region, value).u;
+  const { main, offset } = splitFacing(value);
+  const [less, more] = neighbours(region, main);
+  const now = describeFacing(region, value);
   return (
-    <div className="facing-choices" role="radiogroup" aria-label="Side facing the camera">
-      {facingOptions(region).map((o) => (
-        <button
-          key={o.u}
-          type="button"
-          role="radio"
-          aria-checked={o.u === near}
-          className={`facing-choice${o.u === near ? " current" : ""}`}
-          onClick={() => onChange(o.u)}
-          title={o.label}
-        >
-          <FacingThumb region={region} u={o.u} />
-          <span className="xs">{o.label}</span>
-        </button>
-      ))}
+    <div className={`side-picker${compact ? " compact" : ""}`}>
+      <CameraDial region={region} value={value} onChange={onChange} label="Camera position" />
+      <div className="side-choices" role="radiogroup" aria-label="Side in the photo">
+        {sideOrder(region).map((sd) => (
+          <button
+            key={sd.u}
+            type="button"
+            role="radio"
+            aria-checked={sd.u === main}
+            className={`side-choice${sd.u === main ? " current" : ""}`}
+            onClick={() => onChange(sd.u)}
+          >
+            <span className="side-label">{sd.label}</span>
+            {sd.hint && <span className="side-hint xs">{sd.hint}</span>}
+          </button>
+        ))}
+      </div>
+      <label className="wizard-field side-turn">
+        <span className="field-label">
+          A little from the side?{" "}
+          <span className="faint">
+            {now.turnDeg === 0
+              ? "straight on"
+              : `${Math.abs(now.turnDeg)}° towards the ${(now.turnDeg < 0 ? less : more).label.toLowerCase()}`}
+          </span>
+        </span>
+        <input
+          type="range"
+          min={-45}
+          max={45}
+          step={1}
+          value={Math.round(offset * 360)}
+          aria-valuetext={now.turnDeg === 0 ? "straight on" : `${now.turnDeg} degrees`}
+          onChange={(e) => onChange(joinFacing(main, Number(e.target.value) / 360))}
+        />
+        <span className="side-turn-ends faint xs" aria-hidden="true">
+          <span>← {less.label.toLowerCase()}</span>
+          <span>{more.label.toLowerCase()} →</span>
+        </span>
+      </label>
     </div>
   );
 }
 
-function FineTune({ value, onChange }: { value: number; onChange: (u: number) => void }) {
+/** The clean-up step: ink only (built in), and per photo an edited version from the Image studio. */
+function CleanupPanel(props: {
+  draft: WizardDraft;
+  setDraft: (f: (d: WizardDraft) => WizardDraft) => void;
+  setPhoto: (i: number, p: WizardPhoto) => void;
+  readyImage: (file: string) => ReadyImage | null;
+  byFile: ReadonlyMap<string, AssetInfo>;
+  assets: AssetInfo[];
+  onStudio: (photo: number) => void;
+  limb: string;
+}) {
+  const { draft, setDraft, setPhoto, byFile, assets, readyImage, limb } = props;
+  const cleanup = draft.cleanup;
+  const setCleanup = (c: Partial<NonNullable<WizardDraft["cleanup"]>>) =>
+    setDraft((d) => ({ ...d, cleanup: { ...(d.cleanup ?? DEFAULT_CLEANUP), ...c } }));
   return (
-    <label
-      className="wizard-field inline-field"
-      title="Turn the model a little until the grid fits the photo"
-    >
-      <span className="field-label">Fine-tune</span>
-      <input
-        type="range"
-        min={0}
-        max={1}
-        step={0.005}
-        value={((value % 1) + 1) % 1}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-    </label>
+    <StepBody title="Clean up">
+      <p>
+        A photo shows more than the tattoo: the skin, its light and shadow and the shape of the {limb}. Here
+        only the ink is kept, so the planner&apos;s {limb} shows the tattoo, not the photo&apos;s light.
+        Compare before and after on the left.
+      </p>
+      <label className="inline switch-label">
+        <input
+          type="checkbox"
+          className="switch"
+          checked={!!cleanup}
+          onChange={(e) =>
+            setDraft((d) => ({ ...d, cleanup: e.target.checked ? { ...DEFAULT_CLEANUP } : null }))
+          }
+        />
+        Keep only the ink
+      </label>
+      {cleanup && (
+        <div className="cleanup-controls">
+          <label className="wizard-field">
+            <span className="field-label">
+              Strength <span className="faint mono">{Math.round(cleanup.strength * 100)}</span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(cleanup.strength * 100)}
+              onChange={(e) => setCleanup({ strength: Number(e.target.value) / 100 })}
+            />
+            <span className="side-turn-ends faint xs" aria-hidden="true">
+              <span>keeps faint lines and grey</span>
+              <span>only clear lines, solid</span>
+            </span>
+          </label>
+          <label className="wizard-field">
+            <span className="field-label">
+              Shadows up to <span className="faint mono">{cleanup.flatten_cm} cm</span>
+            </span>
+            <input
+              type="range"
+              min={1}
+              max={15}
+              step={0.5}
+              value={cleanup.flatten_cm}
+              onChange={(e) => setCleanup({ flatten_cm: Number(e.target.value) })}
+            />
+            <span className="faint xs">
+              Larger evens out wider shadows; it should stay wider than the tattoo&apos;s thickest lines.
+            </span>
+          </label>
+          <label className="inline">
+            <input
+              type="checkbox"
+              checked={cleanup.keep_color}
+              onChange={(e) => setCleanup({ keep_color: e.target.checked })}
+            />{" "}
+            Keep the ink&apos;s colour
+          </label>
+        </div>
+      )}
+      <h3 className="float-title">Edited photos</h3>
+      <p className="faint small">
+        Not clean enough (a shadow left, the background in the way)? Edit the photo in the Image studio, with
+        the built-in “Tattoo ink only” or with GPT. Save it there and come back: the projection then uses the
+        edit, the points you placed stay.
+      </p>
+      <ol className="cleanup-photos">
+        {draft.photos.map((p, i) => {
+          const original = byFile.get(fileKey(p.file)) ?? null;
+          const edits = editsOf(original, assets).filter((e) => e.exists);
+          const known = isEditOf(p.cleaned, edits);
+          const warn =
+            p.cleaned && readyImage(p.file) && readyImage(p.cleaned)
+              ? shapeWarning(readyImage(p.file), readyImage(p.cleaned))
+              : null;
+          return (
+            <li key={p.file} className="cleanup-photo">
+              <span className="mono xs" title={p.file}>
+                {i + 1}. {p.file.split("/").pop()}
+              </span>
+              <span className="cleanup-photo-row">
+                <select
+                  aria-label={`Picture used for photo ${i + 1}`}
+                  value={p.cleaned ?? ""}
+                  onChange={(e) => setPhoto(i, { ...p, cleaned: e.target.value || null })}
+                >
+                  <option value="">The photo itself</option>
+                  {edits.map((e) => (
+                    <option key={e.id} value={e.file}>
+                      Edit {e.id}
+                    </option>
+                  ))}
+                  {p.cleaned && !known && <option value={p.cleaned}>{p.cleaned} (not found)</option>}
+                </select>
+                <button
+                  type="button"
+                  disabled={!original?.exists}
+                  title={original?.exists ? "Your answers so far are kept" : "The photo is missing"}
+                  onClick={() => props.onStudio(i)}
+                >
+                  Edit in Image studio
+                </button>
+              </span>
+              {warn && <span className="notice warn xs">{warn}</span>}
+            </li>
+          );
+        })}
+      </ol>
+    </StepBody>
   );
 }
 

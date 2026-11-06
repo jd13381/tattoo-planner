@@ -266,7 +266,12 @@ function patchCanvas(patch: ProjectedPatch, hatching: boolean, mirrored: boolean
   for (let k = 0; k < patch.gray.length; k++) {
     const x = k % W;
     const from = mirrored ? k - x + (W - 1 - x) : k;
-    img.data[k * 4] = img.data[k * 4 + 1] = img.data[k * 4 + 2] = patch.gray[from]!;
+    if (patch.rgb) {
+      // Ink only with its colour (docs/adr/0023).
+      img.data[k * 4] = patch.rgb[from * 3]!;
+      img.data[k * 4 + 1] = patch.rgb[from * 3 + 1]!;
+      img.data[k * 4 + 2] = patch.rgb[from * 3 + 2]!;
+    } else img.data[k * 4] = img.data[k * 4 + 1] = img.data[k * 4 + 2] = patch.gray[from]!;
     img.data[k * 4 + 3] = patch.alpha[from]!;
   }
   if (hatching) lineScreen(img.data, patch.width, Math.max(3, patch.pxPerCm * 0.25));

@@ -12,9 +12,11 @@ import type { RegionProfile } from "../body/profile.ts";
 import { wrapU } from "../body/uv.ts";
 import { photoFrame, turnedToStored, type Vec } from "./model.ts";
 import {
+  DEFAULT_CLEANUP,
   projectionRegion,
   projectionSchema,
   type AlongMark,
+  type CleanupSettings,
   type PhotoCalibration,
   type PhotoPoint,
   type ProjectionCalibration,
@@ -34,6 +36,8 @@ export type WizardPhoto = {
   /** The u facing the camera at the twist reference (u_view.elbow); used only when twisted. */
   facingFar: number;
   weight: number;
+  /** An edited version of the photo whose pixels are projected (`cleaned`, docs/adr/0023), or null. */
+  cleaned: string | null;
 };
 
 export type WizardDraft = {
@@ -46,6 +50,8 @@ export type WizardDraft = {
   area: { u: [number, number]; v: [number, number] } | null;
   /** The saved calibration this draft edits (its blend and resolution are kept), or null for a new one. */
   base: ProjectionCalibration | null;
+  /** Ink only (docs/adr/0023); null = the photos' brightness as it is. */
+  cleanup: CleanupSettings | null;
 };
 
 export type PhotoTask = "turn" | "edges" | "marks" | "facing";
@@ -55,15 +61,16 @@ export type WizardStep =
   | { kind: "name" }
   | { kind: "photos" }
   | { kind: "photo"; photo: number; task: PhotoTask }
+  | { kind: "cleanup" }
   | { kind: "preview" };
 
-/** Every step of a draft, in order: name, photos, four tasks per photo, preview and save. */
+/** Every step of a draft, in order: name, photos, four tasks per photo, clean-up, preview and save. */
 export function wizardSteps(draft: Pick<WizardDraft, "photos">): WizardStep[] {
   const steps: WizardStep[] = [{ kind: "name" }, { kind: "photos" }];
   draft.photos.forEach((_, photo) => {
     for (const task of PHOTO_TASKS) steps.push({ kind: "photo", photo, task });
   });
-  steps.push({ kind: "preview" });
+  steps.push({ kind: "cleanup" }, { kind: "preview" });
   return steps;
 }
 
@@ -135,7 +142,15 @@ export function uniqueName(base: string, taken: readonly string[]): string {
 
 /** A new, empty draft. */
 export function newDraft(region: RegionId = "arm-left"): WizardDraft {
-  return { name: "", description: "", region, photos: [], area: null, base: null };
+  return {
+    name: "",
+    description: "",
+    region,
+    photos: [],
+    area: null,
+    base: null,
+    cleanup: { ...DEFAULT_CLEANUP },
+  };
 }
 
 /**
@@ -166,6 +181,7 @@ export function newPhoto(file: string, prev?: WizardPhoto, facing = 0.5): Wizard
     twisted: false,
     facingFar: facing,
     weight: 1,
+    cleaned: null,
   };
 }
 
@@ -214,24 +230,9 @@ export function turnPhoto(photo: WizardPhoto, turn: Turn): WizardPhoto {
 
 const round4 = (x: number) => Math.round(x * 10000) / 10000;
 
-/** One schematic orientation the user can click: the u facing the camera and its name. */
-export type FacingOption = { u: number; label: string };
-
-/** Eight orientations around the region, named after its centre lines (src/body/regions.ts). */
-export function facingOptions(region: RegionId): FacingOption[] {
-  const lines = REGIONS[region].lines;
-  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-  return Array.from({ length: 8 }, (_, k) => {
-    const u = k / 8;
-    const label =
-      k % 2 === 0 ? cap(lines[k / 2]!) : `Between ${lines[(k - 1) / 2]!} and ${lines[((k + 1) / 2) % 4]!}`;
-    return { u, label };
-  });
-}
-
 /**
- * A cross-section of the region as the camera sees it from above, for the orientation thumbnails:
- * the outline and its four centre lines, in units of the larger semi-axis, x = the photo's right,
+ * A cross-section of the region as the camera sees it from above (the model's own view, used to check
+ * the camera picture of src/projection/sides.ts against the model): the outline and its four centre lines, in units of the larger semi-axis, x = the photo's right,
  * y = towards the camera (down in the thumbnail). Same maths as sectionView in model.ts.
  */
 export function sectionSketch(
@@ -258,13 +259,6 @@ export function sectionSketch(
     outline: Array.from({ length: 64 }, (_, k) => at(k / 64)),
     lines: def.short.map((label, k) => ({ u: k / 4, label, p: at(k / 4) })),
   };
-}
-
-/** The orientation closest to u (wrapping round). */
-export function nearestFacing(region: RegionId, u: number): FacingOption {
-  const opts = facingOptions(region);
-  const d = (o: FacingOption) => Math.abs(wrapU(u - o.u + 0.5) - 0.5);
-  return opts.reduce((best, o) => (d(o) < d(best) ? o : best));
 }
 
 /**
@@ -342,6 +336,7 @@ export function toCalibration(
       feather_cm: base?.patch.feather_cm ?? 0.5,
     },
     blend: base?.blend ?? {},
+    ...(draft.cleanup ? { cleanup: draft.cleanup } : {}),
     photos: draft.photos.map((p) => toPhotoCalibration(p)),
   };
   const r = projectionSchema.safeParse(raw);
@@ -357,6 +352,7 @@ export function toPhotoCalibration(p: WizardPhoto): PhotoCalibration {
     along: p.marks,
     u_view: { wrist: round4(p.facing), elbow: round4(p.twisted ? p.facingFar : p.facing) },
     weight: p.weight,
+    ...(p.cleaned ? { cleaned: p.cleaned } : {}),
   };
 }
 
@@ -375,9 +371,11 @@ export function fromCalibration(cal: ProjectionCalibration): WizardDraft {
       twisted: Math.abs(p.u_view.elbow - p.u_view.wrist) > 1e-6,
       facingFar: p.u_view.elbow,
       weight: p.weight,
+      cleaned: p.cleaned ?? null,
     })),
     area: { u: [...cal.patch.u], v: [...cal.patch.v] },
     base: cal,
+    cleanup: cal.cleanup ? { ...cal.cleanup } : null,
   };
 }
 
@@ -400,6 +398,8 @@ export function stepIssue(draft: WizardDraft, step: WizardStep, ctx: StepContext
     }
     case "photos":
       return draft.photos.length === 0 ? "Pick at least one photo." : null;
+    case "cleanup":
+      return null;
     case "photo": {
       const p = draft.photos[step.photo];
       if (!p) return "This photo is no longer picked.";
@@ -457,9 +457,11 @@ export function stepTitle(step: WizardStep): string {
       return "Name and body part";
     case "photos":
       return "Photos";
+    case "cleanup":
+      return "Clean up";
     case "preview":
       return "Check and save";
     case "photo":
-      return { turn: "Turn", edges: "Outline", marks: "Distances", facing: "Side" }[step.task];
+      return { turn: "Turn", edges: "Outline", marks: "Distances", facing: "Camera" }[step.task];
   }
 }

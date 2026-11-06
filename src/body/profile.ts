@@ -1,7 +1,8 @@
 // A body region's profile along its axis: where each circumference sits, interpolated in between
 // (docs/adr/0002, generalised to every region in docs/adr/0011). s is the distance from the region's
 // start along its straight axis in cm (arm: 0 = wrist crease, length = shoulder point).
-import { monotoneCubic } from "./interpolate.ts";
+import { ellipsePerimeter } from "./ellipse.ts";
+import { monotoneCubic, type Knot } from "./interpolate.ts";
 import type { ArmInputs, LegInputs, TorsoInputs } from "./inputs.ts";
 
 export type Station = { label: string; s: number; circumference: number };
@@ -25,6 +26,9 @@ export type Loft = {
   /** Station labels that had to be reordered because their positions overlap. */
   warnings: string[];
 };
+
+/** What the mesh builder needs: a loft, the kind (its u = 0 line and end caps) and its u direction. */
+export type LoftShape = Loft & { kind: RegionKind; mirrored: boolean };
 
 type ProfileBase = Loft & {
   /**
@@ -53,15 +57,61 @@ export type TorsoProfile = ProfileBase & {
   ribsAt: number;
   /** Height of the chest line (at the armpits) above the waist line, cm. */
   chestAt: number;
+  /**
+   * Neutral lofts that continue the torso below the waist (the pelvis, to just below the hip crease)
+   * and above the neck base (the neck), built from the same curves as the torso, so the surface runs on
+   * through the region's ends without a step in slope (docs/adr/0022). Only with a `TorsoSurround`.
+   */
+  pelvis?: LoftShape;
+  neck?: LoftShape;
 };
 
 export type RegionProfile = ArmProfile | LegProfile | TorsoProfile;
 
+/** Circumference and aspect knots beyond a loft's ends: they shape the slopes at the ends only. */
+export type OutsideKnots = { circumference?: Knot[]; aspect?: Knot[] };
+
+/**
+ * A smooth curve through the knots, evaluated on [from, to] (docs/adr/0022). Where no knot sits at or
+ * beyond an end, the value stays constant from the outermost knot to that end and the curve arrives
+ * there flat, so the surface has no kink at that station.
+ */
+function curve(knots: Knot[], from: number, to: number): (s: number) => number {
+  const pts = [...knots]
+    .sort((p, q) => p.x - q.x)
+    // Equal positions would make the interpolation divide by zero: keep the first.
+    .filter((k, i, all) => i === 0 || k.x > all[i - 1]!.x + 1e-6);
+  const first = pts[0]!.x;
+  const last = pts[pts.length - 1]!.x;
+  const f = monotoneCubic(pts, {
+    startSlope: first > from + 1e-6 ? 0 : undefined,
+    endSlope: last < to - 1e-6 ? 0 : undefined,
+  });
+  return (s) => f(Math.min(Math.max(s, from), to));
+}
+
+/** A loft over [0, length] from plain knots, which may reach beyond the ends. */
+function loftFromKnots(length: number, circumference: Knot[], aspect: Knot[]) {
+  const circumferenceAt = curve(circumference, 0, length);
+  const aspectAt = curve(aspect, 0, length);
+  // The curve never overshoots its knots, so its largest value inside is at a knot or at an end.
+  let maxCircumference = Math.max(circumferenceAt(0), circumferenceAt(length));
+  for (const k of circumference)
+    if (k.x >= 0 && k.x <= length) maxCircumference = Math.max(maxCircumference, k.y);
+  return { length, maxCircumference, circumferenceAt, aspectAt };
+}
+
 /**
  * Builds the loft from stations and aspect knots. Stations whose positions overlap are reported in
- * `warnings`, then sorted, so the mesh never folds over.
+ * `warnings`, then sorted, so the mesh never folds over. `outside` knots lie beyond the region's ends
+ * (the pelvis below the torso, the neck above it) and only shape the curves' slopes at the ends.
  */
-export function buildLoft(length: number, raw: Station[], aspect: AspectKnot[]): Loft {
+export function buildLoft(
+  length: number,
+  raw: Station[],
+  aspect: AspectKnot[],
+  outside: OutsideKnots = {},
+): Loft {
   const warnings: string[] = [];
   for (let i = 1; i < raw.length; i++) {
     if (raw[i]!.s <= raw[i - 1]!.s) warnings.push(`${raw[i]!.label} sits at or below ${raw[i - 1]!.label}`);
@@ -71,19 +121,16 @@ export function buildLoft(length: number, raw: Station[], aspect: AspectKnot[]):
     .sort((p, q) => p.s - q.s)
     // Equal positions would make the interpolation divide by zero: keep the first.
     .filter((st, i, all) => i === 0 || st.s > all[i - 1]!.s + 1e-6);
-
-  const circumferenceAt = monotoneCubic(stations.map((st) => ({ x: st.s, y: st.circumference })));
-  const knots = aspect
-    .map((k) => ({ x: Math.min(Math.max(k.s, 0), length), y: k.k }))
-    .sort((p, q) => p.x - q.x)
-    .filter((k, i, all) => i === 0 || k.x > all[i - 1]!.x + 1e-6);
-  const aspectAt = monotoneCubic(knots);
-
-  let maxCircumference = 0;
-  for (let i = 0; i <= 200; i++)
-    maxCircumference = Math.max(maxCircumference, circumferenceAt((length * i) / 200));
-
-  return { length, stations, maxCircumference, circumferenceAt, aspectAt, warnings };
+  const beyond = (k: Knot) => k.x < -1e-6 || k.x > length + 1e-6;
+  const circumference = [
+    ...stations.map((st) => ({ x: st.s, y: st.circumference })),
+    ...(outside.circumference ?? []).filter(beyond),
+  ];
+  const aspectKnots = [
+    ...aspect.map((k) => ({ x: Math.min(Math.max(k.s, 0), length), y: k.k })),
+    ...(outside.aspect ?? []).filter(beyond),
+  ];
+  return { ...loftFromKnots(length, circumference, aspectKnots), stations, warnings };
 }
 
 /** Above the elbow the tape is laid at a fixed distance (docs/measuring.md). */
@@ -161,32 +208,102 @@ export function buildLegProfile(m: LegInputs, mirrored = false): LegProfile {
 const NECK_ASPECT = 1.1;
 
 /**
+ * The neutral body around the torso (docs/adr/0022), from the body parameters: the hips' widest section
+ * below the waist and the neck above the neck base.
+ */
+export type TorsoSurround = {
+  /** Waist line down to the hip crease (where the legs start), cm. */
+  pelvisHeight: number;
+  /** Widest width and depth of the hips and buttocks, cm. */
+  hipWidth: number;
+  hipDepth: number;
+  /** Neck base up to the head, cm. */
+  neckHeight: number;
+};
+
+/** Where the hips are widest below the waist line, as a fraction of the pelvis height. */
+const HIP_WIDEST = 0.55;
+/** The pelvis ends this far below the hip crease (fraction of the pelvis height), then rounds off. */
+const PELVIS_BELOW_CREASE = 0.15;
+/** Circumference at the bottom of the pelvis (of the hips') and at the top of the neck (of the base). */
+const PELVIS_BOTTOM = 0.8;
+const NECK_TOP = 0.9;
+/** The neck reaches this far into the head, cm. */
+const NECK_INTO_HEAD = 2;
+
+/**
  * The torso from the waist line (navel height) to the base of the neck. Its cross-section is much wider
  * than deep, flattest at the shoulder line, where it carries the arms. The aspect values are inputs
  * (the sample bodies set them, docs/adr/0011), since they differ more between bodies than an arm's.
  * Its u convention (0 right flank, 0.25 front) turns the other way round than the left arm's, so it is
- * always `mirrored`.
+ * always `mirrored`. With a `surround`, its curves run on into a neutral pelvis and neck.
  */
-export function buildTorsoProfile(m: TorsoInputs): TorsoProfile {
+export function buildTorsoProfile(m: TorsoInputs, surround?: TorsoSurround): TorsoProfile {
   const length = m.waist_to_neck;
   const ribsAt = m.waist_to_ribs;
   const chestAt = m.waist_to_chest;
   const shoulderAt = length - m.shoulder_line_below_neck;
-  const loft = buildLoft(
-    length,
-    [
-      { label: "waist", s: 0, circumference: m.waist },
-      { label: "ribs", s: ribsAt, circumference: m.ribs },
-      { label: "chest", s: chestAt, circumference: m.chest },
-      { label: "shoulder_line", s: shoulderAt, circumference: m.shoulder_line },
-      { label: "neck_base", s: length, circumference: m.neck_base },
+  const stations: Station[] = [
+    { label: "waist", s: 0, circumference: m.waist },
+    { label: "ribs", s: ribsAt, circumference: m.ribs },
+    { label: "chest", s: chestAt, circumference: m.chest },
+    { label: "shoulder_line", s: shoulderAt, circumference: m.shoulder_line },
+    { label: "neck_base", s: length, circumference: m.neck_base },
+  ];
+  const aspect: AspectKnot[] = [
+    { s: 0, k: m.waist_aspect },
+    { s: chestAt, k: m.chest_aspect },
+    { s: shoulderAt, k: m.shoulder_aspect },
+    { s: length, k: NECK_ASPECT },
+  ];
+  if (!surround) {
+    return { ...buildLoft(length, stations, aspect), kind: "torso", mirrored: true, ribsAt, chestAt };
+  }
+
+  const hipAt = -HIP_WIDEST * surround.pelvisHeight;
+  const bottomAt = -(1 + PELVIS_BELOW_CREASE) * surround.pelvisHeight;
+  const hipCircumference = ellipsePerimeter(surround.hipWidth / 2, surround.hipDepth / 2);
+  const hipAspect = surround.hipWidth / surround.hipDepth;
+  const neckTopAt = length + surround.neckHeight + NECK_INTO_HEAD;
+  const outside = {
+    circumference: [
+      { x: bottomAt, y: PELVIS_BOTTOM * hipCircumference },
+      { x: hipAt, y: hipCircumference },
+      { x: neckTopAt, y: NECK_TOP * m.neck_base },
     ],
-    [
-      { s: 0, k: m.waist_aspect },
-      { s: chestAt, k: m.chest_aspect },
-      { s: shoulderAt, k: m.shoulder_aspect },
-      { s: length, k: NECK_ASPECT },
+    aspect: [
+      { x: bottomAt, y: hipAspect },
+      { x: hipAt, y: hipAspect },
+      { x: neckTopAt, y: NECK_ASPECT },
     ],
-  );
-  return { ...loft, kind: "torso", mirrored: true, ribsAt, chestAt };
+  };
+  const loft = buildLoft(length, stations, aspect, outside);
+  // Pelvis and neck run through every knot (the torso's own among them), shifted into their own frame,
+  // so their curves are the torso's curves continued.
+  const neutral = (len: number, shift: number): LoftShape => {
+    const circumference = [
+      ...loft.stations.map((st) => ({ x: st.s + shift, y: st.circumference })),
+      ...outside.circumference.map((k) => ({ x: k.x + shift, y: k.y })),
+    ];
+    const k = [
+      ...aspect.map((a) => ({ x: a.s + shift, y: a.k })),
+      ...outside.aspect.map((a) => ({ x: a.x + shift, y: a.y })),
+    ];
+    return {
+      ...loftFromKnots(len, circumference, k),
+      stations: [],
+      warnings: [],
+      kind: "torso",
+      mirrored: true,
+    };
+  };
+  return {
+    ...loft,
+    kind: "torso",
+    mirrored: true,
+    ribsAt,
+    chestAt,
+    pelvis: neutral(-bottomAt, -bottomAt),
+    neck: neutral(neckTopAt - length, -length),
+  };
 }

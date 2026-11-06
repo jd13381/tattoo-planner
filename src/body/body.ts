@@ -87,7 +87,7 @@ export function resolveBody(m: Measurements | null, overrides: RegionOverrides =
         fromSample.push(key);
       } else inputs[key] = v;
     }
-    regions[id] = { id, profile: buildRegionProfile(id, inputs), inputs, fromSample };
+    regions[id] = { id, profile: buildRegionProfile(id, inputs, params), inputs, fromSample };
   }
   const profiles = Object.fromEntries(REGION_IDS.map((id) => [id, regions[id].profile])) as Record<
     RegionId,
@@ -96,8 +96,11 @@ export function resolveBody(m: Measurements | null, overrides: RegionOverrides =
   return { body, heightCm, scale, params, regions, layout: layoutBody(params, profiles) };
 }
 
-/** Builds a region's profile from its resolved inputs. */
-export function buildRegionProfile(id: RegionId, inputs: InputValues): RegionProfile {
+/**
+ * Builds a region's profile from its resolved inputs. With the body parameters, the torso's curves run
+ * on into the neutral pelvis and neck of the full-body view (docs/adr/0022).
+ */
+export function buildRegionProfile(id: RegionId, inputs: InputValues, params?: BodyParams): RegionProfile {
   const def = REGIONS[id];
   switch (def.kind) {
     case "arm":
@@ -105,6 +108,14 @@ export function buildRegionProfile(id: RegionId, inputs: InputValues): RegionPro
     case "leg":
       return buildLegProfile(inputs as LegInputs, def.mirrored);
     case "torso":
-      return buildTorsoProfile(inputs as TorsoInputs);
+      return buildTorsoProfile(
+        inputs as TorsoInputs,
+        params && {
+          pelvisHeight: params.pelvis_height,
+          hipWidth: params.hip_width,
+          hipDepth: params.hip_depth,
+          neckHeight: params.neck_height,
+        },
+      );
   }
 }

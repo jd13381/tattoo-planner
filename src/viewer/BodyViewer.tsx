@@ -10,6 +10,7 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ResolvedBody } from "../body/body.ts";
 import type { Placement } from "../body/placement.ts";
 import { REGION_IDS, REGIONS, type RegionId } from "../body/regions.ts";
+import { NeutralBody } from "./NeutralBody.tsx";
 import { armGeometry, CAP_COLOR, CAP_ROUGHNESS, LIGHTS, SKIN_ROUGHNESS, skinTexture } from "./scene.ts";
 import { useFreeInsets } from "./useFreeInsets.ts";
 import { BODY_VIEWS, boundsAspect, CAMERA_FOV, fitCamera, type BodyViewName } from "./views.ts";
@@ -101,12 +102,7 @@ export function BodyViewer({ body, textures, active, onPick, toolbarTarget, fram
               onOut={() => setHover((h) => (h === id ? null : h))}
             />
           ))}
-          {body.layout.parts.map((p) => (
-            <mesh key={p.name} position={p.centre} rotation={[0, 0, p.rotZ]} scale={p.radii}>
-              <sphereGeometry args={[1, 40, 24]} />
-              <meshStandardMaterial color={CAP_COLOR} roughness={CAP_ROUGHNESS} />
-            </mesh>
-          ))}
+          <NeutralBody layout={body.layout} />
           <BodyCameraRig body={body} view={view.name} request={view.request} frameAround={frameAround} />
         </Canvas>
       </div>

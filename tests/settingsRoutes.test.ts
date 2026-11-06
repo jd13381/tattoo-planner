@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRoute, routeHash, TABS } from "../src/settings/routes.ts";
+import { FROM_HOME_STATE, isFromHome, parseRoute, routeHash, TABS } from "../src/settings/routes.ts";
 
 describe("app routes", () => {
   it("lists Home first, then Layout and Image studio, Settings last", () => {
@@ -37,5 +37,12 @@ describe("app routes", () => {
       "settings/image-generation",
     ])
       expect(routeHash(parseRoute(`#${h}`))).toBe(h);
+  });
+
+  it("recognises the history entry Home pushes when it opens a region", () => {
+    expect(isFromHome(FROM_HOME_STATE)).toBe(true);
+    // A structured clone (what history.state returns) still counts.
+    expect(isFromHome(structuredClone(FROM_HOME_STATE))).toBe(true);
+    for (const s of [null, undefined, "home", {}, { from: "layout" }]) expect(isFromHome(s)).toBe(false);
   });
 });

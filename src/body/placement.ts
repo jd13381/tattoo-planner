@@ -5,7 +5,7 @@
 // Region meshes are built in their own local frame (src/body/geometry.ts): +Y along the region from
 // its start, X and Z already in the body's directions, so placing a region is a turn about Z (arms
 // and legs spread away from the body) and a shift.
-import type { RegionProfile } from "./profile.ts";
+import type { LoftShape, RegionProfile } from "./profile.ts";
 import { semiAxes } from "./ellipse.ts";
 import type { RegionId } from "./regions.ts";
 import type { BodyParams } from "./samples.ts";
@@ -31,9 +31,14 @@ export function applyRotation(pl: Placement, d: Vec3): Vec3 {
 /** A neutral shape: an ellipsoid with radii along its own axes, turned about Z like a region. */
 export type NeutralPart = { name: string; centre: Vec3; radii: Vec3; rotZ: number };
 
+/** A neutral loft (pelvis, neck) that continues a region's surface smoothly (docs/adr/0022). */
+export type NeutralLoft = { name: string; shape: LoftShape; placement: Placement };
+
 export type BodyLayout = {
   placements: Record<RegionId, Placement>;
   parts: NeutralPart[];
+  /** Drawn in neutral skin like `parts`; their ends sit inside the neighbouring shapes. */
+  lofts: NeutralLoft[];
   /** Axis-aligned bounds of the whole figure, for framing the camera. */
   bounds: { min: Vec3; max: Vec3 };
 };
@@ -77,6 +82,7 @@ export function layoutBody(params: BodyParams, regions: Record<RegionId, RegionP
   };
 
   const parts: NeutralPart[] = [];
+  const lofts: NeutralLoft[] = [];
   // Head and neck.
   const headY = neckY + params.neck_height + params.head_height / 2;
   parts.push({
@@ -85,21 +91,36 @@ export function layoutBody(params: BodyParams, regions: Record<RegionId, RegionP
     radii: [params.head_width / 2, params.head_height / 2, params.head_depth / 2],
     rotZ: 0,
   });
-  const neck = semiAxes(torso.circumferenceAt(torso.length), torso.aspectAt(torso.length));
-  parts.push({
-    name: "neck",
-    centre: [0, neckY + params.neck_height / 2 + 1, -0.5],
-    radii: [neck.a * 0.85, params.neck_height / 2 + 3, neck.b * 0.85],
-    rotZ: 0,
-  });
+  if (torso.kind === "torso" && torso.neck) {
+    // The torso's surface continued above the neck base, into the head.
+    lofts.push({ name: "neck", shape: torso.neck, placement: { origin: [0, neckY, 0], rotZ: 0 } });
+  } else {
+    const neck = semiAxes(torso.circumferenceAt(torso.length), torso.aspectAt(torso.length));
+    parts.push({
+      name: "neck",
+      centre: [0, neckY + params.neck_height / 2 + 1, -0.5],
+      radii: [neck.a * 0.85, params.neck_height / 2 + 3, neck.b * 0.85],
+      rotZ: 0,
+    });
+  }
   // Hips and buttocks between the legs and the waist line.
-  parts.push({
-    name: "hips",
-    // Reaches a few cm up into the torso, so no gap opens at the waist line.
-    centre: [0, hipY + params.pelvis_height * 0.45, -0.8],
-    radii: [params.hip_width / 2, params.pelvis_height * 0.85, params.hip_depth / 2],
-    rotZ: 0,
-  });
+  if (torso.kind === "torso" && torso.pelvis) {
+    // The torso's surface continued below the waist line, down past the hip crease into the legs.
+    const pelvis = torso.pelvis;
+    lofts.push({
+      name: "pelvis",
+      shape: pelvis,
+      placement: { origin: [0, waistY - pelvis.length, 0], rotZ: 0 },
+    });
+  } else {
+    parts.push({
+      name: "hips",
+      // Reaches a few cm up into the torso, so no gap opens at the waist line.
+      centre: [0, hipY + params.pelvis_height * 0.45, -0.8],
+      radii: [params.hip_width / 2, params.pelvis_height * 0.85, params.hip_depth / 2],
+      rotZ: 0,
+    });
+  }
   // Hands below the wrists, flat towards the front (palms forward); feet forward from the ankles.
   for (const [id, side] of [
     ["arm-left", 1],
@@ -152,7 +173,12 @@ export function layoutBody(params: BodyParams, regions: Record<RegionId, RegionP
     grow(applyPlacement(placements[id], [0, p.length, 0]), r);
   }
   for (const part of parts) grow(part.centre, Math.max(...part.radii));
-  return { placements, parts, bounds: { min, max } };
+  for (const loft of lofts) {
+    const r = loft.shape.maxCircumference / Math.PI;
+    grow(applyPlacement(loft.placement, [0, 0, 0]), r);
+    grow(applyPlacement(loft.placement, [0, loft.shape.length, 0]), r);
+  }
+  return { placements, parts, lofts, bounds: { min, max } };
 }
 
 /** Places a region so that its end (local y = length) sits at `joint` and its start hangs below. */

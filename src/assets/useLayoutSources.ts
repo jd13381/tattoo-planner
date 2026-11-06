@@ -5,7 +5,7 @@ import { REGIONS } from "../body/regions.ts";
 import type { ElementPatches } from "../layout/shapes.ts";
 import type { ProjectedPatch } from "../projection/patch.ts";
 import { projectionRegion } from "../projection/schema.ts";
-import { patchFor, photoAssets, useProjections } from "../projection/useProjections.ts";
+import { patchFor, sourceAssetIds, useProjections } from "../projection/useProjections.ts";
 import { elementAspects, isFigureLike, type ElementAspects, type ImageDims } from "../layout/imageFit.ts";
 import type { Layout } from "../layout/schema.ts";
 import type { ReferenceSources } from "../render/reference.ts";
@@ -47,7 +47,7 @@ export function useLayoutSources(
       if (!isFigureLike(e)) continue;
       if (e.asset) ids.add(e.asset);
       const cal = e.type === "existing" && e.projection ? calibrations.get(e.projection) : undefined;
-      if (cal) for (const a of photoAssets(cal, assetMap)) if (a) ids.add(a.id);
+      if (cal) for (const id of sourceAssetIds(cal, assetMap)) ids.add(id);
     }
     return [...ids];
   }, [layout, calibrations, assetMap]);
