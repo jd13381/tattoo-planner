@@ -14,7 +14,7 @@ export type AssetInfo = Asset & {
   exists: boolean;
   /** The section it is shown in: the `category` field, else derived (src/assets/category.ts). */
   effectiveCategory: AssetCategory;
-  /** The person a photo belongs to; null for the shared library. */
+  /** The person a photo belongs to (a studio edit of it inherits it, inheritPersons); null for the shared library. */
   effectivePerson: string | null;
 };
 
