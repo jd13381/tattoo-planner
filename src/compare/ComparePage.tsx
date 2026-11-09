@@ -8,6 +8,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { useLayoutSources, type LayoutSources } from "../assets/useLayoutSources.ts";
+import { supportsBend } from "../body/bend.ts";
 import type { RegionProfile } from "../body/profile.ts";
 import { DEFAULT_REGION, REGIONS, regionOf, type RegionId } from "../body/regions.ts";
 import type { Layout } from "../layout/schema.ts";
@@ -288,9 +289,11 @@ export function ComparePage({ arm, pose, working, onOpenLayout }: Props) {
           </div>
         </section>
 
-        <div className="float cmp-pose">
-          <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} variant="panel" />
-        </div>
+        {supportsBend(profile.kind) && (
+          <div className="float cmp-pose">
+            <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} variant="panel" />
+          </div>
+        )}
 
         <section className="float cmp-diff" id={DIFF_ID} tabIndex={-1} aria-label="Element differences">
           <div className="float-head">

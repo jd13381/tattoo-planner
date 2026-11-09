@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { bendArmMesh, BEND_DEFAULTS, bounds, elbowBend } from "../src/body/bend.ts";
+import {
+  bendArmMesh,
+  BEND_DEFAULTS,
+  bounds,
+  elbowBend,
+  regionBendDeg,
+  supportsBend,
+} from "../src/body/bend.ts";
 import { semiAxes } from "../src/body/ellipse.ts";
 import { buildArmMesh } from "../src/body/geometry.ts";
 import { PLACEHOLDERS } from "../src/body/inputs.ts";
@@ -118,5 +125,20 @@ describe("elbow bend", () => {
     const straightBox = bounds(mesh.positions);
     expect(box.max[2]).toBeGreaterThan(e - 5); // the wrist sticks out towards the palm side
     expect(box.min[1]).toBeGreaterThan(straightBox.min[1] + e / 2);
+  });
+});
+
+describe("supportsBend / regionBendDeg", () => {
+  it("offers the elbow pose on arms only", () => {
+    expect(supportsBend("arm")).toBe(true);
+    expect(supportsBend("leg")).toBe(false);
+    expect(supportsBend("torso")).toBe(false);
+  });
+
+  it("keeps a bend set on an arm out of the torso and legs", () => {
+    expect(regionBendDeg("arm", 90)).toBe(90);
+    expect(regionBendDeg("torso", 90)).toBe(0);
+    expect(regionBendDeg("leg", 45)).toBe(0);
+    expect(regionBendDeg("arm", -10)).toBe(0);
   });
 });

@@ -7,7 +7,7 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { RegionProfile } from "../body/profile.ts";
 import { ArmModel } from "./ArmModel.tsx";
 import type { CameraSync } from "./cameraSync.ts";
-import { MAX_FLEXION_DEG } from "../body/bend.ts";
+import { MAX_FLEXION_DEG, regionBendDeg, supportsBend } from "../body/bend.ts";
 import { addSample, textureToLayout, type UV } from "../editor/stroke.ts";
 import { armGeometry, LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
 import { useViewState, type ViewState } from "./useViewState.ts";
@@ -55,7 +55,8 @@ export const ORBIT_HINT = "Drag to rotate, scroll to zoom, right-drag to pan.";
 
 export function ArmViewer(props: Props) {
   const { profile, canvas, version, hint, viewState, toolbar = true, sync, label } = props;
-  const bendDeg = props.bendDeg ?? 0;
+  // The pose is shared across tabs; a region that cannot bend (torso, legs) ignores it.
+  const bendDeg = regionBendDeg(profile.kind, props.bendDeg ?? 0);
   const own = useViewState();
   const vs = viewState ?? own;
   const geometry = useMemo(() => armGeometry(profile, bendDeg), [profile, bendDeg]);
@@ -126,7 +127,7 @@ export function ArmViewer(props: Props) {
             Screenshot
           </button>
         )}
-        {toolbar && props.onBendDeg && (
+        {toolbar && props.onBendDeg && supportsBend(profile.kind) && (
           <div className="canvas-toolbar bottom">
             <PoseControl bendDeg={bendDeg} onChange={props.onBendDeg} />
           </div>
