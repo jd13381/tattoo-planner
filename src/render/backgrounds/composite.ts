@@ -154,6 +154,31 @@ export function blurAlpha(a: Float32Array, g: UnwrapRows, radiusPx: number): voi
   }
 }
 
+/** Lightness below which a motif pixel counts as no ink at all (paper white, faint scan noise). */
+const PAPER = 0.92;
+/** Lightness at and below which a motif pixel fully covers the background. */
+const FULL_INK = 0.45;
+
+/**
+ * The knockout of motifs drawn as RGBA (docs/adr/0019): how much each pixel hides the background
+ * layers, 0..1. Motifs are multiplied onto the skin, so white paper around a motif is see-through;
+ * it lets the background show instead of cutting a rectangle out of it. Coverage is the pixel's
+ * alpha × its ink (0 at paper white, 1 from mid grey down), so transparent PNGs and white-backed
+ * scans both knock out only where there is ink.
+ */
+export function motifKnockout(rgba: Uint8ClampedArray): Float32Array {
+  const n = rgba.length / 4;
+  const out = new Float32Array(n);
+  for (let k = 0; k < n; k++) {
+    const a = rgba[k * 4 + 3]! / 255;
+    if (a === 0) continue;
+    const l = (0.2126 * rgba[k * 4]! + 0.7152 * rgba[k * 4 + 1]! + 0.0722 * rgba[k * 4 + 2]!) / 255;
+    const ink = Math.min(1, Math.max(0, (PAPER - l) / (PAPER - FULL_INK)));
+    out[k] = a * ink;
+  }
+  return out;
+}
+
 /** Grows an alpha mask by `radiusPx` (max filter, round each ring with wrap-around and along). */
 export function dilateAlpha(a: Float32Array, g: UnwrapRows, radiusPx: number): Float32Array {
   const r = Math.round(radiusPx);
