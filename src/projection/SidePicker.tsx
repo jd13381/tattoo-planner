@@ -1,6 +1,7 @@
-// Small schematic drawings for the projection wizard's steps (docs/adr/0014): what to do, drawn once
-// for every body part. Plain SVG in the planner's colours; the camera picture places the sides as
-// src/projection/sides.ts does (checked against the model in tests/projectionSides.test.ts).
+// Where was the camera (docs/adr/0023; the projection workspace's Camera tool, docs/adr/0024): the
+// person seen from above with the camera on a ring, the four sides as big buttons and "a little from the
+// side". One facing u, split into the nearest side and a small turn (src/projection/sides.ts); the
+// picture places the sides as sides.ts does (checked against the model in tests/projectionSides.test.ts).
 import {
   useRef,
   useState,
@@ -8,95 +9,83 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { REGIONS, type RegionId } from "../body/regions.ts";
-import { EDGE_COLOR } from "./PhotoEditor.tsx";
-import { cameraAngle, describeFacing, facingAtAngle, sideChoices, snapFacing } from "./sides.ts";
+import {
+  cameraAngle,
+  describeFacing,
+  facingAtAngle,
+  joinFacing,
+  neighbours,
+  sideChoices,
+  snapFacing,
+  splitFacing,
+} from "./sides.ts";
 
-const SKIN = "#d9b49a";
-const SKIN_EDGE = "#8a6a55";
-const INK = "#2b2b33";
-const RED = "#e53935";
+/** The four sides as the picture shows them: front and back first, then its left and right. */
+const sideOrder = (region: RegionId) =>
+  [90, 270, 180, 0].map((a) => sideChoices(region).find((sd) => sd.angle === a)!);
 
-/** A limb standing upright, tapering towards its start at the bottom. */
-function Limb({ ink = true }: { ink?: boolean }) {
+export function SidePicker({
+  region,
+  value,
+  onChange,
+  compact,
+}: {
+  region: RegionId;
+  value: number;
+  /** `key` groups a run of changes (the slider, the dial) into one undo step. */
+  onChange: (u: number, key?: string) => void;
+  compact?: boolean;
+}) {
+  const { main, offset } = splitFacing(value);
+  const [less, more] = neighbours(region, main);
+  const now = describeFacing(region, value);
   return (
-    <>
-      <path d="M38 8 L82 8 L74 112 L46 112 Z" fill={SKIN} stroke={SKIN_EDGE} strokeWidth={1} />
-      {ink && <path d="M54 40 q6 -10 12 0 q4 12 -6 22 q-10 -10 -6 -22 Z" fill={INK} opacity={0.85} />}
-    </>
-  );
-}
-
-export function TurnArt() {
-  return (
-    <svg viewBox="0 0 120 120" className="wizard-art" aria-hidden="true">
-      <Limb />
-      <path d="M100 30 L100 96" stroke="currentColor" strokeWidth={2} markerEnd="url(#wa-arrow)" />
-      <defs>
-        <marker
-          id="wa-arrow"
-          viewBox="0 0 10 10"
-          refX="5"
-          refY="5"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto"
-        >
-          <path d="M0 0 L10 5 L0 10 Z" fill="currentColor" />
-        </marker>
-      </defs>
-      <text x={60} y={119} textAnchor="middle" fontSize={9} fill="currentColor">
-        start
-      </text>
-    </svg>
-  );
-}
-
-export function EdgesArt() {
-  return (
-    <svg viewBox="0 0 120 120" className="wizard-art" aria-hidden="true">
-      <Limb />
-      <line x1={38} y1={8} x2={46} y2={112} stroke={EDGE_COLOR} strokeWidth={2.5} />
-      <line x1={82} y1={8} x2={74} y2={112} stroke={EDGE_COLOR} strokeWidth={2.5} />
-      {[
-        [38, 8],
-        [46, 112],
-        [82, 8],
-        [74, 112],
-      ].map(([x, y]) => (
-        <circle
-          key={`${x}-${y}`}
-          cx={x}
-          cy={y === 8 ? 12 : 108}
-          r={4.5}
-          fill="rgba(255,152,0,0.5)"
-          stroke={EDGE_COLOR}
+    <div className={`side-picker${compact ? " compact" : ""}`}>
+      <CameraDial
+        region={region}
+        value={value}
+        onChange={(u) => onChange(u, "camera-dial")}
+        label="Camera position"
+      />
+      <div className="side-choices" role="radiogroup" aria-label="Side in the photo">
+        {sideOrder(region).map((sd) => (
+          <button
+            key={sd.u}
+            type="button"
+            role="radio"
+            aria-checked={sd.u === main}
+            className={`side-choice${sd.u === main ? " current" : ""}`}
+            onClick={() => onChange(sd.u)}
+          >
+            <span className="side-label">{sd.label}</span>
+            {sd.hint && <span className="side-hint xs">{sd.hint}</span>}
+          </button>
+        ))}
+      </div>
+      <label className="wizard-field side-turn">
+        <span className="field-label">
+          A little from the side?{" "}
+          <span className="faint">
+            {now.turnDeg === 0
+              ? "straight on"
+              : `${Math.abs(now.turnDeg)}° towards the ${(now.turnDeg < 0 ? less : more).label.toLowerCase()}`}
+          </span>
+        </span>
+        <input
+          type="range"
+          min={-45}
+          max={45}
+          step={1}
+          value={Math.round(offset * 360)}
+          aria-valuetext={now.turnDeg === 0 ? "straight on" : `${now.turnDeg} degrees`}
+          onChange={(e) => onChange(joinFacing(main, Number(e.target.value) / 360), "camera-turn")}
         />
-      ))}
-    </svg>
-  );
-}
-
-export function MarksArt() {
-  return (
-    <svg viewBox="0 0 120 120" className="wizard-art" aria-hidden="true">
-      <Limb />
-      <line x1={36} y1={104} x2={84} y2={104} stroke={INK} strokeDasharray="3 2" />
-      <circle cx={60} cy={104} r={4} fill="rgba(229,57,53,0.4)" stroke={RED} />
-      <circle cx={60} cy={30} r={4} fill="rgba(229,57,53,0.4)" stroke={RED} />
-      <line x1={100} y1={104} x2={100} y2={30} stroke="currentColor" />
-      <line x1={96} y1={104} x2={104} y2={104} stroke="currentColor" />
-      <line x1={96} y1={30} x2={104} y2={30} stroke="currentColor" />
-      <text
-        x={104}
-        y={70}
-        fontSize={10}
-        fill="currentColor"
-        transform="rotate(-90 104 70)"
-        textAnchor="middle"
-      >
-        cm
-      </text>
-    </svg>
+        <span className="side-turn-ends faint xs" aria-hidden="true">
+          <span>← {less.label.toLowerCase()}</span>
+          <span>{more.label.toLowerCase()} →</span>
+        </span>
+      </label>
+    </div>
   );
 }
 

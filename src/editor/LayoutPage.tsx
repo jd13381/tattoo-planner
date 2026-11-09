@@ -19,6 +19,7 @@ import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
 import { renderUnwrap, timed, type RenderMode } from "../render/unwrapCanvas.ts";
 import { ExportButton } from "../export/ExportButton.tsx";
 import type { ExportInput } from "../export/runExport.ts";
+import { supportsBend } from "../body/bend.ts";
 import { inputKeys } from "../body/inputs.ts";
 import { DEFAULT_REGION, editorCentres, REGION_IDS, REGIONS, type RegionId } from "../body/regions.ts";
 import { SAMPLES } from "../body/samples.ts";
@@ -1478,7 +1479,7 @@ export function LayoutPage({
               <span className="toolbar-sep" aria-hidden="true" />
               <div ref={setViewerToolbar} className="viewer-tools" />
             </div>
-            {view3d === "region" && profile.kind === "arm" && (
+            {view3d === "region" && supportsBend(profile.kind) && (
               <div className="float pose-panel">
                 <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} variant="panel" />
               </div>

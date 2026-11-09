@@ -2,6 +2,7 @@
 // with the 1 cm grid, and per region either the measurements form or the "Measure yourself" wizard.
 // Edits are a live draft (every tab shows them); Save writes them into measurements.yaml.
 import { useEffect, useMemo, useState } from "react";
+import { regionBendDeg, supportsBend } from "../body/bend.ts";
 import { bodyStatus, fieldStatuses, formatCm, type FieldStatus } from "../body/fieldStatus.ts";
 import { INPUT_SECTIONS } from "../body/inputs.ts";
 import { INPUT_LABELS, isRatio, SECTION_TITLES } from "../body/measureGuide.ts";
@@ -97,7 +98,7 @@ export function BodyPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
             profile={profile}
             canvas={canvas}
             version={0}
-            bendDeg={def.kind === "arm" ? pose.bendDeg : 0}
+            bendDeg={regionBendDeg(def.kind, pose.bendDeg)}
             toolbarTarget={viewerBar}
             screenshotInToolbar
             footer={false}
@@ -107,7 +108,7 @@ export function BodyPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
           <div className="float float-bar arm-view-bar" title={ORBIT_HINT}>
             <div ref={setViewerBar} className="viewer-tools" />
           </div>
-          {def.kind === "arm" && (
+          {supportsBend(def.kind) && (
             <div className="float pose-panel arm-pose">
               <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} variant="panel" />
             </div>

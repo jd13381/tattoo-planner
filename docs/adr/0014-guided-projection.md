@@ -1,6 +1,6 @@
 # ADR 0014: Guided projection of existing tattoos
 
-- Status: accepted (2026-11-05, decided by Claude under Jan's autonomy rule; see docs/claude-decisions.md); amended by docs/adr/0023-projection-cleanup.md (a Clean up step before Check and save; the Side step became "Where was the camera?", the twisted option moved under Advanced)
+- Status: accepted (2026-11-05, decided by Claude under Jan's autonomy rule; see docs/claude-decisions.md); amended by docs/adr/0023-projection-cleanup.md (a Clean up step before Check and save; the Side step became "Where was the camera?", the twisted option moved under Advanced); the step model is replaced by docs/adr/0024-projection-workspace.md (one workspace with live preview, automatic area)
 - Context: docs/product/roadmap.md P6 and Phase C step 5; ADR 0006 (the forward model and calibration, built for the Anubis on the left forearm); ADR 0011 (body regions)
 
 ## Problem

@@ -103,6 +103,39 @@ export function personOf(
   return personPath(entry.file)?.id ?? defaultPerson;
 }
 
+type PersonEntry = Pick<Asset, "id"> &
+  Partial<Pick<Asset, "derived_from" | "person">> & { effectivePerson: string | null };
+
+/**
+ * Effective persons with studio edits inheriting their original's (Jan, 2026-11-09): an edit of a
+ * body photo is that person's, so the projection picker shows it with their photos and not with the
+ * shared library. An explicit `person` on the edit wins; else the `derived_from` chain is followed
+ * (cycles and unknown originals end it with null). Derived at read time, never written back.
+ * Entries that already have a person keep it. Returns new objects only where a person was added.
+ */
+export function inheritPersons<T extends PersonEntry>(entries: readonly T[]): T[] {
+  const byId = new Map(entries.map((a) => [a.id, a]));
+  const memo = new Map<string, string | null>();
+  const resolve = (a: T, seen: Set<string>): string | null => {
+    if (a.effectivePerson !== null) return a.effectivePerson;
+    const known = memo.get(a.id);
+    if (known !== undefined) return known;
+    let person: string | null = null;
+    if (a.derived_from && a.person) person = a.person;
+    else if (a.derived_from && !seen.has(a.id)) {
+      const parent = byId.get(a.derived_from);
+      seen.add(a.id);
+      person = parent ? resolve(parent, seen) : null;
+    }
+    memo.set(a.id, person);
+    return person;
+  };
+  return entries.map((a) => {
+    const person = resolve(a, new Set());
+    return person === a.effectivePerson ? a : { ...a, effectivePerson: person };
+  });
+}
+
 /** Folder (relative to the project, no trailing slash) where new files of a section are put. */
 export function folderFor(
   category: AssetCategory,

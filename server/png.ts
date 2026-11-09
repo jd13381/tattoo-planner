@@ -20,6 +20,19 @@ export function encodePng(width: number, height: number, rgba: Uint8Array): Buff
   return encode(width, height, 6, 4, rgba);
 }
 
+/** RGBA pixels → PNG bytes, stored as RGB (no alpha channel) when every pixel is opaque. */
+export function encodeCompactPng(width: number, height: number, rgba: Uint8Array): Buffer {
+  if (rgba.length !== width * height * 4) throw new Error("pixel buffer does not match the size");
+  for (let i = 3; i < rgba.length; i += 4) if (rgba[i] !== 255) return encode(width, height, 6, 4, rgba);
+  const rgb = new Uint8Array(width * height * 3);
+  for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) {
+    rgb[j] = rgba[i]!;
+    rgb[j + 1] = rgba[i + 1]!;
+    rgb[j + 2] = rgba[i + 2]!;
+  }
+  return encode(width, height, 2, 3, rgb);
+}
+
 /** Opaque grey pixels (one byte each) → an 8-bit greyscale PNG, a quarter of the RGBA size. */
 export function encodeGreyPng(width: number, height: number, grey: Uint8Array): Buffer {
   if (grey.length !== width * height) throw new Error("pixel buffer does not match the size");

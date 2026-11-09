@@ -47,5 +47,5 @@ export function shapeWarning(
   const a = photo.width / photo.height;
   const b = edit.width / edit.height;
   if (Math.abs(a / b - 1) <= SHAPE_TOLERANCE) return null;
-  return `The edited image is ${edit.width} × ${edit.height} px, the photo ${photo.width} × ${photo.height} px: another shape, so the ink may sit off. Pick below how it lies on the photo and check that Before and After line up.`;
+  return `The edited image is ${edit.width} × ${edit.height} px, the photo ${photo.width} × ${photo.height} px: another shape, so the ink may sit off. Pick below how it lies on the photo and check with "Both" on the canvas that the edit lines up with the photo.`;
 }
