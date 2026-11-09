@@ -1,8 +1,10 @@
-// A body photo and its edits from the Image studio as one stack (docs/adr/0024-projection-workspace.md,
-// "Picture and frame"): the photo picker shows each photo once with its versions on it, and picking a
-// version keeps the original as the frame (`file`: the points are placed on it) and uses the edit's
-// pixels (`cleaned`). Pure functions over manifest entries.
+// Picking a version of a body photo (docs/adr/0024-projection-workspace.md, "Picture and frame"): the
+// photo picker shows each photo once with its Image studio edits on it (grouped by
+// src/assets/projectionPhotos.ts), and picking a version keeps the original as the frame (`file`: the
+// points are placed on it) and uses the edit's pixels (`cleaned`). Pure functions over manifest entries.
 import { fileKey } from "../assets/manifestDoc.ts";
+import type { PhotoChoice } from "../assets/projectionPhotos.ts";
+import type { AssetInfo } from "../assets/types.ts";
 import type { PhotoPick } from "./draft.ts";
 
 type AssetLike = { id: string; file: string; derived_from?: string; exists?: boolean };
@@ -10,25 +12,13 @@ type AssetLike = { id: string; file: string; derived_from?: string; exists?: boo
 /** An original photo and its saved edits, newest first. */
 export type PhotoStack<A extends AssetLike> = { root: A; edits: A[] };
 
-/** The original an image was made from (an edit of an edit names the original too, ADR 0010). */
-export function rootOf<A extends AssetLike>(asset: A, byId: ReadonlyMap<string, A>): A {
-  return (asset.derived_from && byId.get(asset.derived_from)) || asset;
-}
-
 /**
- * The stacks of these photos: each with every existing image whose `derived_from` names it, newest
- * first (the manifest lists edits in the order they were saved).
+ * A picker group entry as a stack: the edits that exist, newest first. An image without a body photo
+ * as its original (the shared library) is a stack of its own.
  */
-export function photoStacks<A extends AssetLike>(roots: readonly A[], all: readonly A[]): PhotoStack<A>[] {
-  return roots.map((root) => ({
-    root,
-    edits: all.filter((a) => a.derived_from === root.id && a.id !== root.id && a.exists !== false).reverse(),
-  }));
-}
-
-/** Ids of every edit in the stacks (so the picker does not list them a second time). */
-export function stackedIds<A extends AssetLike>(stacks: readonly PhotoStack<A>[]): Set<string> {
-  return new Set(stacks.flatMap((s) => s.edits.map((e) => e.id)));
+export function stackOf(choice: PhotoChoice | AssetInfo): PhotoStack<AssetInfo> {
+  if (!("photo" in choice)) return { root: choice, edits: [] };
+  return { root: choice.photo, edits: choice.edits.filter((e) => e.exists !== false).reverse() };
 }
 
 /** All versions of a stack, the original first. */
@@ -50,7 +40,10 @@ export function pickIndex<A extends AssetLike>(stack: PhotoStack<A>, picks: read
 }
 
 /** The version of the stack that is picked, or null when the stack is not picked. */
-export function pickedVersion<A extends AssetLike>(stack: PhotoStack<A>, picks: readonly PhotoPick[]): A | null {
+export function pickedVersion<A extends AssetLike>(
+  stack: PhotoStack<A>,
+  picks: readonly PhotoPick[],
+): A | null {
   const pick = picks[pickIndex(stack, picks)];
   if (!pick) return null;
   // An older file may name an edit as the photo itself; then that edit is what it shows.

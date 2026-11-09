@@ -59,7 +59,8 @@ export function WorkspaceInspector(props: {
     <aside className="pw-inspector" aria-label="Inspector">
       <section className="pw-section">
         <h2 className="pw-section-title">
-          Photo <span className="mono">{index + 1}</span> of <span className="mono">{draft.photos.length}</span>
+          Photo <span className="mono">{index + 1}</span> of{" "}
+          <span className="mono">{draft.photos.length}</span>
         </h2>
         <p className="faint xs mono pw-file" title={photo.file}>
           {photo.file.split("/").pop()}
@@ -107,8 +108,8 @@ export function WorkspaceInspector(props: {
           <h3 className="pw-section-title">Two known distances</h3>
           <p className="small">
             Drag the two red points onto two spots along the {limb} whose distance from the {start} you know,
-            and set the distance: type it or click a landmark below. The ruler on the photo and the model&apos;s
-            2 cm lines should then match the skin.
+            and set the distance: type it or click a landmark below. The ruler on the photo and the
+            model&apos;s 2 cm lines should then match the skin.
           </p>
           {photo.marks.map((m, k) => {
             const chip = chipAt(props.chips, m.cm);
@@ -129,7 +130,9 @@ export function WorkspaceInspector(props: {
                     onChange={(e) => {
                       const v = Number(e.target.value);
                       if (e.target.value === "" || !Number.isFinite(v)) return;
-                      const marks = photo.marks.map((q, i) => (i === k ? { ...q, cm: v } : q)) as DraftPhoto["marks"];
+                      const marks = photo.marks.map((q, i) =>
+                        i === k ? { ...q, cm: v } : q,
+                      ) as DraftPhoto["marks"];
                       setPhoto({ ...photo, marks }, `cm-${k}`);
                     }}
                   />
@@ -180,7 +183,10 @@ export function WorkspaceInspector(props: {
             region={region}
             value={photo.facing}
             onChange={(facing, key) =>
-              setPhoto({ ...photo, facing, facingSet: true, ...(photo.twisted ? {} : { facingFar: facing }) }, key)
+              setPhoto(
+                { ...photo, facing, facingSet: true, ...(photo.twisted ? {} : { facingFar: facing }) },
+                key,
+              )
             }
           />
           <details className="wizard-advanced" open={photo.twisted}>
@@ -285,7 +291,9 @@ function CleanupPanel({
           type="checkbox"
           className="switch"
           checked={!!cleanup}
-          onChange={(e) => change((d) => ({ ...d, cleanup: e.target.checked ? { ...DEFAULT_CLEANUP } : null }))}
+          onChange={(e) =>
+            change((d) => ({ ...d, cleanup: e.target.checked ? { ...DEFAULT_CLEANUP } : null }))
+          }
         />
         Keep only the ink
       </label>
@@ -347,7 +355,10 @@ function CleanupPanel({
           aria-label="Remove specks smaller than, in mm²"
           onChange={(e) =>
             change(
-              (d) => ({ ...d, erase: { strokes: d.erase?.strokes ?? [], specks_mm2: Number(e.target.value) } }),
+              (d) => ({
+                ...d,
+                erase: { strokes: d.erase?.strokes ?? [], specks_mm2: Number(e.target.value) },
+              }),
               "specks",
             )
           }
@@ -392,7 +403,10 @@ function EditFitControls({
           value={photo.cleanedFit ?? "stretch"}
           onChange={(e) => {
             onAlign();
-            setPhoto({ ...photo, cleanedFit: e.target.value === "stretch" ? null : (e.target.value as EditFit) });
+            setPhoto({
+              ...photo,
+              cleanedFit: e.target.value === "stretch" ? null : (e.target.value as EditFit),
+            });
           }}
         >
           <option value="stretch">Stretched onto the photo</option>
@@ -430,8 +444,8 @@ function EditFitControls({
         </span>
       </div>
       <p className="faint xs">
-        Pick the fit where photo and edit line up (the canvas shows both), then shift away what is left.
-        If none lines up, the edit moved the lines: use the built-in clean-up instead.
+        Pick the fit where photo and edit line up (the canvas shows both), then shift away what is left. If
+        none lines up, the edit moved the lines: use the built-in clean-up instead.
       </p>
     </div>
   );
@@ -466,7 +480,7 @@ function AreaSection(props: {
           type="button"
           className={held ? "" : "active"}
           aria-pressed={!held}
-          onClick={props.onFit}
+          onClick={held ? props.onFit : undefined}
           title="The area follows the photos (dashed on the unwrap and in 3D)"
         >
           Fit to photos
@@ -475,7 +489,7 @@ function AreaSection(props: {
           type="button"
           className={held ? "active" : ""}
           aria-pressed={held}
-          onClick={props.onHold}
+          onClick={held ? undefined : props.onHold}
           title="Keep the area as it is now"
         >
           Hold area

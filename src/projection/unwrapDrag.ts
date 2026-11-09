@@ -83,7 +83,13 @@ export function scaleAlong(photo: DraftPhoto, anchor: number, k: number): DraftP
     ca -= low;
     cb -= low;
   }
-  return { ...photo, marks: [{ ...a, cm: round2(ca) }, { ...b, cm: round2(cb) }] };
+  return {
+    ...photo,
+    marks: [
+      { ...a, cm: round2(ca) },
+      { ...b, cm: round2(cb) },
+    ],
+  };
 }
 
 export type DragMode = "move" | "top" | "bottom";

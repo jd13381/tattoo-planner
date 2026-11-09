@@ -60,14 +60,26 @@ export function undo<T>(h: History<T>): History<T> {
   if (h.anchor !== null) return cancelGesture(h);
   const prev = h.past.at(-1);
   if (prev === undefined) return h;
-  return { past: h.past.slice(0, -1), present: prev, future: [h.present, ...h.future], anchor: null, key: null };
+  return {
+    past: h.past.slice(0, -1),
+    present: prev,
+    future: [h.present, ...h.future],
+    anchor: null,
+    key: null,
+  };
 }
 
 export function redo<T>(h: History<T>): History<T> {
   if (h.anchor !== null) return h;
   const next = h.future[0];
   if (next === undefined) return h;
-  return { past: withPast(h.past, h.present), present: next, future: h.future.slice(1), anchor: null, key: null };
+  return {
+    past: withPast(h.past, h.present),
+    present: next,
+    future: h.future.slice(1),
+    anchor: null,
+    key: null,
+  };
 }
 
 /**

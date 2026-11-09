@@ -126,7 +126,8 @@ export function ProjectionWorkspace(props: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   const change = useCallback(
-    (f: (d: ProjectionDraft) => ProjectionDraft, key?: string) => setHist((h) => commit(h, f(h.present), key)),
+    (f: (d: ProjectionDraft) => ProjectionDraft, key?: string) =>
+      setHist((h) => commit(h, f(h.present), key)),
     [],
   );
   const setPhotoAt = useCallback(
@@ -136,7 +137,9 @@ export function ProjectionWorkspace(props: Props) {
   );
   const gesture = useCallback(
     (phase: GesturePhase) =>
-      setHist((h) => (phase === "start" ? beginGesture(h) : phase === "end" ? endGesture(h) : cancelGesture(h))),
+      setHist((h) =>
+        phase === "start" ? beginGesture(h) : phase === "end" ? endGesture(h) : cancelGesture(h),
+      ),
     [],
   );
 
@@ -202,7 +205,9 @@ export function ProjectionWorkspace(props: Props) {
         commit(h, {
           ...h.present,
           photos: h.present.photos.map((q, k) =>
-            k === awaitingEdit.photo ? { ...q, cleaned: edit.file, cleanedFit: null, cleanedOffset: null } : q,
+            k === awaitingEdit.photo
+              ? { ...q, cleaned: edit.file, cleanedFit: null, cleanedOffset: null }
+              : q,
           ),
         }),
       );
@@ -430,7 +435,9 @@ export function ProjectionWorkspace(props: Props) {
     }
   };
 
-  const title = isNew ? draft.description || draft.name || "New existing tattoo" : draft.description || draft.name;
+  const title = isNew
+    ? draft.description || draft.name || "New existing tattoo"
+    : draft.description || draft.name;
   const leave = () => {
     if (dirty && !window.confirm("Leave without saving? The changes so far are lost.")) return;
     props.onClose();
@@ -583,7 +590,9 @@ export function ProjectionWorkspace(props: Props) {
           className={dirty || isNew ? "" : "ghost"}
           onClick={leave}
           aria-keyshortcuts="Escape"
-          title={dirty ? "Back to the list without saving (Esc)" : "Back to the list of existing tattoos (Esc)"}
+          title={
+            dirty ? "Back to the list without saving (Esc)" : "Back to the list of existing tattoos (Esc)"
+          }
         >
           {dirty || isNew ? "Cancel" : "Close"}
         </button>
@@ -614,7 +623,13 @@ export function ProjectionWorkspace(props: Props) {
               {issues.length > 0 ? <span className="mono">{issues.length}</span> : "▾"}
             </button>
           </span>
-          <Popover open={saveMenu} onClose={() => setSaveMenu(false)} label="Save" align="end" className="pw-save-menu">
+          <Popover
+            open={saveMenu}
+            onClose={() => setSaveMenu(false)}
+            label="Save"
+            align="end"
+            className="pw-save-menu"
+          >
             <label className="wizard-field">
               <span className="field-label">Show it in layout</span>
               <select
@@ -685,7 +700,7 @@ export function ProjectionWorkspace(props: Props) {
         <nav className="pw-filmstrip" aria-label="Photos">
           <ol>
             {draft.photos.map((p, i) => {
-              const info = byFile.get(fileKey(p.cleaned ?? p.file)) ?? byFile.get(fileKey(p.file));
+              const info = byFile.get(fileKey(p.file));
               const state = checks[i] ? photoState(checks[i]) : "todo";
               return (
                 <li key={p.file} className={i === photoIndex ? "current" : undefined}>
@@ -713,7 +728,9 @@ export function ProjectionWorkspace(props: Props) {
                     </span>
                     <span
                       className={`pw-check-dot ${state}`}
-                      title={state === "done" ? "Complete" : state === "error" ? "Needs fixing" : "Something to do"}
+                      title={
+                        state === "done" ? "Complete" : state === "error" ? "Needs fixing" : "Something to do"
+                      }
                     />
                     {p.cleaned && <span className="pw-thumb-edit xs">edit</span>}
                   </button>
@@ -762,7 +779,7 @@ export function ProjectionWorkspace(props: Props) {
                 <button
                   type="button"
                   className="ghost"
-                  onClick={() => setPhotoAt(photoIndex, turnPhoto(photo, (((photo.turn + 270) % 360) as Turn)))}
+                  onClick={() => setPhotoAt(photoIndex, turnPhoto(photo, ((photo.turn + 270) % 360) as Turn))}
                   title="Turn the photo a quarter to the left: the start of the body part (e.g. the wrist) goes at the bottom"
                   aria-label="Turn left"
                 >
@@ -771,13 +788,16 @@ export function ProjectionWorkspace(props: Props) {
                 <button
                   type="button"
                   className="ghost"
-                  onClick={() => setPhotoAt(photoIndex, turnPhoto(photo, (((photo.turn + 90) % 360) as Turn)))}
+                  onClick={() => setPhotoAt(photoIndex, turnPhoto(photo, ((photo.turn + 90) % 360) as Turn))}
                   title="Turn the photo a quarter to the right"
                   aria-label="Turn right"
                 >
                   ↻
                 </button>
-                <label className="inline xs" title="A cm ruler along the left edge, from the points' distances">
+                <label
+                  className="inline xs"
+                  title="A cm ruler along the left edge, from the points' distances"
+                >
                   <input type="checkbox" checked={ruler} onChange={(e) => setRuler(e.target.checked)} /> Ruler
                 </label>
                 {photo.cleaned && (
@@ -825,7 +845,9 @@ export function ProjectionWorkspace(props: Props) {
             ) : status?.kind !== "ready" || !ready ? (
               <div className="pw-photo">
                 <PhotoPlaceholder
-                  status={!status || status.kind === "ready" ? { kind: "loading", title: "Loading…" } : status}
+                  status={
+                    !status || status.kind === "ready" ? { kind: "loading", title: "Loading…" } : status
+                  }
                   file={photo.file}
                 />
               </div>
@@ -898,7 +920,9 @@ export function ProjectionWorkspace(props: Props) {
             areaNote={areaNote}
             edits={edits}
             onStudio={original?.exists && listing?.status === "ok" ? () => sendToStudio(photoIndex) : null}
-            shapeWarning={photo.cleaned ? shapeWarning(storedSize(photo.file), storedSize(photo.cleaned)) : null}
+            shapeWarning={
+              photo.cleaned ? shapeWarning(storedSize(photo.file), storedSize(photo.cleaned)) : null
+            }
             onAlign={() => picture === "photo" && setPicture("both")}
           />
         ) : (

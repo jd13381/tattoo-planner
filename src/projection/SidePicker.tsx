@@ -20,7 +20,6 @@ import {
   splitFacing,
 } from "./sides.ts";
 
-
 /** The four sides as the picture shows them: front and back first, then its left and right. */
 const sideOrder = (region: RegionId) =>
   [90, 270, 180, 0].map((a) => sideChoices(region).find((sd) => sd.angle === a)!);

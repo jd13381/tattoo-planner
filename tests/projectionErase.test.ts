@@ -239,7 +239,9 @@ describe("edited photos of another shape", () => {
   });
 
   it("keeps the fit in the file and the draft, only next to an edit", () => {
-    const d = withPhotos({ ...newDraft("arm-left"), name: "rose" }, [{ file: "photos/a.jpg", cleaned: null }]);
+    const d = withPhotos({ ...newDraft("arm-left"), name: "rose" }, [
+      { file: "photos/a.jpg", cleaned: null },
+    ]);
     d.photos[0]!.cleanedFit = "contain";
     let r = toCalibration(d, arm);
     if (!r.ok) throw new Error(r.error);

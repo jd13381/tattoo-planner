@@ -4,7 +4,13 @@ import { describe, expect, it } from "vitest";
 import { resolveBody } from "../src/body/body.ts";
 import { areaContains, autoArea, openingArea, photoSpan } from "../src/projection/area.ts";
 import { draftIssues, photoChecks, photoState, previewable } from "../src/projection/checks.ts";
-import { newDraft, newPhoto, toPhotoCalibration, withPhotos, type DraftPhoto } from "../src/projection/draft.ts";
+import {
+  newDraft,
+  newPhoto,
+  toPhotoCalibration,
+  withPhotos,
+  type DraftPhoto,
+} from "../src/projection/draft.ts";
 import {
   beginGesture,
   canRedo,
@@ -20,7 +26,8 @@ import {
 import { chipAt, landmarkChips } from "../src/projection/landmarks.ts";
 import { photoFrame, twistReach } from "../src/projection/model.ts";
 import { buildPatch, type PhotoPixels } from "../src/projection/patch.ts";
-import { pickedVersion, photoStacks, stackedIds, togglePick } from "../src/projection/photoVersions.ts";
+import { pickedVersion, stackOf, togglePick } from "../src/projection/photoVersions.ts";
+import type { AssetInfo } from "../src/assets/types.ts";
 import { rulerTicks } from "../src/projection/ruler.ts";
 import { projectionSchema } from "../src/projection/schema.ts";
 import {
@@ -103,7 +110,11 @@ describe("checklist", () => {
     const d = withPhotos({ ...newDraft(), name: "" }, [{ file: "photos/a.jpg", cleaned: null }]);
     const issues = draftIssues(d, []);
     expect(issues[0]).toMatchObject({ photo: null, check: "name", severity: "error" });
-    expect(issues.filter((i) => i.photo === 0).map((i) => i.check)).toEqual(["outline", "distances", "facing"]);
+    expect(issues.filter((i) => i.photo === 0).map((i) => i.check)).toEqual([
+      "outline",
+      "distances",
+      "facing",
+    ]);
     expect(draftIssues({ ...newDraft(), name: "x" }, [])[0]!.check).toBe("photos");
   });
 });
@@ -189,19 +200,20 @@ describe("undo history", () => {
 });
 
 describe("photo versions", () => {
+  const asset = (id: string, file: string, extra: Partial<AssetInfo> = {}) =>
+    ({ id, file, exists: true, tags: [], ...extra }) as AssetInfo;
   const assets = [
-    { id: "a", file: "photos/a.jpg" },
-    { id: "a-ink", file: "edits/a-ink.png", derived_from: "a" },
-    { id: "a-gpt", file: "edits/a-gpt.png", derived_from: "a" },
-    { id: "gone", file: "edits/gone.png", derived_from: "a", exists: false },
-    { id: "b", file: "photos/b.jpg" },
+    asset("a", "photos/a.jpg"),
+    asset("a-ink", "edits/a-ink.png", { derived_from: "a" }),
+    asset("a-gpt", "edits/a-gpt.png", { derived_from: "a" }),
+    asset("gone", "edits/gone.png", { derived_from: "a", exists: false }),
+    asset("b", "photos/b.jpg"),
   ];
-  const stacks = photoStacks([assets[0]!, assets[4]!], assets);
+  const stacks = [stackOf({ photo: assets[0]!, edits: assets.slice(1, 4) }), stackOf(assets[4]!)];
 
   it("stacks the edits on their original, newest first, without missing files", () => {
     expect(stacks[0]!.edits.map((e) => e.id)).toEqual(["a-gpt", "a-ink"]);
     expect(stacks[1]!.edits).toEqual([]);
-    expect([...stackedIds(stacks)]).toEqual(["a-gpt", "a-ink"]);
   });
 
   it("picking an edit keeps the original as the frame and uses the edit's pixels", () => {
@@ -277,10 +289,9 @@ describe("correction on the unwrap", () => {
     expect(moved.marks.map((m) => m.cm)).toEqual([2.5, 22.5]);
     expect(moved.facingSet).toBe(true);
     // Across the seam the turn is the short way round.
-    expect(dragPhoto({ ...p, facing: 0.98 }, "move", { u: 0.98, s: 0 }, { u: 1.03, s: 0 }, [0, 20]).facing).toBeCloseTo(
-      0.03,
-      6,
-    );
+    expect(
+      dragPhoto({ ...p, facing: 0.98 }, "move", { u: 0.98, s: 0 }, { u: 1.03, s: 0 }, [0, 20]).facing,
+    ).toBeCloseTo(0.03, 6);
     const taller = dragPhoto(p, "top", { u: 0.5, s: 20 }, { u: 0.5, s: 25 }, [0, 20]);
     expect(taller.marks.map((m) => m.cm)).toEqual([0, 25]);
     const lower = dragPhoto(p, "bottom", { u: 0.5, s: 0 }, { u: 0.5, s: 4 }, [0, 20]);
@@ -346,8 +357,9 @@ describe("edited version nudge", () => {
       return best;
     };
     expect(darkest(edit({ x: 0.05, y: 0 }))).not.toBe(darkest(edit()));
-    expect(projectionSchema.safeParse({ ...cal, photos: [{ ...cal.photos[0], cleaned_offset: { x: 0.9, y: 0 } }] }).success).toBe(
-      false,
-    );
+    expect(
+      projectionSchema.safeParse({ ...cal, photos: [{ ...cal.photos[0], cleaned_offset: { x: 0.9, y: 0 } }] })
+        .success,
+    ).toBe(false);
   });
 });

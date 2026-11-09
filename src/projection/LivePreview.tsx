@@ -110,8 +110,7 @@ export function LivePreview(props: Props) {
         g.stroke();
       }
     };
-    if (showGhosts)
-      for (const gh of ghosts) stroke(areaOutline(tv, gh.u, gh.s), gh.color, ppc * 0.25, []);
+    if (showGhosts) for (const gh of ghosts) stroke(areaOutline(tv, gh.u, gh.s), gh.color, ppc * 0.25, []);
     stroke(areaOutline(tv, area.u, [area.v[0] * L, area.v[1] * L]), "#7c6cff", ppc * 0.2, [ppc, ppc * 0.6]);
     return c;
   }, [canvases, plain, profile, ghosts, showGhosts, area, L]);
@@ -155,7 +154,8 @@ export function LivePreview(props: Props) {
     const p = toSvg(e);
     if (!p) return;
     const near = (q: { x: number; y: number }) => Math.hypot(q.x - p.x, q.y - p.y) < hr * 2;
-    const mode: DragMode = handles && near(handles.top) ? "top" : handles && near(handles.bottom) ? "bottom" : "move";
+    const mode: DragMode =
+      handles && near(handles.top) ? "top" : handles && near(handles.bottom) ? "bottom" : "move";
     const from = unwrapToSkin(view, p.x, p.y);
     e.currentTarget.setPointerCapture(e.pointerId);
     e.currentTarget.focus();
@@ -191,7 +191,10 @@ export function LivePreview(props: Props) {
         <div className="pw-unwrap-bar float-bar">
           <span className="faint xs">Unwrap</span>
           <span className="spacer" />
-          <span className={`chip ${props.auto ? "ok" : "muted"} xs`} title="The dashed outline: the skin the projection covers">
+          <span
+            className={`chip ${props.auto ? "ok" : "muted"} xs`}
+            title="The dashed outline: the skin the projection covers"
+          >
             Area {props.auto ? "automatic" : "held"}
           </span>
           <button

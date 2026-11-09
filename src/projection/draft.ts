@@ -360,9 +360,11 @@ export function fromCalibration(cal: ProjectionCalibration): ProjectionDraft {
   };
 }
 
-
 /** Why the name cannot be saved, in plain words; null = fine. */
-export function nameIssue(draft: Pick<ProjectionDraft, "name" | "base">, taken: readonly string[]): string | null {
+export function nameIssue(
+  draft: Pick<ProjectionDraft, "name" | "base">,
+  taken: readonly string[],
+): string | null {
   if (!draft.name) return "Give the tattoo a name.";
   if (!NAME.test(draft.name)) return "Use letters, digits and dashes for the name.";
   if (!draft.base && taken.includes(draft.name)) return `"${draft.name}" exists already.`;

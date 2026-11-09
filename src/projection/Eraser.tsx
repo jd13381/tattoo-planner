@@ -293,7 +293,6 @@ export function EraserStage(props: {
   );
 }
 
-
 /** One view of a patch: its pixels scaled to the pane by the shared view, the brush circle on top. */
 function Pane(props: {
   label: string;

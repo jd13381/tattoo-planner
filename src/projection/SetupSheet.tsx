@@ -10,15 +10,8 @@ import { REGION_IDS, REGIONS, type RegionId } from "../body/regions.ts";
 import { limbWord } from "./checks.ts";
 import { slugify, type PhotoPick } from "./draft.ts";
 import type { ListingState } from "./photoStatus.ts";
-import {
-  pickedVersion,
-  pickIndex,
-  photoStacks,
-  rootOf,
-  stackedIds,
-  togglePick,
-  type PhotoStack,
-} from "./photoVersions.ts";
+import { projectionPhotoGroups } from "../assets/projectionPhotos.ts";
+import { pickedVersion, pickIndex, stackOf, togglePick, type PhotoStack } from "./photoVersions.ts";
 
 export type SetupAnswers = { description: string; name: string; region: RegionId; picks: PhotoPick[] };
 
@@ -72,7 +65,11 @@ export function SetupSheet(props: {
                 autoFocus
                 onChange={(e) => {
                   const description = e.target.value;
-                  setAnswers((a) => ({ ...a, description, ...(isNew ? { name: slugify(description) } : {}) }));
+                  setAnswers((a) => ({
+                    ...a,
+                    description,
+                    ...(isNew ? { name: slugify(description) } : {}),
+                  }));
                 }}
               />
             </label>
@@ -100,8 +97,8 @@ export function SetupSheet(props: {
             </fieldset>
             <p className="faint small">
               Each photo should show the whole width of the {limbWord(answers.region)} with a little
-              background on both sides, from about a metre away. Photos from different sides fill in the
-              parts that wrap round.
+              background on both sides, from about a metre away. Photos from different sides fill in the parts
+              that wrap round.
             </p>
             <p className="faint small">
               A photo not in the list? Put it into the project folder&apos;s{" "}
@@ -157,29 +154,14 @@ function PhotoPicker(props: {
   const { assets, listingState, picks, onChange } = props;
   const person = useCurrentPerson();
   const [text, setText] = useState("");
-  const all = useMemo(() => assets ?? [], [assets]);
-  const byId = useMemo(() => new Map(all.map((a) => [a.id, a])), [all]);
   const groups = useMemo(() => {
-    const visible = all.filter(
-      (a) =>
-        !a.hidden &&
-        // Photos of other persons stay with them (docs/adr/0017-persons.md); the library is shared.
-        (a.effectivePerson === null || a.effectivePerson === person.id),
-    );
-    const mine = (c: string) =>
-      visible.filter((a) => a.effectiveCategory === c && a.effectivePerson === person.id && !a.derived_from);
-    const tattoos = photoStacks(mine("existing"), all);
-    const measuring = photoStacks(mine("measuring"), all);
-    const stacked = new Set([
-      ...stackedIds([...tattoos, ...measuring]),
-      ...[...tattoos, ...measuring].map((s) => s.root.id),
-    ]);
-    // Everything else: one stack per original (an edit whose original is not a body photo goes with it).
-    const roots = new Map<string, AssetInfo>();
-    for (const a of visible) if (!stacked.has(a.id)) roots.set(rootOf(a, byId).id, rootOf(a, byId));
-    const others = photoStacks([...roots.values()].filter((r) => !stacked.has(r.id)), all);
-    return { tattoos, measuring, others };
-  }, [all, byId, person.id]);
+    const g = projectionPhotoGroups(assets ?? [], person.id, text);
+    return {
+      tattoos: g.tattoos.map(stackOf),
+      measuring: g.measuring.map(stackOf),
+      others: g.others.map(stackOf),
+    };
+  }, [assets, person.id, text]);
   if (listingState === "loading") return <p className="wizard-message muted">Reading the project folder…</p>;
   if (listingState !== "ok")
     return (
@@ -190,14 +172,9 @@ function PhotoPicker(props: {
         </p>
       </div>
     );
-  const match = (s: PhotoStack<AssetInfo>) =>
-    text === "" ||
-    [s.root, ...s.edits].some((a) =>
-      `${a.id} ${a.file} ${a.tags.join(" ")}`.toLowerCase().includes(text.toLowerCase()),
-    );
   const grid = (list: PhotoStack<AssetInfo>[]) => (
     <ul className="asset-grid wizard-grid pw-stacks">
-      {list.filter(match).map((s) => {
+      {list.map((s) => {
         const n = pickIndex(s, picks);
         const chosen = pickedVersion(s, picks);
         const versions = [s.root, ...s.edits];

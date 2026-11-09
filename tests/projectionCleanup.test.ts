@@ -272,7 +272,9 @@ describe("projection files", () => {
   });
 
   it("starts a new tattoo with ink only on, and keeps an edited photo in the draft", () => {
-    const d = withPhotos({ ...newDraft("arm-left"), name: "rose" }, [{ file: "photos/a.jpg", cleaned: null }]);
+    const d = withPhotos({ ...newDraft("arm-left"), name: "rose" }, [
+      { file: "photos/a.jpg", cleaned: null },
+    ]);
     d.photos[0]!.cleaned = "edits/a-edit-1.png";
     const r = toCalibration(d, arm);
     if (!r.ok) throw new Error(r.error);

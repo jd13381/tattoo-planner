@@ -27,7 +27,12 @@ const DEFS: Record<RegionProfile["kind"], Def[]> = {
       at: station("forearm_max"),
       keys: ["elbow_to_wrist", "forearm_max_below_elbow"],
     },
-    { id: "elbow", label: "Elbow tip", at: (p) => (p.kind === "arm" ? p.elbowAt : null), keys: ["elbow_to_wrist"] },
+    {
+      id: "elbow",
+      label: "Elbow tip",
+      at: (p) => (p.kind === "arm" ? p.elbowAt : null),
+      keys: ["elbow_to_wrist"],
+    },
     {
       id: "armpit",
       label: "Armpit level",
@@ -38,8 +43,18 @@ const DEFS: Record<RegionProfile["kind"], Def[]> = {
   ],
   leg: [
     { id: "ankle", label: "Ankle", at: () => 0, keys: [] },
-    { id: "calf_max", label: "Thickest calf", at: station("calf_max"), keys: ["ankle_to_knee", "calf_max_below_knee"] },
-    { id: "knee", label: "Knee centre", at: (p) => (p.kind === "leg" ? p.kneeAt : null), keys: ["ankle_to_knee"] },
+    {
+      id: "calf_max",
+      label: "Thickest calf",
+      at: station("calf_max"),
+      keys: ["ankle_to_knee", "calf_max_below_knee"],
+    },
+    {
+      id: "knee",
+      label: "Knee centre",
+      at: (p) => (p.kind === "leg" ? p.kneeAt : null),
+      keys: ["ankle_to_knee"],
+    },
     {
       id: "thigh_top",
       label: "Top of the thigh",
@@ -50,8 +65,18 @@ const DEFS: Record<RegionProfile["kind"], Def[]> = {
   ],
   torso: [
     { id: "waist", label: "Navel", at: () => 0, keys: [] },
-    { id: "ribs", label: "Lowest ribs", at: (p) => (p.kind === "torso" ? p.ribsAt : null), keys: ["waist_to_ribs"] },
-    { id: "chest", label: "Chest line", at: (p) => (p.kind === "torso" ? p.chestAt : null), keys: ["waist_to_chest"] },
+    {
+      id: "ribs",
+      label: "Lowest ribs",
+      at: (p) => (p.kind === "torso" ? p.ribsAt : null),
+      keys: ["waist_to_ribs"],
+    },
+    {
+      id: "chest",
+      label: "Chest line",
+      at: (p) => (p.kind === "torso" ? p.chestAt : null),
+      keys: ["waist_to_chest"],
+    },
     {
       id: "shoulder_line",
       label: "Shoulder line",
@@ -66,16 +91,20 @@ const DEFS: Record<RegionProfile["kind"], Def[]> = {
  * The region's landmarks with their distance from its start, in order along the region. `fromSample`
  * lists the input keys nobody measured (src/body/body.ts, `ResolvedRegion.fromSample`).
  */
-export function landmarkChips(
-  profile: RegionProfile,
-  fromSample: readonly string[],
-): LandmarkChip[] {
+export function landmarkChips(profile: RegionProfile, fromSample: readonly string[]): LandmarkChip[] {
   const sample = new Set(fromSample);
   return DEFS[profile.kind]
     .flatMap((d) => {
       const s = d.at(profile);
       if (s === null || !Number.isFinite(s)) return [];
-      return [{ id: d.id, label: d.label, cm: Math.round(s * 10) / 10, measured: d.keys.every((k) => !sample.has(k)) }];
+      return [
+        {
+          id: d.id,
+          label: d.label,
+          cm: Math.round(s * 10) / 10,
+          measured: d.keys.every((k) => !sample.has(k)),
+        },
+      ];
     })
     .sort((a, b) => a.cm - b.cm);
 }
