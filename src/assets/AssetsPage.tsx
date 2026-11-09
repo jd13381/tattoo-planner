@@ -51,6 +51,7 @@ import {
   type AssetFilter,
 } from "./filter.ts";
 import { showElement } from "./navigation.ts";
+import { BuiltInBackgrounds } from "./BuiltInBackgrounds.tsx";
 import { deleteCheck, describeUse, isInUse, usageBadge, type AssetUse, type UsageMap } from "./references.ts";
 import {
   focusAfterRemoval,
@@ -587,6 +588,7 @@ export function AssetsPage() {
             </p>
           )}
           {grid}
+          {section === "backgrounds" && <BuiltInBackgrounds />}
           {listing.warnings.length > 0 && (
             <details className="small warn">
               <summary>

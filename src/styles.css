@@ -9615,3 +9615,40 @@ button.ghost.active-star[aria-pressed="true"]:hover {
 .studio-presets button {
   font-size: var(--fs-xs);
 }
+
+/* Assets → Backgrounds: the built-in standard backgrounds (docs/adr/0019). */
+.builtin-backgrounds {
+  margin-top: var(--s-4);
+  display: grid;
+  gap: var(--s-2);
+}
+
+.builtin-backgrounds-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--s-2);
+}
+
+.builtin-backgrounds-grid li {
+  display: grid;
+  gap: var(--s-1);
+}
+
+.builtin-backgrounds-grid img,
+.builtin-backgrounds-none {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius, 6px);
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.builtin-backgrounds-none {
+  display: grid;
+  place-items: center;
+  background: var(--surface-2, transparent);
+}
