@@ -32,7 +32,12 @@ export type PhotoPixels = {
    * unseen, and `frame` is the size of the photo the calibration points were placed on (the edit is
    * stretched onto it), when known.
    */
-  cleaned?: { frame: { width: number; height: number } | null; fit?: EditFit };
+  cleaned?: {
+    frame: { width: number; height: number } | null;
+    fit?: EditFit;
+    /** `cleaned_offset`: the edit's shift on the turned photo, 0..1. */
+    offset?: { x: number; y: number };
+  };
 };
 
 /**
@@ -332,6 +337,7 @@ export function photoLayer(
   const turned = turnedSize(base.width, base.height, photo.turn);
   // Frame pixels to image pixels: the identity for a photo, the edit's fit for an edited version.
   const map = editMapping(base, img, img.cleaned?.fit);
+  const off = img.cleaned?.offset ?? { x: 0, y: 0 };
   const frame = photoFrame(photo, turned.width, turned.height, twistReach(profile));
   const raw = new Float32Array(W * H).fill(NaN);
   const weight = new Float32Array(W * H);
@@ -348,7 +354,8 @@ export function photoLayer(
         cosArr[j * W + i] = cos;
         if (cos <= 0) continue;
         const p = acrossSilhouette(sil, t);
-        const st = turnedToStored(p.x / turned.width, p.y / turned.height, photo.turn);
+        // An edit shifted by `cleaned_offset` shows at a frame point what it has that far back.
+        const st = turnedToStored(p.x / turned.width - off.x, p.y / turned.height - off.y, photo.turn);
         const l = sampleLum(
           img,
           st.x * base.width * map.sx + map.ox,

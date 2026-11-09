@@ -210,7 +210,8 @@ export function patchFor(
         if (px) {
           const frame = orig?.status === "ready" ? { width: orig.width, height: orig.height } : null;
           const fit = cal.photos[k]!.cleaned_fit;
-          pixels.push({ ...px, cleaned: { frame, ...(fit ? { fit } : {}) } });
+          const offset = cal.photos[k]!.cleaned_offset;
+          pixels.push({ ...px, cleaned: { frame, ...(fit ? { fit } : {}), ...(offset ? { offset } : {}) } });
           versions.push(edit.version * 1000 + (orig?.status === "ready" ? orig.version : 0));
           continue;
         }

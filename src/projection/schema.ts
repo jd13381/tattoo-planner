@@ -50,6 +50,13 @@ export const photoSchema = z.strictObject({
    * ("contain"), or filling it with two sides cut off ("cover"). Both keep the centre.
    */
   cleaned_fit: z.enum(["stretch", "contain", "cover"]).optional(),
+  /**
+   * A small shift of `cleaned` on the photo after `cleaned_fit` (docs/adr/0024, "Picture and frame"),
+   * in the turned photo's 0..1 coordinates: x > 0 moves the edit to the right, y > 0 down.
+   */
+  cleaned_offset: z
+    .strictObject({ x: z.number().min(-0.5).max(0.5), y: z.number().min(-0.5).max(0.5) })
+    .optional(),
 });
 export type PhotoCalibration = z.infer<typeof photoSchema>;
 export type EditFit = NonNullable<PhotoCalibration["cleaned_fit"]>;

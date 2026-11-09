@@ -192,43 +192,6 @@ export function storedErase(e: EraseSettings | null | undefined): EraseSettings 
   return hasErase(out) ? out : null;
 }
 
-/** Undo and redo of the eraser: snapshots of the settings. */
-export type EraseHistory = {
-  past: (EraseSettings | null)[];
-  future: (EraseSettings | null)[];
-};
-
-export const EMPTY_HISTORY: EraseHistory = { past: [], future: [] };
-const HISTORY_LIMIT = 200;
-
-/** Records `before` as the state to go back to; the redo list is dropped. */
-export function recordHistory(h: EraseHistory, before: EraseSettings | null): EraseHistory {
-  return { past: [...h.past, before].slice(-HISTORY_LIMIT), future: [] };
-}
-
-/** One step back: the state to show and the new history, or null when there is nothing to undo. */
-export function undoHistory(
-  h: EraseHistory,
-  current: EraseSettings | null,
-): { state: EraseSettings | null; history: EraseHistory } | null {
-  if (h.past.length === 0) return null;
-  return {
-    state: h.past.at(-1)!,
-    history: { past: h.past.slice(0, -1), future: [current, ...h.future] },
-  };
-}
-
-export function redoHistory(
-  h: EraseHistory,
-  current: EraseSettings | null,
-): { state: EraseSettings | null; history: EraseHistory } | null {
-  if (h.future.length === 0) return null;
-  return {
-    state: h.future[0]!,
-    history: { past: [...h.past, current], future: h.future.slice(1) },
-  };
-}
-
 /** What the eraser's view needs of a patch (a ProjectedPatch fits). */
 export type ViewPatch = {
   width: number;
