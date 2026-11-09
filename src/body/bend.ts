@@ -10,7 +10,20 @@
 // crease and never folds through itself.
 import { semiAxes } from "./ellipse.ts";
 import type { ArmMesh } from "./geometry.ts";
-import type { ArmProfile } from "./profile.ts";
+import type { ArmProfile, RegionKind } from "./profile.ts";
+
+/**
+ * Whether a region's geometry can bend: only the arms have an elbow model (docs/adr/0005). Legs and
+ * the torso stay straight, so the pose control is offered for arms only.
+ */
+export function supportsBend(kind: RegionKind): boolean {
+  return kind === "arm";
+}
+
+/** The flexion a region actually shows: the shared pose on arms, 0 everywhere else. */
+export function regionBendDeg(kind: RegionKind, bendDeg: number): number {
+  return supportsBend(kind) ? Math.max(0, bendDeg) : 0;
+}
 
 /** Largest flexion offered in the UI (a fully bent elbow is about 140–150°). */
 export const MAX_FLEXION_DEG = 120;

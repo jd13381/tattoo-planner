@@ -11,6 +11,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
+import { supportsBend } from "../body/bend.ts";
 import type { RegionProfile } from "../body/profile.ts";
 import { REGIONS, type RegionId } from "../body/regions.ts";
 import { requestImage, useAssetImages, useAssetListing } from "../assets/useAssets.ts";
@@ -468,9 +469,11 @@ function ProjectionEditor(props: {
               <div className="float float-bar proj-3d-bar" title={VIEW_HINT}>
                 <div ref={setViewBar} className="viewer-tools" />
               </div>
-              <div className="float float-bar proj-pose-bar">
-                <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} />
-              </div>
+              {supportsBend(profile.kind) && (
+                <div className="float float-bar proj-pose-bar">
+                  <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} />
+                </div>
+              )}
             </div>
             <figure className="proj-patch">
               <CanvasHost canvas={innerImage} />

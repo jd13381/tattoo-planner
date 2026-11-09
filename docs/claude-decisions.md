@@ -536,3 +536,10 @@ The projection redesign spec (approved 2026-11-09): the step wizard becomes one 
 - **The live preview uses every photo whose outline and distances are done** (no error, not untouched); the camera side is not required, since a wrong side shows at once in 3D. 150 ms debounce, 10 px/cm. _Alternative:_ only photos with the whole checklist done (nothing to see until the end, as in the wizard). _Change:_ `previewable` in `src/projection/checks.ts`.
 - **Only errors block Save** (missing name, points that cannot be right); untouched outlines, distances and camera sides are listed in the to-do list but do not block, as the wizard's defaults were saveable too. _Change:_ `draftIssues`.
 - **Open / needs Jan's Mac:** his five Anubis photos in the workspace (live preview speed, the automatic area against his saved one), a GPT edit nudged with `cleaned_offset`, the desktop app.
+
+### Torso bend (2026-11-09)
+
+Jan: "beim torso wird momentan auch noch eine bend option angeboten, die nicht funktioniert". Format: decision; _Alternative_; _Change_.
+
+- **The elbow pose is offered for arms only, decided by `supportsBend(kind)`** in `src/body/bend.ts` (only the arm has an elbow model, docs/adr/0005); legs and the torso get no pose control in the Layout panel, the 3D viewer's floating control, Settings → Body, the projection page or Compare. Home has none. _Alternative:_ show it disabled with a note (a control that never does anything there is noise). _Change:_ `ArmViewer`, `LayoutPage`, `BodyPage`, `ProjectionPage`, `ComparePage`.
+- **The pose stays one shared value; non-arm regions read it through `regionBendDeg(kind, deg)`** (0 off the arms), applied once in `ArmViewer`, so a 90° set on an arm never reaches a torso or leg view (including the projection wizard's previews, whose file is left untouched) and is still there when you go back to the arm. _Alternative:_ reset the pose when switching to a non-arm region (loses the arm's pose).
