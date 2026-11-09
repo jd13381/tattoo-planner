@@ -16,6 +16,10 @@
 
 Settings in `.env` (git-ignored): `TATTOO_OPENAI_API_KEY` (required; `OPENAI_API_KEY` from the shell works too), `TATTOO_OPENAI_MODEL` (default `gpt-image-2.5-sunburst`; `gpt-image-2.5-flare` is the faster variant), `TATTOO_OPENAI_FIDELITY` (`high` default, `low`, or `default` to leave it out), `TATTOO_OPENAI_QUALITY` (`high` default, `medium`, `low`, `auto`). The key stays in the dev server; the browser never sees it.
 
+### Padding to the output size (2026-11-09)
+
+GPT Image answers only in 1024×1024, 1536×1024 or 1024×1536, so with `size=auto` a photo of another shape came back stretched or cropped and no longer lay on the original (ADR 0023: a projection draws the edit over the photo's frame). Now, by default, the server pads the image to the closest of these shapes (centred, plain grey bars, transparent for an image with transparency), scales it down to that size, sends that `size` with one prompt line about the bars, and crops the bars off the answer. The edit then has the original's aspect at GPT's resolution. The maths is pure (`src/edits/pad.ts`, tests in `tests/editPad.test.ts`). The server decodes only PNG, so for a JPEG or WebP original the studio page posts a PNG copy first (`POST /api/edits/sessions/<id>/source`, at most 2048 px); without it the image goes unpadded with `size=auto`. `TATTOO_OPENAI_PAD=off` switches padding off. It relies on the model leaving the bars plain; a real run is still to be checked.
+
 ## Alternatives
 
 - **Codex CLI (`codex exec`) with a ChatGPT subscription**, the counterpart of `claude -p`: its built-in image tool was reported to use gpt-image-1.5/2 rather than 2.5, gives no control over model, fidelity or variants, and draws on the subscription quota. Fine for trying Codex, not as the engine.

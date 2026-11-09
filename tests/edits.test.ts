@@ -13,6 +13,8 @@ import {
   readPngInfo,
   rootAssetId,
   showInStudio,
+  STUDIO_FACET_LABELS,
+  studioFacetOf,
 } from "../src/edits/edit.ts";
 import { EditManager, handleEditRequest } from "../server/editsApi.ts";
 
@@ -256,20 +258,19 @@ assets:
 });
 
 describe("showInStudio", () => {
-  it("hides measuring photos and offers photos of existing tattoos", () => {
-    expect(showInStudio({ kind: "reference", file: "refs/medusa.png" })).toBe(true);
-    expect(showInStudio({ kind: "idea", file: "generated/dreieck-1.png" })).toBe(true);
-    expect(showInStudio({ kind: "arm-photo", file: "arm-photos/front.JPG" })).toBe(false);
-    expect(showInStudio({ kind: "existing", file: "existing/anubis.jpg" })).toBe(true);
-    // By folder too, whatever the kind says.
-    expect(showInStudio({ kind: "reference", file: "Arm-Photos/anubis1_nr.JPG" })).toBe(false);
+  it("offers every section, measuring photos included, and leaves hidden images out", () => {
+    expect(showInStudio({})).toBe(true);
+    expect(showInStudio({ hidden: false })).toBe(true);
+    expect(showInStudio({ hidden: true })).toBe(false);
   });
+});
 
-  it("follows the catalogue section and leaves hidden images out", () => {
-    const photo = { kind: "reference", file: "images/x.png" };
-    expect(showInStudio({ ...photo, effectiveCategory: "measuring" })).toBe(false);
-    expect(showInStudio({ ...photo, effectiveCategory: "existing" })).toBe(true);
-    expect(showInStudio({ ...photo, effectiveCategory: "background" })).toBe(true);
-    expect(showInStudio({ ...photo, effectiveCategory: "edit", hidden: true })).toBe(false);
+describe("studioFacetOf", () => {
+  it("puts measuring and tattoo photos under Body photos and keeps the library sections", () => {
+    expect(studioFacetOf({ effectiveCategory: "measuring" })).toBe("body");
+    expect(studioFacetOf({ effectiveCategory: "existing" })).toBe("body");
+    expect(STUDIO_FACET_LABELS.body).toBe("Body photos");
+    for (const c of ["reference", "generated", "edit", "background"] as const)
+      expect(studioFacetOf({ effectiveCategory: c })).toBe(c);
   });
 });

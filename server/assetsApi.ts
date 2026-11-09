@@ -5,7 +5,7 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { parseDocument } from "yaml";
-import { categoryOf, isCategory, personOf } from "../src/assets/category.ts";
+import { categoryOf, inheritPersons, isCategory, personOf } from "../src/assets/category.ts";
 import { assetSchema, MANIFEST_FILE, type Asset } from "../src/assets/manifest.ts";
 import { ManifestError, updateManifestEntries, type EntryPatch } from "../src/assets/manifestDoc.ts";
 import { projectionPhotoKeys } from "../src/assets/references.ts";
@@ -165,7 +165,7 @@ export async function listAssets(dataDir: string | null, ctx: ListContext = {}):
   const warnings = [...parsed.warnings];
   const keys = await projectionKeys(persons);
   const defaultPerson = persons[0]?.id;
-  const assets: AssetInfo[] = await Promise.all(
+  const listed: AssetInfo[] = await Promise.all(
     parsed.assets.map(async (a) => {
       const r = await resolveInside(dataDir, a.file);
       if (!r.ok && r.message !== "file not found") warnings.push(`${a.id}: ${a.file}: ${r.message}`);
@@ -178,6 +178,8 @@ export async function listAssets(dataDir: string | null, ctx: ListContext = {}):
       };
     }),
   );
+  // Studio edits of a body photo belong to its person (src/assets/category.ts, inheritPersons).
+  const assets = inheritPersons(listed);
   return { status: "ok", assets, manifestFound: true, warnings, ...extra };
 }
 

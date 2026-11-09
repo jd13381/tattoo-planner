@@ -16,6 +16,9 @@
 //   POST /api/edits/sessions/<id>/close discards every unsaved job of the session and ends it
 //   POST /api/edits/sessions/<id>/apply?step=…&base=N  body image/png → EditJob: a built-in operation's
 //                                       result, added as the session's next version
+//   POST /api/edits/sessions/<id>/source  body image/png → EditSession: a PNG copy of the original (a
+//                                       JPEG or WebP photo, decoded by the page) that generative runs on
+//                                       v0 send instead, so it can be padded (src/edits/pad.ts)
 // Sessions (ADR 0010) hold the version stack; a POST /api/edits with `session` runs on its last version.
 // Each job works on a copy of the image in its own temp folder; originals are never touched. The data
 // folder only changes on "keep", and then only by a new file in edits/ (or generated/ for new images)
@@ -64,6 +67,19 @@ import {
   buildBackgroundPrompt,
 } from "../src/edits/background.ts";
 import { seamlessPng } from "./backgrounds.ts";
+import { decodePng, encodeCompactPng } from "./png.ts";
+import {
+  changesInput,
+  contentRect,
+  cropRgba,
+  isPadded,
+  padFill,
+  padPlan,
+  padPromptLine,
+  padRgba,
+  type PadFill,
+  type PadPlan,
+} from "../src/edits/pad.ts";
 import { pickVersion, runSource, sessionForAsset, truncateVersions } from "../src/edits/session.ts";
 import {
   buildCreatePrompt,
@@ -145,6 +161,8 @@ type Source = {
 export class EditManager {
   private readonly jobs = new Map<string, Job>();
   private readonly sessions = new Map<string, EditSession>();
+  /** Per edit session: a PNG copy of a non-PNG original (its temp folder and file), see setSource. */
+  private readonly pngSources = new Map<string, { dir: string; path: string }>();
   private sessionCounter = 0;
   private counter = 0;
 
@@ -271,10 +289,42 @@ export class EditManager {
     return this.keep(jobId);
   }
 
+  /**
+   * Stores a PNG copy of an edit session's original, decoded by the page (a JPEG or WebP photo): GPT
+   * Image runs on v0 send it instead of the original, because only PNGs can be padded here
+   * (src/edits/pad.ts). Replaces an earlier copy; removed with the session.
+   */
+  async setSource(sessionId: string, png: Buffer): Promise<EditSession> {
+    const session = this.session(sessionId);
+    if (session.mode !== "edit" || !session.assetId)
+      throw new HttpError(409, "only an edit session of an image has an original to replace");
+    const info = readPngInfo(png);
+    if (!info || !endsWithIend(png)) throw new HttpError(415, "the copy is not a complete PNG");
+    if (info.width * info.height > MAX_OUTPUT_PIXELS)
+      throw new HttpError(413, "the copy has too many pixels");
+    const dir = await mkdtemp(path.join(os.tmpdir(), "tattoo-source-"));
+    const file = path.join(dir, `${INPUT_BASENAME}.png`);
+    await writeFile(file, png);
+    await this.dropSource(session.id);
+    if (!this.sessions.has(session.id)) {
+      await rm(dir, { recursive: true, force: true });
+      throw new HttpError(404, `no open session ${session.id}`);
+    }
+    this.pngSources.set(session.id, { dir, path: file });
+    return session;
+  }
+
+  private async dropSource(sessionId: string) {
+    const old = this.pngSources.get(sessionId);
+    this.pngSources.delete(sessionId);
+    if (old) await rm(old.dir, { recursive: true, force: true });
+  }
+
   /** Ends a session: every job of it that was not saved is stopped and its working folder removed. */
   async closeSession(sessionId: string): Promise<{ closed: string }> {
     const session = this.session(sessionId);
     this.sessions.delete(session.id);
+    await this.dropSource(session.id);
     const own = [...this.jobs.values()].filter(
       (j) => j.info.session === session.id && j.info.state !== "kept" && j.info.state !== "discarded",
     );
@@ -308,8 +358,11 @@ export class EditManager {
     const req = { ...((body ?? {}) as Partial<EditRequest>) };
     // In a session the source is always its last version, whatever else the request says.
     const session = req.session !== undefined ? this.session(String(req.session)) : null;
+    // A run on v0 of a session whose original the page sent as a PNG copy (setSource) sends that copy.
+    let pngSource: string | null = null;
     if (session) {
       const from = runSource(session);
+      if (from.kind === "asset") pngSource = this.pngSources.get(session.id)?.path ?? null;
       delete req.assetId;
       delete req.fromJob;
       delete req.name;
@@ -364,7 +417,8 @@ export class EditManager {
           };
         })()
       : await this.sourceOf(req.fromJob, req.assetId);
-    const { asset, path: source } = from;
+    const { asset } = from;
+    const source = from.path && pngSource ? pngSource : from.path;
 
     const references = await this.resolveReferences(refIds);
     const ext = source ? path.extname(source).toLowerCase() || ".png" : ".png";
@@ -577,6 +631,59 @@ export class EditManager {
     if (job.info.log.length > MAX_LOG_LINES) job.info.log.splice(0, job.info.log.length - MAX_LOG_LINES);
   }
 
+  /**
+   * The image to send, padded to the closest output size and scaled down to it (src/edits/pad.ts);
+   * null when it cannot be read as a PNG (it is then sent as it is, with size "auto").
+   */
+  private async padInput(
+    job: Job,
+    inputFile: string,
+  ): Promise<{ plan: PadPlan; bytes: Uint8Array; line: string | null } | null> {
+    const bytes = await readFile(job.inputPath);
+    let img: ReturnType<typeof decodePng>;
+    try {
+      img = decodePng(bytes);
+    } catch (e) {
+      const why = path.extname(inputFile).toLowerCase() === ".png" ? (e as Error).message : "not a PNG";
+      this.log(job, [`Not padded (${why}): the answer may come back in another shape.`]);
+      return null;
+    }
+    const plan = padPlan(img.width, img.height);
+    if (!changesInput(plan)) return { plan, bytes, line: null };
+    const rgba = { width: img.width, height: img.height, data: img.rgba };
+    const fill: PadFill = padFill(rgba);
+    const padded = padRgba(rgba, plan, fill);
+    if (isPadded(plan))
+      this.log(job, [
+        `Padded ${img.width} × ${img.height} px to the ${plan.size} shape (${fill} bars); the answer is cropped back.`,
+      ]);
+    else
+      this.log(job, [
+        `Scaled ${img.width} × ${img.height} px down to ${plan.send.width} × ${plan.send.height} px.`,
+      ]);
+    return {
+      plan,
+      bytes: encodeCompactPng(padded.width, padded.height, padded.data as Uint8Array),
+      line: padPromptLine(plan, fill),
+    };
+  }
+
+  /** Crops the padding bars off an answer, so it has the original's aspect again. */
+  private unpad(job: Job, plan: PadPlan, bytes: Uint8Array): Uint8Array {
+    try {
+      const img = decodePng(bytes);
+      const rect = contentRect(plan, img);
+      const cropped = cropRgba({ width: img.width, height: img.height, data: img.rgba }, rect);
+      this.log(job, [
+        `Cropped the padding off: ${img.width} × ${img.height} → ${cropped.width} × ${cropped.height} px.`,
+      ]);
+      return encodeCompactPng(cropped.width, cropped.height, cropped.data as Uint8Array);
+    } catch (e) {
+      this.log(job, [`Padding left on: ${e instanceof Error ? e.message : String(e)}`]);
+      return bytes;
+    }
+  }
+
   /** One generative edit: send the image and the instruction, write the answer as output.png. */
   private async runOpenAI(job: Job, inputFile: string) {
     const settings = job.openai!;
@@ -588,12 +695,18 @@ export class EditManager {
     const info = job.info;
     try {
       const images: FormImage[] = [];
+      // The image to edit, padded to the closest output size unless switched off (src/edits/pad.ts).
+      const pad = job.inputPath && settings.padToSize !== false ? await this.padInput(job, inputFile) : null;
       if (job.inputPath)
-        images.push({
-          bytes: await readFile(job.inputPath),
-          fileName: inputFile,
-          mimeType: openaiInputType(inputFile) ?? "image/png",
-        });
+        images.push(
+          pad
+            ? { bytes: pad.bytes, fileName: `${INPUT_BASENAME}-padded.png`, mimeType: "image/png" }
+            : {
+                bytes: await readFile(job.inputPath),
+                fileName: inputFile,
+                mimeType: openaiInputType(inputFile) ?? "image/png",
+              },
+        );
       for (const r of job.refs)
         images.push({ bytes: await readFile(r.path), fileName: r.fileName, mimeType: r.mimeType });
       const refPrompts = job.refs.map((r) => r.prompt);
@@ -608,7 +721,9 @@ export class EditManager {
                 instructions: info.instructions,
                 asset: job.asset,
                 references: refPrompts,
-              }) + (tileable ? `\n\n${BACKGROUND_EDIT_LINE}` : "");
+              }) +
+              (tileable ? `\n\n${BACKGROUND_EDIT_LINE}` : "") +
+              (pad?.line ? `\n\n${pad.line}` : "");
       const send = async (inputFidelity: OpenAISettings["inputFidelity"]) => {
         const what =
           images.length === 0
@@ -642,7 +757,7 @@ export class EditManager {
                   images,
                   prompt,
                   settings: { ...settings, inputFidelity },
-                  ...(job.create ? job.create : {}),
+                  ...(job.create ? job.create : pad ? { size: pad.plan.size } : {}),
                 }),
                 signal: job.abort.signal,
               });
@@ -669,6 +784,7 @@ export class EditManager {
           this.log(job, [`Seam fix skipped: ${e instanceof Error ? e.message : String(e)}`]);
         }
       }
+      if (pad && isPadded(pad.plan) && readPngInfo(bytes)) bytes = this.unpad(job, pad.plan, bytes);
       const png = readPngInfo(bytes);
       if (!png || bytes.length > MAX_OUTPUT_BYTES) {
         info.state = "failed";
@@ -805,6 +921,7 @@ export class EditManager {
   /** Stops every job and removes the working folders (dev server shutdown). */
   async close(): Promise<void> {
     this.sessions.clear();
+    await Promise.all([...this.pngSources.keys()].map((id) => this.dropSource(id)));
     await Promise.all(
       [...this.jobs.values()].map(async (j) => {
         j.abort.abort();
@@ -835,7 +952,7 @@ export async function handleEditRequest(
   const sub = ((req.url ?? "/").split("?")[0] ?? "/").replace(/^\/+/, "");
   if (req.method === "GET" && sub === "") return send(res, 200, await manager.overview());
   const m = /^jobs\/([a-z0-9-]+)(?:\/(input|output|keep|discard|cancel))?$/.exec(sub);
-  const sm = /^sessions(?:\/([a-z0-9-]+)\/(pick|truncate|save|close|apply))?$/.exec(sub);
+  const sm = /^sessions(?:\/([a-z0-9-]+)\/(pick|truncate|save|close|apply|source))?$/.exec(sub);
   if (req.method === "GET" && m) {
     const [, id, action] = m;
     if (!action) return send(res, 200, manager.get(id!));
@@ -859,6 +976,11 @@ export async function handleEditRequest(
     const [, id, action] = sm;
     if (!id) return send(res, 200, await manager.startSession(await readJson()));
     if (action === "close") return send(res, 200, await manager.closeSession(id));
+    if (action === "source") {
+      if ((req.headers["content-type"] ?? "").split(";")[0] !== "image/png")
+        throw new HttpError(415, "PNG only");
+      return send(res, 200, await manager.setSource(id, await readRawBody(req, MAX_OUTPUT_BYTES)));
+    }
     if (action === "apply") {
       if ((req.headers["content-type"] ?? "").split(";")[0] !== "image/png")
         throw new HttpError(415, "PNG only");

@@ -1,6 +1,7 @@
 // Framework-free rules shared by the Image studio engines: how a result PNG is checked, and the name
 // and manifest entry of a kept edit or new image (ADR 0007, 0009, 0013). The dev-server endpoint
 // (server/editsApi.ts) wires these to requests and files.
+import type { AssetCategory } from "../assets/category.ts";
 import type { Asset } from "../assets/manifest.ts";
 import { EDITED_TAG, EDITS_FOLDER, GENERATED_FOLDER, GENERATED_KIND, GENERATED_TAG } from "./types.ts";
 import { BACKGROUNDS_FOLDER } from "./background.ts";
@@ -163,19 +164,30 @@ export function createdAsset(
 }
 
 /**
- * Kinds and folders the Image studio does not offer: measuring photos. Photos of existing tattoos
- * are offered (Jan, 2026-11-06: e.g. to clean one up or use it as a reference).
+ * Whether an asset belongs in the Image studio's picker (to edit or as a reference). Every section
+ * is offered, body photos included (Jan, 2026-11-09: a measuring photo is cleaned up in the studio
+ * and then used by a projection, docs/adr/0020); only hidden images stay out.
  */
-const STUDIO_HIDDEN_KINDS = new Set(["arm-photo"]);
-const STUDIO_HIDDEN_FOLDERS = ["arm-photos/"];
+export function showInStudio(asset: { hidden?: boolean }): boolean {
+  return !asset.hidden;
+}
 
-/** Whether an asset belongs in the Image studio's picker (to edit or as a reference); hidden ones do not. */
-export function showInStudio(
-  asset: Pick<Asset, "kind" | "file"> & { effectiveCategory?: string; hidden?: boolean },
-): boolean {
-  if (asset.hidden) return false;
-  // The catalogue's section, when known (docs/adr/0020): measuring photos stay out.
-  if (asset.effectiveCategory) return asset.effectiveCategory !== "measuring";
-  const file = asset.file.replaceAll("\\", "/").toLowerCase();
-  return !STUDIO_HIDDEN_KINDS.has(asset.kind) && !STUDIO_HIDDEN_FOLDERS.some((f) => file.startsWith(f));
+/** The studio picker's section filter: the catalogue's library sections plus one for body photos. */
+export type StudioFacet = "reference" | "generated" | "edit" | "background" | "body";
+
+export const STUDIO_FACET_LABELS: Record<StudioFacet, string> = {
+  reference: "Ideas",
+  generated: "Generated",
+  edit: "Edits",
+  background: "Backgrounds",
+  body: "Body photos",
+};
+
+/**
+ * The facet an asset is listed under. Measuring and tattoo photos share "Body photos": a measuring
+ * photo turns into a tattoo photo as soon as a projection uses it and should not jump sections.
+ */
+export function studioFacetOf(asset: { effectiveCategory: AssetCategory }): StudioFacet {
+  const c = asset.effectiveCategory;
+  return c === "measuring" || c === "existing" ? "body" : c;
 }
