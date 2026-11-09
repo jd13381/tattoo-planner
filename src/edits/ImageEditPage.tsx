@@ -21,9 +21,8 @@ import {
   type BuiltinOpId,
   type BuiltinParams,
 } from "./builtin.ts";
-import { CATEGORY_LABELS, type AssetCategory } from "../assets/category.ts";
 import { useResolvedTheme } from "../ui/useTheme.ts";
-import { showInStudio } from "./edit.ts";
+import { showInStudio, STUDIO_FACET_LABELS, studioFacetOf, type StudioFacet } from "./edit.ts";
 import { STUDIO_REQUEST_EVENT, takeStudioRequest, type StudioRequest } from "../projection/studioLink.ts";
 import { BACKGROUND_PRESETS } from "./background.ts";
 import { encodePng, loadPixels } from "./pixelsDom.ts";
@@ -195,21 +194,19 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
         ? listing.assets.filter(
             (a) =>
               a.exists &&
-              (showInStudio(a) ||
-                (a.id === selectedId && showInStudio({ ...a, hidden: false })) ||
-                // A photo sent here on purpose (measuring photos are otherwise left out).
-                a.id === errand?.assetId),
+              // Hidden images stay out, except the one being edited or one sent here on purpose.
+              (showInStudio(a) || a.id === selectedId || a.id === errand?.assetId),
           )
         : [],
     [listing, selectedId, errand],
   );
-  // The section select shows the catalogue's sections, never raw kinds.
-  const kinds = useMemo(() => facets(assets.map((a) => a.effectiveCategory)), [assets]);
+  // The section select shows the catalogue's sections (body photos as one), never raw kinds.
+  const kinds = useMemo(() => facets(assets.map(studioFacetOf)), [assets]);
   const tags = useMemo(() => facets(assets.flatMap((a) => a.tags)), [assets]);
   const shown = useMemo(
     () =>
       filterAssets(
-        assets.filter((a) => !filter.kind || a.effectiveCategory === filter.kind),
+        assets.filter((a) => !filter.kind || studioFacetOf(a) === filter.kind),
         { ...filter, kind: "" },
       ),
     [assets, filter],
@@ -539,7 +536,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
             <option value="">All sections</option>
             {kinds.map((k) => (
               <option key={k.value} value={k.value}>
-                {CATEGORY_LABELS[k.value as AssetCategory] ?? k.value} ({k.count})
+                {STUDIO_FACET_LABELS[k.value as StudioFacet] ?? k.value} ({k.count})
               </option>
             ))}
           </select>
