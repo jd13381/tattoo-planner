@@ -543,3 +543,9 @@ Jan: "beim torso wird momentan auch noch eine bend option angeboten, die nicht f
 
 - **The elbow pose is offered for arms only, decided by `supportsBend(kind)`** in `src/body/bend.ts` (only the arm has an elbow model, docs/adr/0005); legs and the torso get no pose control in the Layout panel, the 3D viewer's floating control, Settings → Body, the projection page or Compare. Home has none. _Alternative:_ show it disabled with a note (a control that never does anything there is noise). _Change:_ `ArmViewer`, `LayoutPage`, `BodyPage`, `ProjectionPage`, `ComparePage`.
 - **The pose stays one shared value; non-arm regions read it through `regionBendDeg(kind, deg)`** (0 off the arms), applied once in `ArmViewer`, so a 90° set on an arm never reaches a torso or leg view (including the projection wizard's previews, whose file is left untouched) and is still there when you go back to the arm. _Alternative:_ reset the pose when switching to a non-arm region (loses the arm's pose).
+
+### Background under white motif paper (2026-11-09)
+
+- Background layers now show through the white paper of motif images; only the ink knocks them out (alpha × darkness: none above 92 % lightness, full from 45 % down). Jan wanted the background visible under motifs whose background is "transparent", and motifs are multiplied onto the skin, so white already reads as transparent there.
+  _Alternative:_ a per-element switch "paper covers background", or using the image alpha only (the old rule, which cut a rectangle out of the background for every JPEG).
+  _Change:_ the two constants in `motifKnockout` (`src/render/backgrounds/composite.ts`); set the ink weight to 1 to get the old behaviour.

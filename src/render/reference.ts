@@ -25,7 +25,7 @@ import { cpu2d, cpuCanvas } from "./cpuCanvas.ts";
 import { OVERLAY_GRID_STYLE, paintGrid } from "./cmGrid.ts";
 import { lineScreen, processPixels } from "./imageOps.ts";
 import { visibleLayers } from "../layout/areas.ts";
-import { unwrapRows } from "./backgrounds/composite.ts";
+import { motifKnockout, unwrapRows } from "./backgrounds/composite.ts";
 import { paintBackgrounds, type BackgroundSources } from "./backgrounds/paint.ts";
 import { getPattern, seedFromId } from "./patterns/index.ts";
 import { rowRange, screenX, shapeMask, wrapStrip } from "./unwrapRows.ts";
@@ -146,7 +146,8 @@ export function renderReference(
     }
   }
 
-  // Background layers under every motif (docs/adr/0019); the motifs knock them out.
+  // Background layers under every motif (docs/adr/0019); the motifs' ink knocks them out, white
+  // paper around a motif lets them show (motifs are multiplied onto the skin).
   let missing = new Map<string, string>();
   if (visibleLayers(layout).length > 0) {
     const g = unwrapRows(profile, ppc, centerU);
@@ -154,9 +155,7 @@ export function renderReference(
     if (motifs !== "hide" && draws.length > 0) {
       const kc = cpu2d(scratchCanvas(W, H));
       for (const d of draws) d(kc, true);
-      const a = kc.getImageData(0, 0, W, H).data;
-      knockout = new Float32Array(W * H);
-      for (let k = 0; k < W * H; k++) knockout[k] = a[k * 4 + 3]! / 255;
+      knockout = motifKnockout(kc.getImageData(0, 0, W, H).data);
     }
     const img = ctx.getImageData(0, 0, W, H);
     missing = paintBackgrounds(img.data, layout, profile, g, backgroundSources(sources), knockout);
