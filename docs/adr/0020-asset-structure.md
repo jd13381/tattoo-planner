@@ -42,12 +42,14 @@ The server takes the store's persons (`ProjectStore.persons()`, ADR 0017) and gi
 
 The scan catalogues `persons/<id>/photos/` and `persons/<id>/existing/`, and never looks inside dot folders (`.trash`, `.trash-pending`).
 
+**Studio edits of body photos (2026-11-09).** An edit stays in the "edit" category but takes its original's person, derived at read time along `derived_from` (`inheritPersons`; an explicit `person` on the edit wins). The Image studio lists measuring and tattoo photos under one "Body photos" facet instead of hiding measuring photos. The projection photo picker's groups, with edits stacked on their photo, and the `file` / `cleaned` fields for a picked edit come from `src/assets/projectionPhotos.ts`.
+
 ### References
 
 `GET /api/assets/usage` returns, per asset id, where the image is used:
 
 - layout elements: every `asset` or `*_asset` key, and the `source.image` of background layers (ADR 0019), across all persons
-- projection photos
+- projection photos, and a photo's `cleaned` version (2026-11-09)
 - edits derived from it
 - open studio sessions
 
