@@ -150,7 +150,10 @@ export function applyUrl(sessionId: string, q: ApplyQuery): string {
   return `${sessionUrl(sessionId, "apply")}?${new URLSearchParams({ step: q.step, base: String(q.base) })}`;
 }
 
-export function sessionUrl(id: string, action?: "pick" | "truncate" | "save" | "close" | "apply"): string {
+export function sessionUrl(
+  id: string,
+  action?: "pick" | "truncate" | "save" | "close" | "apply" | "source",
+): string {
   return `${EDITS_ENDPOINT}/sessions/${encodeURIComponent(id)}${action ? `/${action}` : ""}`;
 }
 

@@ -26,6 +26,7 @@ import { showInStudio, STUDIO_FACET_LABELS, studioFacetOf, type StudioFacet } fr
 import { STUDIO_REQUEST_EVENT, takeStudioRequest, type StudioRequest } from "../projection/studioLink.ts";
 import { BACKGROUND_PRESETS } from "./background.ts";
 import { encodePng, loadPixels } from "./pixelsDom.ts";
+import { needsPngSource, PNG_SOURCE_MAX_SIDE } from "./pad.ts";
 import {
   attemptsFrom,
   closeQuestion,
@@ -323,6 +324,23 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
     act(async () => {
       if (!hasTarget) return;
       const s = await ensureSession();
+      // A JPEG or WebP original goes to GPT Image as a PNG copy decoded here, so the server can pad
+      // it to the output shape and crop the answer back (src/edits/pad.ts).
+      if (s.mode === "edit" && s.assetId && s.versions.length === 0 && activeEngine === "openai") {
+        const original = assets.find((a) => a.id === s.assetId);
+        if (original && needsPngSource(original.file)) {
+          const { pixels } = await loadPixels(assetImageUrl(original.id), PNG_SOURCE_MAX_SIDE);
+          const r = await fetch(sessionUrl(s.id, "source"), {
+            method: "POST",
+            headers: { "Content-Type": "image/png" },
+            body: await encodePng(pixels),
+          });
+          if (!r.ok)
+            throw new Error(
+              ((await r.json().catch(() => ({}))) as { error?: string }).error ?? `HTTP ${r.status}`,
+            );
+        }
+      }
       const body: EditRequest = {
         session: s.id,
         instruction: text,

@@ -92,6 +92,11 @@ export type OpenAISettings = {
   /** "high" keeps the input's style and features more faithfully; null leaves the API default. */
   inputFidelity: "high" | "low" | null;
   quality: "high" | "medium" | "low" | "auto";
+  /**
+   * False: send the image as it is with size "auto" (the answer may come back in another aspect).
+   * Missing: pad it to the closest output size and crop the answer back (src/edits/pad.ts).
+   */
+  padToSize?: false;
 };
 
 export type FormImage = { bytes: Uint8Array; fileName: string; mimeType: string };
@@ -205,15 +210,17 @@ export type OpenAIEnv = Record<string, string | undefined>;
 
 /**
  * Settings from the environment: TATTOO_OPENAI_API_KEY (or OPENAI_API_KEY from the shell),
- * TATTOO_OPENAI_MODEL, TATTOO_OPENAI_FIDELITY (high | low | default), TATTOO_OPENAI_QUALITY.
- * Null without a key.
+ * TATTOO_OPENAI_MODEL, TATTOO_OPENAI_FIDELITY (high | low | default), TATTOO_OPENAI_QUALITY,
+ * TATTOO_OPENAI_PAD (on by default; off | false | 0 sends images unpadded). Null without a key.
  */
 export function openaiSettingsFromEnv(env: OpenAIEnv): OpenAISettings | null {
   const apiKey = (env.TATTOO_OPENAI_API_KEY ?? env.OPENAI_API_KEY ?? "").trim();
   if (!apiKey) return null;
   const fidelity = env.TATTOO_OPENAI_FIDELITY?.trim().toLowerCase();
   const quality = env.TATTOO_OPENAI_QUALITY?.trim().toLowerCase();
+  const pad = env.TATTOO_OPENAI_PAD?.trim().toLowerCase();
   return {
+    ...(pad === "off" || pad === "false" || pad === "0" ? { padToSize: false as const } : {}),
     apiKey,
     model: env.TATTOO_OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL,
     inputFidelity: fidelity === "low" ? "low" : fidelity === "default" ? null : "high",
