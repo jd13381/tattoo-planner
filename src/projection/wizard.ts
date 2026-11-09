@@ -10,6 +10,7 @@ import { U0_ANGLE } from "../body/geometry.ts";
 import { REGIONS, type RegionId } from "../body/regions.ts";
 import type { RegionProfile } from "../body/profile.ts";
 import { wrapU } from "../body/uv.ts";
+import { storedErase, type EraseSettings } from "./erase.ts";
 import { photoFrame, turnedToStored, type Vec } from "./model.ts";
 import {
   DEFAULT_CLEANUP,
@@ -17,6 +18,7 @@ import {
   projectionSchema,
   type AlongMark,
   type CleanupSettings,
+  type EditFit,
   type PhotoCalibration,
   type PhotoPoint,
   type ProjectionCalibration,
@@ -38,6 +40,8 @@ export type WizardPhoto = {
   weight: number;
   /** An edited version of the photo whose pixels are projected (`cleaned`, docs/adr/0023), or null. */
   cleaned: string | null;
+  /** How the edited version lies on the photo when its shape differs (`cleaned_fit`). */
+  cleanedFit: EditFit | null;
 };
 
 export type WizardDraft = {
@@ -52,6 +56,8 @@ export type WizardDraft = {
   base: ProjectionCalibration | null;
   /** Ink only (docs/adr/0023); null = the photos' brightness as it is. */
   cleanup: CleanupSettings | null;
+  /** The eraser (docs/adr/0023): speck removal and strokes, applied after ink only; null = nothing. */
+  erase: EraseSettings | null;
 };
 
 export type PhotoTask = "turn" | "edges" | "marks" | "facing";
@@ -150,6 +156,7 @@ export function newDraft(region: RegionId = "arm-left"): WizardDraft {
     area: null,
     base: null,
     cleanup: { ...DEFAULT_CLEANUP },
+    erase: null,
   };
 }
 
@@ -182,6 +189,7 @@ export function newPhoto(file: string, prev?: WizardPhoto, facing = 0.5): Wizard
     facingFar: facing,
     weight: 1,
     cleaned: null,
+    cleanedFit: null,
   };
 }
 
@@ -337,6 +345,7 @@ export function toCalibration(
     },
     blend: base?.blend ?? {},
     ...(draft.cleanup ? { cleanup: draft.cleanup } : {}),
+    ...(storedErase(draft.erase) ? { erase: storedErase(draft.erase) } : {}),
     photos: draft.photos.map((p) => toPhotoCalibration(p)),
   };
   const r = projectionSchema.safeParse(raw);
@@ -353,6 +362,7 @@ export function toPhotoCalibration(p: WizardPhoto): PhotoCalibration {
     u_view: { wrist: round4(p.facing), elbow: round4(p.twisted ? p.facingFar : p.facing) },
     weight: p.weight,
     ...(p.cleaned ? { cleaned: p.cleaned } : {}),
+    ...(p.cleaned && p.cleanedFit ? { cleaned_fit: p.cleanedFit } : {}),
   };
 }
 
@@ -372,10 +382,12 @@ export function fromCalibration(cal: ProjectionCalibration): WizardDraft {
       facingFar: p.u_view.elbow,
       weight: p.weight,
       cleaned: p.cleaned ?? null,
+      cleanedFit: p.cleaned_fit ?? null,
     })),
     area: { u: [...cal.patch.u], v: [...cal.patch.v] },
     base: cal,
     cleanup: cal.cleanup ? { ...cal.cleanup } : null,
+    erase: cal.erase ? structuredClone(cal.erase) : null,
   };
 }
 
