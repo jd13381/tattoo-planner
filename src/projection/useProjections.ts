@@ -5,6 +5,8 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { RegionProfile } from "../body/profile.ts";
 import { fileKey } from "../assets/manifestDoc.ts";
+import type { TrashMode } from "../assets/types.ts";
+import { announceLayoutSaved, type StoredLayout } from "../layout/useLayouts.ts";
 import type { AssetInfo } from "../assets/types.ts";
 import type { AssetImage } from "../render/reference.ts";
 import { buildPatch, type PhotoPixels, type ProjectedPatch } from "./patch.ts";
@@ -72,6 +74,30 @@ export async function saveProjection(calibration: ProjectionCalibration): Promis
   const saved = (await r.json()) as StoredProjection;
   const others = (store.files ?? []).filter((f) => f.name !== saved.name);
   setFiles([...others, saved].sort((a, b) => a.name.localeCompare(b.name)));
+}
+
+export type DeleteResult = {
+  name: string;
+  trash: TrashMode;
+  layouts: StoredLayout[];
+  skipped: { name: string; reason: string }[];
+};
+
+/**
+ * Moves a projection's file to the trash (server/projectionsApi.ts) and takes it out of the layouts in
+ * `removeFrom`; every view of the projections and of those layouts updates.
+ */
+export async function deleteProjection(name: string, removeFrom: readonly string[]): Promise<DeleteResult> {
+  const r = await fetch(`${PROJECTIONS_ENDPOINT}/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ removeFrom }),
+  });
+  const body = (await r.json().catch(() => ({}))) as Partial<DeleteResult> & { error?: string };
+  if (!r.ok) throw new Error(body.error ?? `HTTP ${r.status}`);
+  setFiles((store.files ?? []).filter((f) => f.name !== name));
+  for (const l of body.layouts ?? []) announceLayoutSaved(l);
+  return body as DeleteResult;
 }
 
 const subscribe = (l: () => void) => {
@@ -183,7 +209,8 @@ export function patchFor(
         const px = pixelsOf(edit);
         if (px) {
           const frame = orig?.status === "ready" ? { width: orig.width, height: orig.height } : null;
-          pixels.push({ ...px, cleaned: { frame } });
+          const fit = cal.photos[k]!.cleaned_fit;
+          pixels.push({ ...px, cleaned: { frame, ...(fit ? { fit } : {}) } });
           versions.push(edit.version * 1000 + (orig?.status === "ready" ? orig.version : 0));
           continue;
         }

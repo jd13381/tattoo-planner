@@ -12,7 +12,7 @@ const ENDPOINT = "/api/layouts";
  */
 export const LAYOUT_SAVED_EVENT = "tattoo-planner:layout-saved";
 
-function announceLayoutSaved(saved: StoredLayout): void {
+export function announceLayoutSaved(saved: StoredLayout): void {
   window.dispatchEvent(new CustomEvent<StoredLayout>(LAYOUT_SAVED_EVENT, { detail: saved }));
 }
 

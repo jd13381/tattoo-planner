@@ -53,6 +53,7 @@ export function ProjectionPage({
   onDirty,
   initialName,
   onBack,
+  onDelete,
 }: {
   arm: ArmState;
   pose: Pose;
@@ -62,6 +63,8 @@ export function ProjectionPage({
   initialName?: string;
   /** Back to the list of existing tattoos. */
   onBack?: () => void;
+  /** Asks to delete the projection (absent for the read-only sample). */
+  onDelete?: (name: string) => void;
 }) {
   const { files, calibrations, errors, loadError } = useProjections();
   const [name, setName] = useState<string | null>(initialName ?? null);
@@ -170,6 +173,7 @@ export function ProjectionPage({
       profile={arm.region(projectionRegion(saved))}
       pose={pose}
       onDirty={reportDirty}
+      onDelete={onDelete && (() => onDelete(current))}
     />
   );
 }
@@ -204,6 +208,7 @@ function ProjectionEditor(props: {
   profile: RegionProfile;
   pose: Pose;
   onDirty?: (dirty: boolean) => void;
+  onDelete?: () => void;
 }) {
   const { saved, picker, back, profile, pose, onDirty } = props;
   const current = saved.name;
@@ -369,6 +374,19 @@ function ProjectionEditor(props: {
           </>
         }
       >
+        <button
+          type="button"
+          className="ghost danger-text"
+          disabled={!props.onDelete}
+          onClick={props.onDelete}
+          title={
+            props.onDelete
+              ? "Move this projection's file to the Trash; the photos stay"
+              : "The sample project is read-only"
+          }
+        >
+          Delete…
+        </button>
         <button
           type="button"
           className="ghost"

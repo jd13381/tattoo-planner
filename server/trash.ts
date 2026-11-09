@@ -37,6 +37,8 @@ export type TrashInfo = {
   entries: Asset[];
   /** The files' paths relative to the project, in `files` order. */
   relative: string[];
+  /** The project trash's entry.yaml header instead of the images' one (another kind of file). */
+  note?: string;
 };
 
 export type Trasher = {
@@ -87,9 +89,13 @@ export const projectTrasher: Trasher = {
     await mkdir(folder, { recursive: true });
     for (const [i, file] of files.entries()) await moveFile(file, path.join(folder, info.relative[i]!));
     const note =
+      info.note ??
       "# Images moved to the trash by the Tattoo Planner, with their catalogue entries.\n" +
-      "# To restore one, move its file back and press Look for new images in the Assets tab.\n";
-    await writeFile(path.join(folder, "entry.yaml"), note + stringify({ assets: info.entries }), "utf8");
+        "# To restore one, move its file back and press Look for new images in the Assets tab.\n";
+    const body = info.entries.length
+      ? stringify({ assets: info.entries })
+      : `files:\n${info.relative.map((r) => `  - ${JSON.stringify(r)}`).join("\n")}\n`;
+    await writeFile(path.join(folder, "entry.yaml"), note + body, "utf8");
   },
 };
 
