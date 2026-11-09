@@ -1,6 +1,7 @@
 // Settings → Projection (docs/adr/0014-guided-projection.md): the existing tattoos brought onto the body
 // from photos. A list with each tattoo's photo, body part and state; "Add existing tattoo" and "Edit"
-// open the guided wizard, "Advanced" the full calibration page (ProjectionPage.tsx).
+// open the guided wizard, "Advanced" the full calibration page (ProjectionPage.tsx), "Delete" asks
+// first (DeleteProjection.tsx).
 import { useEffect, useMemo, useState } from "react";
 import { fileKey } from "../assets/manifestDoc.ts";
 import type { AssetInfo } from "../assets/types.ts";
@@ -8,7 +9,10 @@ import { assetImageUrl } from "../assets/types.ts";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { REGIONS } from "../body/regions.ts";
 import { useLayouts, type WorkingLayout } from "../layout/useLayouts.ts";
+import { projectStatus } from "../project/projectData.ts";
+import { ToastRegion, useToast } from "../ui/Toast.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
+import { DeleteProjectionDialog, SAMPLE_PROJECTION_HINT } from "./DeleteProjection.tsx";
 import { layoutsShowing } from "./layoutLink.ts";
 import { ProjectionPage } from "./ProjectionPage.tsx";
 import { ProjectionWizard } from "./ProjectionWizard.tsx";
@@ -39,10 +43,46 @@ export function ProjectionSettings({ arm, pose, onDirty, openLayout }: Props) {
     onDirty?.(false);
     setView({ kind: "list" });
   };
+  const { calibrations } = useProjections();
+  const { files: layoutFiles } = useLayouts();
+  const { listing } = useAssetListing();
+  const toast = useToast(4000);
+  const readOnly = projectStatus?.sample === true || (listing?.status === "ok" && listing.readOnly === true);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const deleteCal = deleting ? calibrations.get(deleting) : undefined;
+  const deleteDialog = deleting && (
+    <DeleteProjectionDialog
+      key={deleting}
+      name={deleting}
+      label={deleteCal?.description ?? deleting}
+      photos={deleteCal?.photos.length ?? 0}
+      layouts={layoutFiles}
+      openLayout={openLayout ?? null}
+      trash={listing?.status === "ok" ? listing.trash : undefined}
+      onCancel={() => setDeleting(null)}
+      onDeleted={(message) => {
+        setDeleting(null);
+        toList();
+        toast.show(message);
+      }}
+    />
+  );
+  /** Delete from the wizard and the Advanced page too (unsaved changes there are dropped with it). */
+  const onDelete = readOnly ? undefined : (name: string) => setDeleting(name);
+  let page;
   if (view.kind === "advanced")
-    return <ProjectionPage arm={arm} pose={pose} onDirty={onDirty} initialName={view.name} onBack={toList} />;
-  if (view.kind === "wizard")
-    return (
+    page = (
+      <ProjectionPage
+        arm={arm}
+        pose={pose}
+        onDirty={onDirty}
+        initialName={view.name}
+        onBack={toList}
+        onDelete={onDelete}
+      />
+    );
+  else if (view.kind === "wizard")
+    page = (
       <ProjectionWizard
         key={view.name ?? "new"}
         arm={arm}
@@ -53,15 +93,26 @@ export function ProjectionSettings({ arm, pose, onDirty, openLayout }: Props) {
         onClose={toList}
         onAdvanced={(name) => setView({ kind: "advanced", name })}
         onAnother={() => setView({ kind: "wizard", name: null })}
+        onDelete={onDelete}
         parked={view.parked ?? null}
       />
     );
+  else
+    page = (
+      <ProjectionList
+        onAdd={() => setView({ kind: "wizard", name: null })}
+        onEdit={(name) => setView({ kind: "wizard", name })}
+        onAdvanced={(name) => setView({ kind: "advanced", name })}
+        onDelete={(name) => setDeleting(name)}
+        readOnly={readOnly}
+      />
+    );
   return (
-    <ProjectionList
-      onAdd={() => setView({ kind: "wizard", name: null })}
-      onEdit={(name) => setView({ kind: "wizard", name })}
-      onAdvanced={(name) => setView({ kind: "advanced", name })}
-    />
+    <>
+      {page}
+      {deleteDialog}
+      <ToastRegion toast={toast} />
+    </>
   );
 }
 
@@ -92,6 +143,8 @@ function ProjectionList(props: {
   onAdd: () => void;
   onEdit: (name: string) => void;
   onAdvanced: (name: string) => void;
+  onDelete: (name: string) => void;
+  readOnly: boolean;
 }) {
   const { files, calibrations, errors, loadError } = useProjections();
   const { listing } = useAssetListing();
@@ -196,6 +249,19 @@ function ProjectionList(props: {
                       title="Every number of the calibration, for fine-tuning"
                     >
                       Advanced
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost danger-text"
+                      disabled={props.readOnly}
+                      onClick={() => props.onDelete(f.name)}
+                      title={
+                        props.readOnly
+                          ? SAMPLE_PROJECTION_HINT
+                          : "Move this tattoo's projection file to the Trash; the photos stay"
+                      }
+                    >
+                      Delete…
                     </button>
                   </div>
                 </li>

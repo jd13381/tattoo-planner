@@ -35,7 +35,10 @@ export function isEditOf(file: string | null, edits: readonly AssetLike[]): bool
 /** Proportions of the edit and the photo differ by more than this: the stretch would show. */
 const SHAPE_TOLERANCE = 0.02;
 
-/** A warning when the edit has another shape than the photo (generative edits may change it). */
+/**
+ * A warning when the edit has another shape than the photo (generative edits may change it); the
+ * wizard then offers how to lay it on the photo (`cleaned_fit`).
+ */
 export function shapeWarning(
   photo: { width: number; height: number } | null,
   edit: { width: number; height: number } | null,
@@ -44,5 +47,5 @@ export function shapeWarning(
   const a = photo.width / photo.height;
   const b = edit.width / edit.height;
   if (Math.abs(a / b - 1) <= SHAPE_TOLERANCE) return null;
-  return `The edited image is ${edit.width} × ${edit.height} px, the photo ${photo.width} × ${photo.height} px: it is stretched onto the photo, so the ink may sit a little off. Check the result.`;
+  return `The edited image is ${edit.width} × ${edit.height} px, the photo ${photo.width} × ${photo.height} px: another shape, so the ink may sit off. Pick below how it lies on the photo and check that Before and After line up.`;
 }

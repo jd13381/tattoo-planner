@@ -7114,16 +7114,103 @@ button.side-choice {
   gap: var(--s-2);
 }
 
-/* Clean up: before above, after below (the unwrap crops are wide). */
-.wizard-cleanup {
+/* Clean up: the eraser's bar, the after view (painted on) large, the before view below, both at the
+   same zoom (src/projection/Eraser.tsx). */
+.eraser {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 2fr) minmax(0, 1fr);
 }
 
-.wizard-cleanup .wizard-unwrap:first-child {
-  border-top: 0;
+.eraser-bar {
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.eraser-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.eraser-size input[type="range"] {
+  width: 120px;
+}
+
+.eraser-size-value {
+  min-width: 4.5em;
+}
+
+.eraser-zoom .mono {
+  min-width: 3.5em;
+  display: inline-block;
+}
+
+.eraser-pane {
+  margin: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 4px;
+  padding: 8px 12px;
+}
+
+.eraser-pane.small {
+  border-top: 1px solid var(--border);
+}
+
+.eraser-host {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.eraser-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  touch-action: none;
+}
+
+.eraser-canvas.paint {
+  cursor: crosshair;
+}
+
+.eraser-canvas.pan {
+  cursor: grab;
+}
+
+.eraser-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+}
+
+.cleanup-studio {
+  border-top: 1px solid var(--border);
+  padding-top: var(--s-2);
+}
+
+.cleanup-studio > summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.cleanup-studio[open] {
+  display: grid;
+  gap: var(--s-2);
+}
+
+@media (max-width: 900px) {
+  .eraser-hint {
+    display: none;
+  }
 }
 
 .cleanup-controls {
@@ -7740,6 +7827,14 @@ li.assets-card.selected {
   align-items: flex-start;
   margin: var(--s-2) 0;
   color: var(--warn-text);
+  font-size: var(--fs-sm);
+}
+
+.projection-delete-layouts {
+  display: flex;
+  gap: var(--s-2);
+  align-items: flex-start;
+  margin: var(--s-2) 0;
   font-size: var(--fs-sm);
 }
 

@@ -44,8 +44,24 @@ export const photoSchema = z.strictObject({
    * parts of the edit count as bare skin.
    */
   cleaned: z.string().min(1).optional(),
+  /**
+   * How `cleaned` lies on the photo when its proportions differ (a generative edit may come back in
+   * another format): stretched onto the photo (default), fitted inside it with bands on two sides
+   * ("contain"), or filling it with two sides cut off ("cover"). Both keep the centre.
+   */
+  cleaned_fit: z.enum(["stretch", "contain", "cover"]).optional(),
 });
 export type PhotoCalibration = z.infer<typeof photoSchema>;
+export type EditFit = NonNullable<PhotoCalibration["cleaned_fit"]>;
+
+/** One eraser stroke (src/projection/erase.ts): brush diameter in cm and its path in skin coordinates. */
+const eraseStrokeSchema = z.strictObject({
+  size_cm: z.number().positive().max(50),
+  /** Brings back what erasing or speck removal took away, instead of erasing. */
+  restore: z.boolean().optional(),
+  /** [u, v] in the patch's skin coordinates (u as in `patch.u`, not wrapped). */
+  points: z.array(z.tuple([z.number(), z.number()])).min(1),
+});
 
 export const projectionSchema = z
   .strictObject({
@@ -85,6 +101,17 @@ export const projectionSchema = z
         strength: unit.default(0.5),
         /** Keep the ink's colour; otherwise black and grey. */
         keep_color: z.boolean().default(false),
+      })
+      .optional(),
+    /**
+     * The eraser (docs/adr/0023, "Eraser"), applied after ink only: specks of ink smaller than
+     * `specks_mm2` are dropped, then the strokes erase or restore, in order. Left out: nothing erased.
+     */
+    erase: z
+      .strictObject({
+        /** Pieces of ink smaller than this (mm²) that touch no other ink are removed; 0 = off. */
+        specks_mm2: z.number().min(0).max(10000).default(0),
+        strokes: z.array(eraseStrokeSchema).default([]),
       })
       .optional(),
     photos: z.array(photoSchema).min(1),

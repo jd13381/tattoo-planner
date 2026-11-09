@@ -19,7 +19,8 @@ import {
   viewWeight,
 } from "./model.ts";
 import { inkLayer } from "../render/inkOnly.ts";
-import type { ProjectionCalibration } from "./schema.ts";
+import { applyEraseMask, eraseMask } from "./erase.ts";
+import type { EditFit, ProjectionCalibration } from "./schema.ts";
 
 /** RGBA pixels of a photo as stored, already turned upright by its EXIF orientation. */
 export type PhotoPixels = {
@@ -31,8 +32,31 @@ export type PhotoPixels = {
    * unseen, and `frame` is the size of the photo the calibration points were placed on (the edit is
    * stretched onto it), when known.
    */
-  cleaned?: { frame: { width: number; height: number } | null };
+  cleaned?: { frame: { width: number; height: number } | null; fit?: EditFit };
 };
+
+/**
+ * Where a point of the photo's frame (stored pixels) lies on an edit of another size: x · sx + ox,
+ * y · sy + oy. "stretch" maps frame onto edit; "contain" assumes the photo sits inside the edit with
+ * bands on two sides (a letterboxed result), "cover" that the edit shows the photo's middle with two
+ * sides cut off. Both keep the centre and the proportions.
+ */
+export function editMapping(
+  frame: { width: number; height: number },
+  edit: { width: number; height: number },
+  fit: EditFit = "stretch",
+): { sx: number; sy: number; ox: number; oy: number } {
+  const kx = edit.width / frame.width;
+  const ky = edit.height / frame.height;
+  if (fit === "stretch") return { sx: kx, sy: ky, ox: 0, oy: 0 };
+  const k = fit === "contain" ? Math.min(kx, ky) : Math.max(kx, ky);
+  return {
+    sx: k,
+    sy: k,
+    ox: (edit.width - frame.width * k) / 2,
+    oy: (edit.height - frame.height * k) / 2,
+  };
+}
 
 /**
  * The patch, in skin coordinates. Row 0 is the region's end side (v1), column 0 the u1 end: the left
@@ -55,6 +79,11 @@ export type ProjectedPatch = {
   alpha: Uint8ClampedArray;
   /** The tattoo's area for blockout and metrics: 1 inside, 0 outside. */
   footprint: Uint8Array;
+  /**
+   * Ink amount 0..1 per pixel before the eraser (docs/adr/0023): what speck removal measures. The
+   * wizard's eraser applies its strokes to a patch built without them, live, from this.
+   */
+  ink: Float32Array;
   /** Per photo: share of the patch's seen pixels where it has the largest weight. */
   share: number[];
 };
@@ -301,6 +330,8 @@ export function photoLayer(
   // The points were placed on the original photo; an edit is stretched onto its frame.
   const base = img.cleaned?.frame ?? img;
   const turned = turnedSize(base.width, base.height, photo.turn);
+  // Frame pixels to image pixels: the identity for a photo, the edit's fit for an edited version.
+  const map = editMapping(base, img, img.cleaned?.fit);
   const frame = photoFrame(photo, turned.width, turned.height, twistReach(profile));
   const raw = new Float32Array(W * H).fill(NaN);
   const weight = new Float32Array(W * H);
@@ -318,7 +349,13 @@ export function photoLayer(
         if (cos <= 0) continue;
         const p = acrossSilhouette(sil, t);
         const st = turnedToStored(p.x / turned.width, p.y / turned.height, photo.turn);
-        const l = sampleLum(img, st.x * img.width, st.y * img.height, rawRgb, 3 * (j * W + i));
+        const l = sampleLum(
+          img,
+          st.x * base.width * map.sx + map.ox,
+          st.y * base.height * map.sy + map.oy,
+          rawRgb,
+          3 * (j * W + i),
+        );
         if (Number.isNaN(l)) continue;
         raw[j * W + i] = l;
         weight[j * W + i] = viewWeight(cos, cal.blend.exponent, photo.weight);
@@ -441,6 +478,22 @@ export function buildPatch(
       inkF[k] = a;
     }
   }
+  // The eraser (docs/adr/0023): specks and strokes take the ink away, so the footprint follows it.
+  const ink = inkF.slice();
+  const mask = eraseMask(
+    cal.erase,
+    {
+      u0: cal.patch.u[0],
+      u1: cal.patch.u[1],
+      v0: cal.patch.v[0],
+      v1: cal.patch.v[1],
+      width: W,
+      height: H,
+      pxPerCm: cal.patch.px_per_cm,
+    },
+    ink,
+  );
+  if (mask) applyEraseMask(alpha, inkF, mask);
   // Footprint: ink smoothed over about a centimetre, so the hatching reads as one area; specks (hair,
   // pores) dropped, holes filled.
   const blurR = Math.max(1, Math.round(FOOTPRINT_BLUR_CM * cal.patch.px_per_cm));
@@ -461,6 +514,7 @@ export function buildPatch(
     ...(rgbOut ? { rgb: rgbOut } : {}),
     alpha,
     footprint,
+    ink,
     share: wins.map((n) => (seen > 0 ? n / seen : 0)),
   };
 }

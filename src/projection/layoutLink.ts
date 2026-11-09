@@ -86,3 +86,18 @@ export function linkProjection(
   };
   return { layout: { ...base, elements: [...base.elements, element] }, changed: true, elementId: id };
 }
+
+/**
+ * What deleting a projection does to the layouts (Settings → Projection → Delete): the layouts showing
+ * it, the ones its element can be taken out of, and the one held back because it has unsaved edits in
+ * the Layout tab (its next save there would put the element back).
+ */
+export function deletePlan(
+  files: readonly LayoutFile[],
+  projection: string,
+  open?: { name: string; dirty: boolean } | null,
+): { shownIn: string[]; removable: string[]; heldBack: string | null } {
+  const shownIn = layoutsShowing(files, projection);
+  const heldBack = open?.dirty && shownIn.includes(open.name) ? open.name : null;
+  return { shownIn, removable: shownIn.filter((n) => n !== heldBack), heldBack };
+}

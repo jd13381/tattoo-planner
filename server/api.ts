@@ -46,7 +46,8 @@ export function createApi(context: ApiContext): Api {
   const dir = async () => (await paths()).dir;
   // The settings object itself, not a copy of its key: the desktop app can set a key at runtime.
   const edits = editsHandler(dir, context.settings);
-  const pending = new PendingDeletes(context.trash ?? defaultTrasher());
+  const trasher = context.trash ?? defaultTrasher();
+  const pending = new PendingDeletes(trasher);
   const assets = assetsHandler({
     dir,
     persons: async () => projectPersons(await paths(), await context.projects.persons()),
@@ -61,7 +62,7 @@ export function createApi(context: ApiContext): Api {
     ["/api/openai-key", openaiKeyHandler(context.settings.keys)],
     ["/api/layouts", layoutsHandler(async () => (await paths()).layoutsDir)],
     ["/api/project", projectHandler(context.projects, context.home)],
-    ["/api/projections", projectionsHandler(async () => (await paths()).projectionsDir)],
+    ["/api/projections", projectionsHandler(paths, trasher)],
   ]);
   const middleware: Middleware = (req, res, next) => {
     const found = route(routes, req.url ?? "/");

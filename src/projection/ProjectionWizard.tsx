@@ -17,10 +17,11 @@ import type { ArmState, Pose } from "../viewer/useArm.ts";
 import { layoutTarget, linkProjection } from "./layoutLink.ts";
 import { turnedSize } from "./model.ts";
 import type { ProjectedPatch } from "./patch.ts";
+import { EraserStage } from "./Eraser.tsx";
 import { CanvasHost, PhotoEditor, PhotoPlaceholder } from "./PhotoEditor.tsx";
 import { photoStatus, type ListingState } from "./photoStatus.ts";
 import { previewCanvases } from "./preview.ts";
-import type { PhotoCalibration, ProjectionCalibration } from "./schema.ts";
+import type { EditFit, PhotoCalibration, ProjectionCalibration } from "./schema.ts";
 import { patchFor, saveProjection, useProjections } from "./useProjections.ts";
 import { editsOf, INK_ONLY_PROMPT, isEditOf, newEdit, shapeWarning } from "./cleanup.ts";
 import { describeFacing, joinFacing, neighbours, sideChoices, splitFacing } from "./sides.ts";
@@ -69,6 +70,8 @@ type Props = {
   onClose: () => void;
   onAdvanced: (name: string) => void;
   onAnother: () => void;
+  /** Asks to delete the saved projection (absent for the read-only sample). */
+  onDelete?: (name: string) => void;
   /** Answers parked while the photo was in the Image studio (docs/adr/0023), restored here. */
   parked?: ParkedWizard | null;
 };
@@ -180,16 +183,21 @@ export function ProjectionWizard(props: Props) {
   const preview = useMemo(() => {
     void imagesVersion;
     if (!previewCal || !onPreview) return null;
-    const cal = { ...previewCal, patch: { ...previewCal.patch, px_per_cm: PREVIEW_PX_PER_CM } };
+    // The clean-up step draws the eraser's strokes live over the patch without them (Eraser.tsx).
+    const { erase: _e, ...rest } = previewCal;
+    void _e;
+    const base = onCleanup ? rest : previewCal;
+    const cal = { ...base, patch: { ...previewCal.patch, px_per_cm: PREVIEW_PX_PER_CM } };
     return patchFor(cal, profile, assetMap, images);
-  }, [previewCal, onPreview, profile, assetMap, images, imagesVersion]);
+  }, [previewCal, onPreview, onCleanup, profile, assetMap, images, imagesVersion]);
   const patch = preview?.status === "ready" ? preview.patch : null;
   // The clean-up step compares with the photos as they are: no ink only, no edited versions.
   const before = useMemo(() => {
     void imagesVersion;
     if (!previewCal || !onCleanup) return null;
-    const { cleanup: _drop, ...rest } = previewCal;
+    const { cleanup: _drop, erase: _e, ...rest } = previewCal;
     void _drop;
+    void _e;
     const cal = {
       ...rest,
       patch: { ...previewCal.patch, px_per_cm: PREVIEW_PX_PER_CM },
@@ -288,6 +296,16 @@ export function ProjectionWizard(props: Props) {
           onSelect={(i) => setStep(steps[i]!)}
           draft={draft}
         />
+        {!isNew && props.onDelete && (
+          <button
+            type="button"
+            className="ghost danger-text"
+            onClick={() => props.onDelete?.(draft.base?.name ?? draft.name)}
+            title="Move this tattoo's projection file to the Trash; the photos stay"
+          >
+            Delete…
+          </button>
+        )}
         {!isNew && (
           <button
             type="button"
@@ -513,14 +531,11 @@ function Stage(props: {
         : null,
     [previewCal, profile, assetMap, images],
   );
-  const showsPatch = step.kind === "preview" || step.kind === "cleanup";
+  // The clean-up step draws the patches itself (Eraser.tsx); the check step shows them on the body.
+  const showsPatch = step.kind === "preview";
   const preview = useMemo(
     () => (showsPatch ? canvasesOf(props.patch) : null),
     [showsPatch, canvasesOf, props.patch],
-  );
-  const beforeView = useMemo(
-    () => (step.kind === "cleanup" ? canvasesOf(props.before) : null),
-    [step.kind, canvasesOf, props.before],
   );
 
   switch (step.kind) {
@@ -582,31 +597,14 @@ function Stage(props: {
     }
     case "cleanup":
       return (
-        <div className="wizard-cleanup">
-          <figure className="wizard-unwrap">
-            {beforeView && props.before ? (
-              <CanvasHost canvas={beforeView.innerImage} />
-            ) : (
-              <p className="faint small">Building the picture from the photos…</p>
-            )}
-            <figcaption className="faint xs">
-              Before: the photos as they are, with skin and shadows
-            </figcaption>
-          </figure>
-          <figure className="wizard-unwrap">
-            {preview && props.patch ? (
-              <CanvasHost canvas={preview.innerImage} />
-            ) : (
-              <p className="faint small">Building the picture from the photos…</p>
-            )}
-            <figcaption className="faint xs">
-              After:{" "}
-              {draft.cleanup || draft.photos.some((p) => p.cleaned)
-                ? "what goes onto the skin"
-                : "unchanged (clean-up is off)"}
-            </figcaption>
-          </figure>
-        </div>
+        <EraserStage
+          before={props.before}
+          after={props.patch}
+          erase={draft.erase}
+          onErase={(erase) => props.setDraft((d) => ({ ...d, erase }))}
+          mirrored={profile.mirrored}
+          cleaned={!!draft.cleanup || draft.photos.some((p) => p.cleaned)}
+        />
       );
     case "preview":
       return (
@@ -1130,7 +1128,10 @@ function SidePicker({
   );
 }
 
-/** The clean-up step: ink only (built in), and per photo an edited version from the Image studio. */
+/**
+ * The clean-up step: ink only (built in), speck removal and the eraser (drawn in Eraser.tsx), and, as
+ * the second way, per photo an edited version from the Image studio.
+ */
 function CleanupPanel(props: {
   draft: WizardDraft;
   setDraft: (f: (d: WizardDraft) => WizardDraft) => void;
@@ -1143,6 +1144,8 @@ function CleanupPanel(props: {
 }) {
   const { draft, setDraft, setPhoto, byFile, assets, readyImage, limb } = props;
   const cleanup = draft.cleanup;
+  const specks = draft.erase?.specks_mm2 ?? 0;
+  const strokes = draft.erase?.strokes.length ?? 0;
   const setCleanup = (c: Partial<NonNullable<WizardDraft["cleanup"]>>) =>
     setDraft((d) => ({ ...d, cleanup: { ...(d.cleanup ?? DEFAULT_CLEANUP), ...c } }));
   return (
@@ -1208,54 +1211,115 @@ function CleanupPanel(props: {
           </label>
         </div>
       )}
-      <h3 className="float-title">Edited photos</h3>
-      <p className="faint small">
-        Not clean enough (a shadow left, the background in the way)? Edit the photo in the Image studio, with
-        the built-in “Tattoo ink only” or with GPT. Save it there and come back: the projection then uses the
-        edit, the points you placed stay.
+      <label className="wizard-field">
+        <span className="field-label">
+          Remove small specks <span className="faint mono">{specks > 0 ? `up to ${specks} mm²` : "off"}</span>
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={150}
+          step={1}
+          value={specks}
+          aria-label="Remove specks smaller than, in mm²"
+          onChange={(e) =>
+            setDraft((d) => ({
+              ...d,
+              erase: { strokes: d.erase?.strokes ?? [], specks_mm2: Number(e.target.value) },
+            }))
+          }
+        />
+        <span className="faint xs">
+          Drops dots and short streaks of grey that touch no other ink. Restore brings one back.
+        </span>
+      </label>
+      <h3 className="float-title">Eraser</h3>
+      <p className="small">
+        Something left that is not tattoo, a grey streak or a shadow&apos;s edge? Paint over it on the After
+        picture. <kbd className="kbd">E</kbd> eraser, <kbd className="kbd">R</kbd> restore,{" "}
+        <kbd className="kbd">[</kbd> <kbd className="kbd">]</kbd> brush size, <kbd className="kbd">+</kbd>{" "}
+        <kbd className="kbd">−</kbd> zoom; hold <kbd className="kbd">Space</kbd> to move the picture.
       </p>
-      <ol className="cleanup-photos">
-        {draft.photos.map((p, i) => {
-          const original = byFile.get(fileKey(p.file)) ?? null;
-          const edits = editsOf(original, assets).filter((e) => e.exists);
-          const known = isEditOf(p.cleaned, edits);
-          const warn =
-            p.cleaned && readyImage(p.file) && readyImage(p.cleaned)
-              ? shapeWarning(readyImage(p.file), readyImage(p.cleaned))
-              : null;
-          return (
-            <li key={p.file} className="cleanup-photo">
-              <span className="mono xs" title={p.file}>
-                {i + 1}. {p.file.split("/").pop()}
-              </span>
-              <span className="cleanup-photo-row">
-                <select
-                  aria-label={`Picture used for photo ${i + 1}`}
-                  value={p.cleaned ?? ""}
-                  onChange={(e) => setPhoto(i, { ...p, cleaned: e.target.value || null })}
-                >
-                  <option value="">The photo itself</option>
-                  {edits.map((e) => (
-                    <option key={e.id} value={e.file}>
-                      Edit {e.id}
-                    </option>
-                  ))}
-                  {p.cleaned && !known && <option value={p.cleaned}>{p.cleaned} (not found)</option>}
-                </select>
-                <button
-                  type="button"
-                  disabled={!original?.exists}
-                  title={original?.exists ? "Your answers so far are kept" : "The photo is missing"}
-                  onClick={() => props.onStudio(i)}
-                >
-                  Edit in Image studio
-                </button>
-              </span>
-              {warn && <span className="notice warn xs">{warn}</span>}
-            </li>
-          );
-        })}
-      </ol>
+      <p className="faint xs">
+        {strokes === 0
+          ? "Nothing erased by hand yet."
+          : `${strokes} stroke${strokes === 1 ? "" : "s"}; they are kept in the projection file, the photos stay as they are.`}
+      </p>
+      <details className="cleanup-studio" open={draft.photos.some((p) => p.cleaned) || undefined}>
+        <summary>Use an edited photo from the Image studio</summary>
+        <p className="faint small">
+          For hard cases. Edit the photo with the built-in “Tattoo ink only” or with GPT, save it there and
+          come back: the projection then uses the edit, the points you placed stay. GPT may return another
+          format and redraw lines, so the built-in clean-up and the eraser above are usually the better way.
+        </p>
+        <ol className="cleanup-photos">
+          {draft.photos.map((p, i) => {
+            const original = byFile.get(fileKey(p.file)) ?? null;
+            const edits = editsOf(original, assets).filter((e) => e.exists);
+            const known = isEditOf(p.cleaned, edits);
+            const warn =
+              p.cleaned && readyImage(p.file) && readyImage(p.cleaned)
+                ? shapeWarning(readyImage(p.file), readyImage(p.cleaned))
+                : null;
+            return (
+              <li key={p.file} className="cleanup-photo">
+                <span className="mono xs" title={p.file}>
+                  {i + 1}. {p.file.split("/").pop()}
+                </span>
+                <span className="cleanup-photo-row">
+                  <select
+                    aria-label={`Picture used for photo ${i + 1}`}
+                    value={p.cleaned ?? ""}
+                    onChange={(e) => setPhoto(i, { ...p, cleaned: e.target.value || null })}
+                  >
+                    <option value="">The photo itself</option>
+                    {edits.map((e) => (
+                      <option key={e.id} value={e.file}>
+                        Edit {e.id}
+                      </option>
+                    ))}
+                    {p.cleaned && !known && <option value={p.cleaned}>{p.cleaned} (not found)</option>}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!original?.exists}
+                    title={original?.exists ? "Your answers so far are kept" : "The photo is missing"}
+                    onClick={() => props.onStudio(i)}
+                  >
+                    Edit in Image studio
+                  </button>
+                </span>
+                {warn && (
+                  <>
+                    <span className="notice warn xs">{warn}</span>
+                    <label className="wizard-field">
+                      <span className="field-label">Fit to the photo&apos;s frame</span>
+                      <select
+                        aria-label={`How edit ${i + 1} lies on the photo`}
+                        value={p.cleanedFit ?? "stretch"}
+                        onChange={(e) =>
+                          setPhoto(i, {
+                            ...p,
+                            cleanedFit: e.target.value === "stretch" ? null : (e.target.value as EditFit),
+                          })
+                        }
+                      >
+                        <option value="stretch">Stretched onto the photo</option>
+                        <option value="contain">Photo inside the edit, bands on two sides</option>
+                        <option value="cover">Edit cut to the photo, two sides cropped</option>
+                      </select>
+                      <span className="faint xs">
+                        Pick the one where Before and After line up. If none does, GPT moved the lines: use
+                        the built-in clean-up instead.
+                      </span>
+                    </label>
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </details>
     </StepBody>
   );
 }

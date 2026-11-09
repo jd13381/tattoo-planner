@@ -306,7 +306,9 @@ describe("edited versions of a photo", () => {
 
   it("warns when an edit has another shape than the photo", () => {
     expect(shapeWarning({ width: 3000, height: 4000 }, { width: 1500, height: 2000 })).toBeNull();
-    expect(shapeWarning({ width: 3000, height: 4000 }, { width: 1024, height: 1536 })).toMatch(/stretched/);
+    expect(shapeWarning({ width: 3000, height: 4000 }, { width: 1024, height: 1536 })).toMatch(
+      /another shape/,
+    );
   });
 
   it("loads both the photo and its edit for the patch", () => {

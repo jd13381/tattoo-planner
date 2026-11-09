@@ -53,6 +53,7 @@ export function updateProjectionText(original: string, calibration: ProjectionCa
   // Compare with the original as the schema reads it, so defaults the file leaves out stay out.
   const prev = before.success ? before.data : doc.toJS();
   for (const path of changedPaths(prev, calibration)) setValue(doc, path, valueAt(calibration, path));
+  styleErase(doc);
   // Prettier's flow style: padded maps ({ x: 1 }), unpadded lists ([1, 2]).
   return doc
     .toString({ lineWidth: 0, flowCollectionPadding: true })
@@ -83,10 +84,30 @@ export function newProjectionText(calibration: ProjectionCalibration): string {
       if (depth(path) >= 2 && node.items.every((i) => isScalar(i) || (isMap(i) && i.flow))) node.flow = true;
     },
   });
+  styleErase(doc);
   return doc
     .toString({ lineWidth: 0, flowCollectionPadding: true })
     .replace(/\[ /g, "[")
     .replace(/ \]/g, "]");
+}
+
+/**
+ * Eraser strokes (docs/adr/0023) one per line, each a flow map with its points:
+ * `- { size_cm: 1, points: [[0.12, 0.5], [0.13, 0.51]] }`, however the list was created.
+ */
+function styleErase(doc: Document) {
+  const strokes = doc.getIn(["erase", "strokes"], true);
+  if (!isSeq(strokes)) return;
+  strokes.flow = strokes.items.length === 0;
+  for (const item of strokes.items) {
+    if (!isMap(item)) continue;
+    item.flow = true;
+    visit(item, {
+      Seq(_, node) {
+        node.flow = true;
+      },
+    });
+  }
 }
 
 /** Nesting depth of a node below the document's top-level map (counting maps and lists). */
