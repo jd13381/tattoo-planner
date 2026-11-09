@@ -73,6 +73,36 @@ describe("assetReferences", () => {
     expect(projectionPhotoKeys(projections).has("arm-photos/anubis1_nr.jpg")).toBe(true);
   });
 
+  it("counts a photo's cleaned version as a use of the projection", () => {
+    const withEdit = [
+      ...assets,
+      { id: "front", file: "photos/front.jpg" },
+      { id: "front-edit-1", file: "edits/front-edit-1.png", derived_from: "front" },
+    ];
+    const text = `name: arm
+photos:
+  - { file: photos/front.jpg, cleaned: Edits/Front-Edit-1.png, cleaned_fit: stretch }
+  - { file: photos/front.jpg, cleaned: photos/front.jpg }
+`;
+    const u = assetReferences({
+      assets: withEdit,
+      layouts: [],
+      projections: [{ person: "me", name: "arm", text }],
+    });
+    const use = { kind: "projection", person: "me", projection: "arm", label: "arm", photo: 1 } as const;
+    expect(u["front-edit-1"]).toEqual([{ ...use, cleaned: true }]);
+    // A cleaned file equal to the photo counts once, as the photo.
+    expect(u.front).toEqual([use, { ...use, photo: 2 }, { kind: "derived", child: "front-edit-1" }]);
+    expect(isInUse(u["front-edit-1"])).toBe(true);
+    expect(usageBadge(u["front-edit-1"])).toBe("1 projection");
+    expect(deleteCheck(["front-edit-1"], u).projections).toHaveLength(1);
+    expect(describeUse("front-edit-1", u["front-edit-1"]![0]!)).toBe(
+      "front-edit-1: cleaned version of photo 1 of projection arm",
+    );
+    // The frames stay the photos: the edit does not become a tattoo photo.
+    expect(projectionPhotoKeys([{ text }]).has("edits/front-edit-1.png")).toBe(false);
+  });
+
   it("lists open studio sessions and leaves unused images out", () => {
     expect(usage.lonely).toEqual([{ kind: "session" }]);
     expect(usage["compass-edit-1"]).toBeUndefined();

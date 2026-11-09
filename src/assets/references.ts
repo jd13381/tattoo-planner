@@ -1,7 +1,7 @@
 // Where each catalogued image is used (docs/adr/0020-asset-structure.md): layouts of every person
 // (any `asset` key, so figures, existing tattoos and background layers all count), projections
-// (photo files, matched like the file system does: case-insensitively), kept edits made from it
-// and open Image studio sessions. Pure; the server answers GET /api/assets/usage with it and the
+// (photo files and their cleaned versions, matched like the file system does: case-insensitively),
+// kept edits made from it and open Image studio sessions. Pure; the server answers GET /api/assets/usage with it and the
 // trash dialog lists the uses before anything is deleted.
 import { parse } from "yaml";
 import type { Asset } from "./manifest.ts";
@@ -9,7 +9,15 @@ import { fileKey } from "./manifestDoc.ts";
 
 export type AssetUse =
   | { kind: "layout"; person: string; layout: string; element: string }
-  | { kind: "projection"; person: string; projection: string; label: string; photo: number }
+  | {
+      kind: "projection";
+      person: string;
+      projection: string;
+      label: string;
+      photo: number;
+      /** The photo's cleaned version (`cleaned`, docs/adr/0023) rather than the photo itself. */
+      cleaned?: true;
+    }
   | { kind: "derived"; child: string }
   | { kind: "session" };
 
@@ -71,12 +79,26 @@ export function projectionPhotoKeys(projections: readonly Pick<NamedText, "text"
   return keys;
 }
 
-function projectionPhotos(doc: unknown): string[] {
+function str(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+/** Each photo of a projection: its file and its cleaned version (empty strings where missing). */
+function projectionPhotoFiles(doc: unknown): { file: string; cleaned: string }[] {
   const photos = (doc as { photos?: unknown } | null)?.photos;
   if (!Array.isArray(photos)) return [];
-  return photos
-    .map((p) => (p as { file?: unknown } | null)?.file)
-    .map((f) => (typeof f === "string" ? f : ""));
+  return photos.map((p) => {
+    const o = (p ?? {}) as { file?: unknown; cleaned?: unknown };
+    return { file: str(o.file), cleaned: str(o.cleaned) };
+  });
+}
+
+/**
+ * The photo files of a projection: the frames its marks belong to. Cleaned versions are left out;
+ * they are studio edits and keep their own section (they still count as uses, see assetReferences).
+ */
+function projectionPhotos(doc: unknown): string[] {
+  return projectionPhotoFiles(doc).map((p) => p.file);
 }
 
 export function assetReferences(input: ReferenceInput): UsageMap {
@@ -102,10 +124,12 @@ export function assetReferences(input: ReferenceInput): UsageMap {
         : typeof doc?.name === "string"
           ? doc.name
           : p.name;
-    projectionPhotos(doc).forEach((file, i) => {
-      if (!file) return;
-      for (const id of byFile.get(fileKey(file)) ?? [])
-        add(id, { kind: "projection", person: p.person, projection: p.name, label, photo: i + 1 });
+    projectionPhotoFiles(doc).forEach(({ file, cleaned }, i) => {
+      const use = { kind: "projection", person: p.person, projection: p.name, label, photo: i + 1 } as const;
+      if (file) for (const id of byFile.get(fileKey(file)) ?? []) add(id, use);
+      // The cleaned version is drawn instead of the photo: deleting it breaks the projection too.
+      if (cleaned && fileKey(cleaned) !== fileKey(file))
+        for (const id of byFile.get(fileKey(cleaned)) ?? []) add(id, { ...use, cleaned: true });
     });
   }
   for (const a of input.assets)
@@ -143,7 +167,7 @@ export function describeUse(assetId: string, use: AssetUse): string {
     case "layout":
       return `${assetId}: element ${use.element || "(no id)"} in layout ${use.layout}`;
     case "projection":
-      return `${assetId}: photo ${use.photo} of projection ${use.label}`;
+      return `${assetId}: ${use.cleaned ? "cleaned version of " : ""}photo ${use.photo} of projection ${use.label}`;
     case "derived":
       return `${assetId}: original of the edit ${use.child}`;
     case "session":
