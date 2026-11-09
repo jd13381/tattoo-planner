@@ -1,92 +1,53 @@
-// The guided projection wizard's pure logic (docs/adr/0014-guided-projection.md): steps, answers turned
-// into a calibration, and back.
+// The projection workspace's draft (docs/adr/0024-projection-workspace.md): photos, the covered area,
+// answers turned into a calibration and back.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { resolveBody } from "../src/body/body.ts";
 import { layoutSchema } from "../src/layout/schema.ts";
+import { coveringArc } from "../src/projection/area.ts";
 import { layoutsShowing, layoutTarget, linkProjection } from "../src/projection/layoutLink.ts";
 import { turnedToStored } from "../src/projection/model.ts";
 import { newProjectionText, parseProjection } from "../src/projection/yamlDoc.ts";
 import {
-  coveringArc,
-  fitArea,
+  draftAutoArea,
   fromCalibration,
-  moveStep,
+  nameIssue,
   newDraft,
   newPhoto,
+  picksOf,
   sectionSketch,
   slugify,
-  stepIssue,
-  stepIndex,
   storedToTurned,
   toCalibration,
   turnPhoto,
   uniqueName,
-  wizardSteps,
   withPhotos,
-  type WizardDraft,
-} from "../src/projection/wizard.ts";
+  type ProjectionDraft,
+} from "../src/projection/draft.ts";
 
 const body = resolveBody(null);
 const arm = body.regions["arm-left"].profile;
-const ctx = { taken: ["anubis"], profile: arm };
 
-function draft(): WizardDraft {
-  return withPhotos({ ...newDraft("arm-left"), name: "rose" }, ["photos/a.jpg", "photos/b.jpg"]);
+function draft(): ProjectionDraft {
+  return withPhotos({ ...newDraft("arm-left"), name: "rose" }, [
+    { file: "photos/a.jpg", cleaned: null },
+    { file: "photos/b.jpg", cleaned: null },
+  ]);
 }
 
-describe("wizard steps", () => {
-  it("has name, photos, four tasks per photo, the clean-up and the preview", () => {
-    const steps = wizardSteps(draft());
-    expect(steps.length).toBe(2 + 2 * 4 + 2);
-    expect(steps.at(-2)).toEqual({ kind: "cleanup" });
-    expect(steps[0]).toEqual({ kind: "name" });
-    expect(steps[2]).toEqual({ kind: "photo", photo: 0, task: "turn" });
-    expect(steps[9]).toEqual({ kind: "photo", photo: 1, task: "facing" });
-    expect(steps.at(-1)).toEqual({ kind: "preview" });
-  });
-
-  it("moves forwards and backwards and stops at the ends", () => {
+describe("names", () => {
+  it("blocks saving with a plain reason", () => {
     const d = draft();
-    expect(moveStep(d, { kind: "name" }, -1)).toEqual({ kind: "name" });
-    expect(moveStep(d, { kind: "photos" }, 1)).toEqual({ kind: "photo", photo: 0, task: "turn" });
-    expect(moveStep(d, { kind: "photo", photo: 0, task: "facing" }, 1)).toEqual({
-      kind: "photo",
-      photo: 1,
-      task: "turn",
-    });
-    expect(moveStep(d, { kind: "preview" }, 5)).toEqual({ kind: "preview" });
-    // A photo step of a photo that was removed falls back to the photo list.
-    expect(stepIndex(d, { kind: "photo", photo: 5, task: "turn" })).toBe(1);
-  });
-
-  it("blocks Next with a plain reason", () => {
-    const d = draft();
-    expect(stepIssue({ ...d, name: "" }, { kind: "name" }, ctx)).toMatch(/name/);
-    expect(stepIssue({ ...d, name: "anubis" }, { kind: "name" }, ctx)).toMatch(/exists/);
-    expect(stepIssue(d, { kind: "name" }, ctx)).toBeNull();
-    expect(stepIssue({ ...d, photos: [] }, { kind: "photos" }, ctx)).toMatch(/photo/);
-    const close = structuredClone(d);
-    close.photos[0]!.marks[1].cm = 0.5;
-    expect(stepIssue(close, { kind: "photo", photo: 0, task: "marks" }, ctx)).toMatch(/1 cm/);
-    const upsideDown = structuredClone(d);
-    upsideDown.photos[0]!.marks = [
-      { x: 0.5, y: 0.2, cm: 0 },
-      { x: 0.5, y: 0.8, cm: 20 },
-    ];
-    expect(stepIssue(upsideDown, { kind: "photo", photo: 0, task: "marks" }, ctx)).toMatch(/higher up/);
-    const swapped = structuredClone(d);
-    swapped.photos[0]!.edges = { left: d.photos[0]!.edges.right, right: d.photos[0]!.edges.left };
-    expect(stepIssue(swapped, { kind: "photo", photo: 0, task: "edges" }, ctx)).toMatch(/left of/);
-    expect(stepIssue(d, { kind: "preview" }, ctx)).toBeNull();
-    expect(stepIssue(swapped, { kind: "preview" }, ctx)).toMatch(/^Photo 1:/);
+    expect(nameIssue({ ...d, name: "" }, ["anubis"])).toMatch(/name/);
+    expect(nameIssue({ ...d, name: "anubis" }, ["anubis"])).toMatch(/exists/);
+    expect(nameIssue({ ...d, name: "Rose!" }, [])).toMatch(/letters/);
+    expect(nameIssue(d, ["anubis"])).toBeNull();
   });
 
   it("an edited projection may keep its taken name", () => {
-    expect(stepIssue({ ...draft(), name: "anubis" }, { kind: "name" }, ctx)).toMatch(/exists/);
     const r = toCalibration({ ...draft(), name: "anubis" }, arm);
     if (!r.ok) throw new Error(r.error);
-    expect(stepIssue(fromCalibration(r.calibration), { kind: "name" }, ctx)).toBeNull();
+    expect(nameIssue(fromCalibration(r.calibration), ["anubis"])).toBeNull();
   });
 });
 
@@ -95,13 +56,34 @@ describe("photos", () => {
     const d = draft();
     d.photos[1]!.marks[1].cm = 26;
     d.photos[1]!.facing = 0.3;
-    const next = withPhotos(d, ["photos/b.jpg", "photos/c.jpg"]);
+    const next = withPhotos(d, [
+      { file: "photos/b.jpg", cleaned: null },
+      { file: "photos/c.jpg", cleaned: null },
+    ]);
     expect(next.photos.map((p) => p.file)).toEqual(["photos/b.jpg", "photos/c.jpg"]);
     expect(next.photos[0]!.facing).toBe(0.3);
     expect(next.photos[1]!.marks[1].cm).toBe(26);
     expect(newPhoto("x.jpg").marks.map((m) => m.cm)).toEqual([0, 15]);
+    expect(newPhoto("x.jpg").facingSet).toBe(false);
   });
 
+  it("picking another version of a photo keeps its points and swaps the pixels", () => {
+    const d = draft();
+    d.photos[0]!.marks[1].cm = 21;
+    d.photos[0]!.cleanedFit = "contain";
+    const next = withPhotos(d, [
+      { file: "photos/a.jpg", cleaned: "edits/a-ink.png" },
+      { file: "photos/b.jpg", cleaned: null },
+    ]);
+    expect(next.photos[0]!.marks[1].cm).toBe(21);
+    expect(next.photos[0]!.cleaned).toBe("edits/a-ink.png");
+    expect(next.photos[0]!.cleanedFit).toBeNull(); // the fit belonged to the other edit
+    expect(next.photos[1]).toBe(d.photos[1]);
+    expect(picksOf(next)[0]).toEqual({ file: "photos/a.jpg", cleaned: "edits/a-ink.png" });
+    // A new photo picked as an edit: the original is the frame.
+    const fresh = withPhotos(newDraft(), [{ file: "photos/c.jpg", cleaned: "edits/c.png" }]);
+    expect(fresh.photos[0]).toMatchObject({ file: "photos/c.jpg", cleaned: "edits/c.png" });
+  });
   it("turning a photo keeps every point on the same spot of the picture", () => {
     const fresh = newPhoto("a.jpg");
     // Untouched starting points stay on the screen.
@@ -144,7 +126,7 @@ describe("patch area", () => {
     expect(f - e).toBeCloseTo(1, 6);
   });
 
-  it("runs along the region from just below the lowest mark to above the highest", () => {
+  it("follows the photos: outline ends and marks, both facings of a twisted photo", () => {
     const d = draft();
     d.photos[0]!.marks = [
       { x: 0.5, y: 0.8, cm: 2 },
@@ -152,15 +134,23 @@ describe("patch area", () => {
     ];
     d.photos[1]!.twisted = true;
     d.photos[1]!.facingFar = 0.3;
-    const area = fitArea(d, arm);
-    expect(area.v[0] * arm.length).toBeCloseTo(0, 1);
-    expect(area.v[1] * arm.length).toBeCloseTo(30, 1);
+    const area = draftAutoArea(d, arm)!;
+    // Photo 1: 26 cm over 0.6 of the photo's height, so its outline ends (y 0.15 and 0.85) lie at
+    // about -0.2 and 30.2 cm; then the 1 cm margin, and not below the start.
+    expect(area.v[0]).toBe(0);
+    expect(area.v[1] * arm.length).toBeCloseTo(31.2, 1);
     expect(area.u[0]).toBeCloseTo(0.05, 2);
     expect(area.u[1]).toBeCloseTo(0.75, 2);
   });
+
+  it("uses the held area when there is one", () => {
+    const d = { ...draft(), area: { u: [0.1, 0.9] as [number, number], v: [0.2, 0.4] as [number, number] } };
+    const r = toCalibration(d, arm);
+    expect(r.ok && r.calibration.patch).toMatchObject({ u: [0.1, 0.9], v: [0.2, 0.4] });
+  });
 });
 
-describe("calibration from the wizard", () => {
+describe("calibration from the draft", () => {
   it("turns the answers into a valid calibration with default blending", () => {
     const d = draft();
     d.description = "Rose, inner forearm";
@@ -181,6 +171,18 @@ describe("calibration from the wizard", () => {
     expect(cal.patch.px_per_cm).toBe(20);
   });
 
+  it("writes a nudge of the edited version only with an edit, rounded", () => {
+    const d = draft();
+    d.photos[0]!.cleanedOffset = { x: 0.012345, y: 0 };
+    let r = toCalibration(d, arm);
+    expect(r.ok && r.calibration.photos[0]!.cleaned_offset).toBeUndefined();
+    d.photos[0]!.cleaned = "edits/a.png";
+    r = toCalibration(d, arm);
+    expect(r.ok && r.calibration.photos[0]!.cleaned_offset).toEqual({ x: 0.0123, y: 0 });
+    if (!r.ok) throw new Error(r.error);
+    expect(fromCalibration(r.calibration).photos[0]!.cleanedOffset).toEqual({ x: 0.0123, y: 0 });
+  });
+
   it("writes the region for other body parts", () => {
     const leg = body.regions["leg-left"].profile;
     const d = { ...draft(), region: "leg-left" as const };
@@ -188,7 +190,7 @@ describe("calibration from the wizard", () => {
     expect(r.ok && r.calibration.region).toBe("leg-left");
   });
 
-  it("round-trips Jan's calibration: opening it in the wizard and saving changes nothing", () => {
+  it("round-trips Jan's calibration: opening it in the workspace and saving changes nothing", () => {
     const text = readFileSync(new URL("../config/projections/anubis.yaml", import.meta.url), "utf8");
     const parsed = parseProjection(text);
     if (!parsed.ok) throw new Error(parsed.error);
@@ -199,10 +201,11 @@ describe("calibration from the wizard", () => {
     const back = toCalibration(d, arm);
     if (!back.ok) throw new Error(back.error);
     expect(back.calibration).toEqual(parsed.calibration);
+    expect(d.photos.every((p) => p.facingSet)).toBe(true);
   });
 });
 
-describe("names", () => {
+describe("file names", () => {
   it("makes file names from free text", () => {
     expect(slugify("Rose on the Calf")).toBe("rose-on-the-calf");
     expect(slugify("  Schädel & Blüten! ")).toBe("schadel-bluten");

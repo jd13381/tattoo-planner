@@ -6,7 +6,7 @@ import { wrapU } from "../body/uv.ts";
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 import { layoutRegion, parseLayout } from "../layout/yamlDoc.ts";
 import type { ProjectionCalibration } from "./schema.ts";
-import { uniqueName } from "./wizard.ts";
+import { uniqueName } from "./draft.ts";
 
 export type LayoutFile = { name: string; text: string };
 

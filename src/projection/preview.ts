@@ -20,7 +20,12 @@ export function previewCanvases(args: {
   /** u in the middle of the 2D crop. */
   centerU: number;
   pxPerCm: number;
-}): { texture: HTMLCanvasElement; innerImage: HTMLCanvasElement } {
+}): {
+  texture: HTMLCanvasElement;
+  innerImage: HTMLCanvasElement;
+  /** Rows of the full unwrap cut off above the crop, px (src/projection/unwrapDrag.ts UnwrapView). */
+  top: number;
+} {
   const { name, patch, profile, pxPerCm } = args;
   const layout: Layout = {
     name: "projection-preview",
@@ -54,5 +59,5 @@ export function previewCanvases(args: {
   crop.width = full.width;
   crop.height = full.height - top;
   crop.getContext("2d")!.drawImage(full, 0, top, full.width, crop.height, 0, 0, full.width, crop.height);
-  return { texture: make(0), innerImage: crop };
+  return { texture: make(0), innerImage: crop, top };
 }

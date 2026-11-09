@@ -1,7 +1,9 @@
-// The Clean up step's work area (docs/adr/0023-projection-cleanup.md, "Eraser"): the cleaned patch
-// ("after") with a brush that erases what is left of skin shadow, or restores it, and the patch as the
-// photos show it ("before") below, both at the same zoom and place. The strokes and speck removal are
-// the projection's `erase:` block; the maths is in erase.ts, this file only draws and listens.
+// The projection workspace's Clean up tool (docs/adr/0023-projection-cleanup.md, "Eraser";
+// docs/adr/0024-projection-workspace.md): the combined patch as it goes onto the skin ("Ink only") with
+// a brush that erases what is left of skin shadow, or restores it; "Photo" shows the patch as the photos
+// have it, and holding Space shows the other one while it is held. The strokes and speck removal are
+// the projection's `erase:` block, so the workspace's undo covers them; the maths is in erase.ts, this
+// file only draws and listens.
 import {
   useCallback,
   useEffect,
@@ -10,22 +12,16 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { formatKeys, isEditableTarget } from "../editor/shortcuts.ts";
-import { currentPlatform } from "../editor/useLayoutShortcuts.ts";
+import { isEditableTarget } from "../editor/shortcuts.ts";
 import {
   BRUSH_MAX_CM,
   BRUSH_MIN_CM,
-  EMPTY_HISTORY,
   composeView,
   extendStroke,
   paintStrokes,
   patchPxToUv,
-  recordHistory,
-  redoHistory,
   speckMask,
   specksToPx,
-  undoHistory,
-  type EraseHistory,
   type EraseSettings,
   type EraseStroke,
 } from "./erase.ts";
@@ -39,6 +35,8 @@ const MAX_ZOOM = 16;
 type Mode = "erase" | "restore";
 /** Zoom 1 = the patch fits the pane; (cx, cy) = the patch pixel in the pane's middle. */
 type View = { zoom: number; cx: number; cy: number };
+/** Which picture the pane shows: the cleaned patch (painted on) or the photos as they are. */
+export type CleanView = "ink" | "photo";
 
 const clampSize = (cm: number) => Math.min(BRUSH_MAX_CM, Math.max(BRUSH_MIN_CM, Math.round(cm * 10) / 10));
 
@@ -56,18 +54,20 @@ export function EraserStage(props: {
   const [mode, setMode] = useState<Mode>("erase");
   const [size, setSize] = useState(1);
   const [ghost, setGhost] = useState(true);
+  const [show, setShow] = useState<CleanView>("ink");
+  const [compare, setCompare] = useState(false);
   const [view, setView] = useState<View>({ zoom: 1, cx: NaN, cy: NaN });
-  const [history, setHistory] = useState<EraseHistory>(EMPTY_HISTORY);
   const [drawing, setDrawing] = useState<EraseStroke | null>(null);
   const drawingRef = useRef<EraseStroke | null>(null);
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
-  const [platform] = useState(currentPlatform);
   const rootRef = useRef<HTMLDivElement>(null);
   const strokes = useMemo(() => erase?.strokes ?? [], [erase]);
   const specks = erase?.specks_mm2 ?? 0;
   const W = after?.width ?? 1;
   const H = after?.height ?? 1;
   const centre = { cx: Number.isNaN(view.cx) ? W / 2 : view.cx, cy: Number.isNaN(view.cy) ? H / 2 : view.cy };
+  // Space held shows the other picture (compare); letting go comes back.
+  const shown: CleanView = compare ? (show === "ink" ? "photo" : "ink") : show;
 
   // Speck removal depends only on the patch and the size; the strokes go over it.
   const speckBase = useMemo(
@@ -95,26 +95,8 @@ export function EraserStage(props: {
     (nextStrokes: EraseStroke[]) => onErase({ specks_mm2: specks, strokes: nextStrokes }),
     [onErase, specks],
   );
-  const commit = (stroke: EraseStroke) => {
-    setHistory((h) => recordHistory(h, erase));
-    set([...strokes, stroke]);
-  };
-  const undo = () => {
-    const r = undoHistory(history, erase);
-    if (!r) return;
-    setHistory(r.history);
-    set(r.state?.strokes ?? []);
-  };
-  const redo = () => {
-    const r = redoHistory(history, erase);
-    if (!r) return;
-    setHistory(r.history);
-    set(r.state?.strokes ?? []);
-  };
   const clear = () => {
-    if (strokes.length === 0) return;
-    setHistory((h) => recordHistory(h, erase));
-    set([]);
+    if (strokes.length > 0) set([]);
   };
   const zoomBy = (f: number, at?: { x: number; y: number }) =>
     setView((v) => {
@@ -128,36 +110,25 @@ export function EraserStage(props: {
     });
   const fit = () => setView({ zoom: 1, cx: NaN, cy: NaN });
 
-  // Keys while this step is on screen: E, R, [ ], Mod+Z, Mod+Shift+Z / Mod+Y, 0, + and -.
+  // Keys while this tool is on screen: E, R, [ ], 0, + and -; Space held compares. Undo and redo are
+  // the workspace's (the strokes are part of its draft).
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => undefined);
   useEffect(() => {
     keyRef.current = (e: KeyboardEvent) => {
       const root = rootRef.current;
       if (e.defaultPrevented || e.isComposing || !root || root.closest("[hidden]")) return;
       if (document.querySelector("dialog[open]")) return;
-      const mod = platform === "mac" ? e.metaKey : e.ctrlKey;
-      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-      if (mod && !e.altKey) {
-        if (isEditableTarget(e.target)) return;
-        if (key === "z") {
-          e.preventDefault();
-          if (e.shiftKey) redo();
-          else undo();
-        } else if (key === "y" && !e.shiftKey) {
-          e.preventDefault();
-          redo();
-        }
-        return;
-      }
-      if (e.metaKey || e.ctrlKey || isEditableTarget(e.target)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || isEditableTarget(e.target)) return;
       const typing =
         e.target instanceof HTMLInputElement && !["range", "checkbox", "radio"].includes(e.target.type);
       if (typing) return;
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       const act = (fn: () => void) => {
         e.preventDefault();
         fn();
       };
-      if (key === "e") act(() => setMode("erase"));
+      if (e.code === "Space" && !(e.target instanceof HTMLButtonElement)) act(() => setCompare(true));
+      else if (key === "e") act(() => setMode("erase"));
       else if (key === "r") act(() => setMode("restore"));
       else if (key === "[") act(() => setSize((s) => clampSize(s / 1.25)));
       else if (key === "]") act(() => setSize((s) => clampSize(s * 1.25)));
@@ -168,16 +139,45 @@ export function EraserStage(props: {
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => keyRef.current(e);
+    const onUp = (e: KeyboardEvent) => e.code === "Space" && setCompare(false);
+    const onBlur = () => setCompare(false);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", onBlur);
+    };
   }, []);
 
-  const k = (keys: string) => formatKeys(keys, platform);
   const ready = !!after;
   const stats = `${strokes.length} stroke${strokes.length === 1 ? "" : "s"}`;
+  const inkLabel = props.cleaned ? "Ink only" : "Ink only (off)";
   return (
     <div className="eraser" ref={rootRef}>
-      <div className="toolbar eraser-bar" role="toolbar" aria-label="Eraser">
+      <div className="toolbar eraser-bar" role="toolbar" aria-label="Clean up">
+        <span className="segmented" role="group" aria-label="Picture">
+          <button
+            type="button"
+            className={shown === "ink" ? "active" : ""}
+            aria-pressed={show === "ink"}
+            onClick={() => setShow("ink")}
+            title="What goes onto the skin: the cleaned picture, painted on with the brush"
+          >
+            {inkLabel}
+          </button>
+          <button
+            type="button"
+            className={shown === "photo" ? "active" : ""}
+            aria-pressed={show === "photo"}
+            onClick={() => setShow("photo")}
+            title="The photos as they are, with skin and shadows (hold Space to compare)"
+          >
+            Photo
+          </button>
+        </span>
+        <span className="toolbar-sep" aria-hidden="true" />
         <span className="segmented" role="group" aria-label="Brush">
           <button
             type="button"
@@ -213,26 +213,6 @@ export function EraserStage(props: {
           />
           <span className="mono xs eraser-size-value">{size.toFixed(1)} cm</span>
         </label>
-        <span className="toolbar-sep" aria-hidden="true" />
-        <button
-          type="button"
-          className="ghost"
-          disabled={history.past.length === 0}
-          onClick={undo}
-          title={`Undo the last stroke (${k("Mod+Z")})`}
-          aria-keyshortcuts={platform === "mac" ? "Meta+Z" : "Control+Z"}
-        >
-          Undo
-        </button>
-        <button
-          type="button"
-          className="ghost"
-          disabled={history.future.length === 0}
-          onClick={redo}
-          title={`Redo (${k("Mod+Shift+Z")})`}
-        >
-          Redo
-        </button>
         <button
           type="button"
           className="ghost"
@@ -269,9 +249,15 @@ export function EraserStage(props: {
         </span>
       </div>
       <Pane
-        label={props.cleaned ? "After: what goes onto the skin" : "After: unchanged (clean-up is off)"}
-        hint="Drag to paint · Space or right button + drag to move · pinch, Ctrl + wheel or + / − to zoom"
-        pixels={afterPixels}
+        label={
+          shown === "photo"
+            ? "Photo: the photos as they are, with skin and shadows"
+            : props.cleaned
+              ? "Ink only: what goes onto the skin"
+              : "Ink only is off: the photos as they are"
+        }
+        hint="Drag to paint · hold Space to compare · right button + drag to move · pinch, Ctrl + wheel or + / − to zoom"
+        pixels={shown === "photo" ? beforePixels : afterPixels}
         width={W}
         height={H}
         view={view}
@@ -282,7 +268,7 @@ export function EraserStage(props: {
         setHover={setHover}
         brushPx={(size / 2) * (after?.pxPerCm ?? 10)}
         brushMode={mode}
-        interactive={ready}
+        interactive={ready && shown === "ink"}
         onStroke={(phase, x, y) => {
           if (!after) return;
           const px = mirrored ? W - x : x;
@@ -297,32 +283,16 @@ export function EraserStage(props: {
           else if (phase === "move") drawingRef.current = cur ? extendStroke(cur, point, after) : null;
           else {
             drawingRef.current = null;
-            if (cur) commit(extendStroke(cur, point, after));
+            if (cur) set([...strokes, extendStroke(cur, point, after)]);
           }
           setDrawing(drawingRef.current);
         }}
         empty="Building the picture from the photos…"
       />
-      <Pane
-        label="Before: the photos as they are, with skin and shadows"
-        pixels={beforePixels}
-        width={before?.width ?? W}
-        height={before?.height ?? H}
-        view={view}
-        centre={centre}
-        setView={setView}
-        zoomBy={zoomBy}
-        hover={hover}
-        setHover={setHover}
-        brushPx={(size / 2) * (after?.pxPerCm ?? 10)}
-        brushMode={mode}
-        interactive={false}
-        empty="Building the picture from the photos…"
-        small
-      />
     </div>
   );
 }
+
 
 /** One view of a patch: its pixels scaled to the pane by the shared view, the brush circle on top. */
 function Pane(props: {
@@ -342,13 +312,11 @@ function Pane(props: {
   interactive: boolean;
   onStroke?: (phase: "start" | "move" | "end", x: number, y: number) => void;
   empty: string;
-  small?: boolean;
 }) {
   const { pixels, width: W, height: H, view, centre } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
-  const [space, setSpace] = useState(false);
   const drag = useRef<{ kind: "paint" | "pan"; x: number; y: number; id: number } | null>(null);
 
   useEffect(() => {
@@ -359,25 +327,6 @@ function Pane(props: {
     setBox({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
   }, []);
-
-  // Space held: dragging moves the view instead of painting.
-  useEffect(() => {
-    if (!props.interactive) return;
-    const down = (e: KeyboardEvent) => {
-      if (e.code === "Space" && !isEditableTarget(e.target) && !(e.target instanceof HTMLButtonElement)) {
-        if (hostRef.current?.closest("[hidden]")) return;
-        e.preventDefault();
-        setSpace(true);
-      }
-    };
-    const up = (e: KeyboardEvent) => e.code === "Space" && setSpace(false);
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, [props.interactive]);
 
   const fitScale = box.w > 0 && box.h > 0 ? Math.min(box.w / W, box.h / H) * 0.96 : 1;
   const scale = fitScale * view.zoom;
@@ -416,7 +365,7 @@ function Pane(props: {
     g.strokeStyle = "rgba(128, 128, 128, 0.5)";
     g.lineWidth = 1;
     g.strokeRect(ox - 0.5, oy - 0.5, W * scale + 1, H * scale + 1);
-    if (props.hover && (props.interactive || !space)) {
+    if (props.hover && props.interactive) {
       const x = ox + props.hover.x * scale;
       const y = oy + props.hover.y * scale;
       const r = Math.max(2, props.brushPx * scale);
@@ -443,7 +392,6 @@ function Pane(props: {
     props.brushPx,
     props.brushMode,
     props.interactive,
-    space,
   ]);
 
   // Wheel: pinch / Ctrl or Cmd + wheel zooms at the pointer, plain wheel scrolls the view.
@@ -477,7 +425,7 @@ function Pane(props: {
   };
   const onDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const { sx, sy } = local(e);
-    const pan = space || e.button === 1 || e.button === 2 || !props.interactive;
+    const pan = e.button === 1 || e.button === 2 || !props.interactive;
     if (pan && view.zoom <= 1 && !props.interactive) return;
     if (!pan && e.button !== 0) return;
     e.preventDefault();
@@ -518,11 +466,11 @@ function Pane(props: {
   };
 
   return (
-    <figure className={`eraser-pane${props.small ? " small" : ""}`}>
+    <figure className="eraser-pane">
       <div className="eraser-host" ref={hostRef}>
         <canvas
           ref={canvasRef}
-          className={`eraser-canvas${props.interactive ? (space ? " pan" : " paint") : ""}`}
+          className={`eraser-canvas${props.interactive ? " paint" : ""}`}
           style={{ width: box.w, height: box.h }}
           onPointerDown={onDown}
           onPointerMove={onMove}

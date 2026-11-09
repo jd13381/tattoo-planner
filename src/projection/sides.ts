@@ -1,6 +1,6 @@
-// "Where was the camera?" in the projection wizard (docs/adr/0014, simplified in docs/adr/0023): the
+// "Where was the camera?" in the projection workspace (docs/adr/0014, simplified in docs/adr/0023): the
 // four sides of a body part in plain words, and where each lies on a small picture of the person seen
-// from above. No DOM; wizardArt.tsx draws the picture and ProjectionWizard.tsx the choices.
+// from above. No DOM; SidePicker.tsx draws the picture and the choices.
 //
 // The picture shows the person from above, facing the viewer (front at the bottom), so their left is on
 // the right of the picture, as with someone standing in front of you. Arms hang with the palms forward,

@@ -28,7 +28,7 @@ import { CanvasHost, EDGE_COLOR, GRID_COLORS, PhotoEditor, PhotoPlaceholder } fr
 import { photoStatus, type ListingState, type PhotoStatus } from "./photoStatus.ts";
 import type { PhotoCalibration, ProjectionCalibration } from "./schema.ts";
 import { projectionRegion, projectionSchema } from "./schema.ts";
-import { farLabel, startLabel } from "./wizard.ts";
+import { farLabel, startLabel } from "./draft.ts";
 import { patchFor, photoAssets, saveProjection, sourceAssetIds, useProjections } from "./useProjections.ts";
 import { previewCanvases } from "./preview.ts";
 

@@ -27,7 +27,7 @@ import {
   sectionSketch,
   toCalibration,
   withPhotos,
-} from "../src/projection/wizard.ts";
+} from "../src/projection/draft.ts";
 import { parseProjection, updateProjectionText } from "../src/projection/yamlDoc.ts";
 import type { AssetInfo } from "../src/assets/types.ts";
 
@@ -247,7 +247,7 @@ describe("projection files", () => {
     if (!r.ok) throw new Error(r.error);
     expect(r.calibration.cleanup).toBeUndefined();
     expect(r.calibration.photos.every((p) => p.cleaned === undefined)).toBe(true);
-    // Opening it in the wizard keeps the clean-up off, so saving changes nothing.
+    // Opening it in the workspace keeps the clean-up off, so saving changes nothing.
     expect(fromCalibration(r.calibration).cleanup).toBeNull();
   });
 
@@ -272,7 +272,7 @@ describe("projection files", () => {
   });
 
   it("starts a new tattoo with ink only on, and keeps an edited photo in the draft", () => {
-    const d = withPhotos({ ...newDraft("arm-left"), name: "rose" }, ["photos/a.jpg"]);
+    const d = withPhotos({ ...newDraft("arm-left"), name: "rose" }, [{ file: "photos/a.jpg", cleaned: null }]);
     d.photos[0]!.cleaned = "edits/a-edit-1.png";
     const r = toCalibration(d, arm);
     if (!r.ok) throw new Error(r.error);

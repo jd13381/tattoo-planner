@@ -1,7 +1,7 @@
 // Settings → Projection (docs/adr/0014-guided-projection.md): the existing tattoos brought onto the body
 // from photos. A list with each tattoo's photo, body part and state; "Add existing tattoo" and "Edit"
-// open the guided wizard, "Advanced" the full calibration page (ProjectionPage.tsx), "Delete" asks
-// first (DeleteProjection.tsx).
+// open the projection workspace (docs/adr/0024), "Advanced" the full calibration page
+// (ProjectionPage.tsx), "Delete" asks first (DeleteProjection.tsx).
 import { useEffect, useMemo, useState } from "react";
 import { fileKey } from "../assets/manifestDoc.ts";
 import type { AssetInfo } from "../assets/types.ts";
@@ -15,14 +15,14 @@ import type { ArmState, Pose } from "../viewer/useArm.ts";
 import { DeleteProjectionDialog, SAMPLE_PROJECTION_HINT } from "./DeleteProjection.tsx";
 import { layoutsShowing } from "./layoutLink.ts";
 import { ProjectionPage } from "./ProjectionPage.tsx";
-import { ProjectionWizard } from "./ProjectionWizard.tsx";
+import { ProjectionWorkspace } from "./ProjectionWorkspace.tsx";
 import { projectionRegion, type ProjectionCalibration } from "./schema.ts";
-import { clearParkedWizard, parkedWizard, type ParkedWizard } from "./studioLink.ts";
+import { clearParkedWorkspace, parkedWorkspace, type ParkedWorkspace } from "./studioLink.ts";
 import { useProjections } from "./useProjections.ts";
 
 type View =
   | { kind: "list" }
-  | { kind: "wizard"; name: string | null; parked?: ParkedWizard }
+  | { kind: "workspace"; name: string | null; parked?: ParkedWorkspace }
   | { kind: "advanced"; name: string };
 
 type Props = {
@@ -33,12 +33,12 @@ type Props = {
 };
 
 export function ProjectionSettings({ arm, pose, onDirty, openLayout }: Props) {
-  // Back from the Image studio (docs/adr/0023): the wizard opens again with its answers.
+  // Back from the Image studio (docs/adr/0023): the workspace opens again with its draft.
   const [view, setView] = useState<View>(() => {
-    const p = parkedWizard();
-    return p ? { kind: "wizard", name: p.editName, parked: p } : { kind: "list" };
+    const p = parkedWorkspace();
+    return p ? { kind: "workspace", name: p.editName, parked: p } : { kind: "list" };
   });
-  useEffect(() => clearParkedWizard(), []);
+  useEffect(() => clearParkedWorkspace(), []);
   const toList = () => {
     onDirty?.(false);
     setView({ kind: "list" });
@@ -67,7 +67,7 @@ export function ProjectionSettings({ arm, pose, onDirty, openLayout }: Props) {
       }}
     />
   );
-  /** Delete from the wizard and the Advanced page too (unsaved changes there are dropped with it). */
+  /** Delete from the workspace and the Advanced page too (unsaved changes there are dropped with it). */
   const onDelete = readOnly ? undefined : (name: string) => setDeleting(name);
   let page;
   if (view.kind === "advanced")
@@ -81,9 +81,9 @@ export function ProjectionSettings({ arm, pose, onDirty, openLayout }: Props) {
         onDelete={onDelete}
       />
     );
-  else if (view.kind === "wizard")
+  else if (view.kind === "workspace")
     page = (
-      <ProjectionWizard
+      <ProjectionWorkspace
         key={view.name ?? "new"}
         arm={arm}
         pose={pose}
@@ -92,7 +92,7 @@ export function ProjectionSettings({ arm, pose, onDirty, openLayout }: Props) {
         onDirty={onDirty}
         onClose={toList}
         onAdvanced={(name) => setView({ kind: "advanced", name })}
-        onAnother={() => setView({ kind: "wizard", name: null })}
+        onAnother={() => setView({ kind: "workspace", name: null })}
         onDelete={onDelete}
         parked={view.parked ?? null}
       />
@@ -100,8 +100,8 @@ export function ProjectionSettings({ arm, pose, onDirty, openLayout }: Props) {
   else
     page = (
       <ProjectionList
-        onAdd={() => setView({ kind: "wizard", name: null })}
-        onEdit={(name) => setView({ kind: "wizard", name })}
+        onAdd={() => setView({ kind: "workspace", name: null })}
+        onEdit={(name) => setView({ kind: "workspace", name })}
         onAdvanced={(name) => setView({ kind: "advanced", name })}
         onDelete={(name) => setDeleting(name)}
         readOnly={readOnly}
@@ -166,9 +166,9 @@ function ProjectionList(props: {
           <div>
             <h1>Existing tattoos</h1>
             <p className="muted">
-              Bring a tattoo you already have onto the body from one or more photos of it. A short guided
-              setup asks a few questions per photo; the planner then wraps the tattoo round the body part
-              where the photos show it.
+              Bring a tattoo you already have onto the body from one or more photos of it. Mark its outline
+              and two distances on each photo; the planner wraps the tattoo round the body part where the
+              photos show it and shows the result live in 3D.
             </p>
           </div>
           <button type="button" className="primary" onClick={props.onAdd}>
@@ -238,7 +238,7 @@ function ProjectionList(props: {
                       type="button"
                       disabled={!cal}
                       onClick={() => props.onEdit(f.name)}
-                      title={cal ? "Step through the guided setup with this tattoo's answers" : error}
+                      title={cal ? "Open this tattoo in the projection workspace" : error}
                     >
                       Edit
                     </button>

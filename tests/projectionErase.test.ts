@@ -1,29 +1,25 @@
 // The Clean up step's eraser (docs/adr/0023-projection-cleanup.md, "Eraser"): strokes and speck removal
-// on small pixel buffers, in the patch, in the projection file and in the wizard's draft; and how an
+// on small pixel buffers, in the patch, in the projection file and in the workspace draft; and how an
 // edited photo of another shape is laid onto the photo's frame.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { resolveBody } from "../src/body/body.ts";
 import {
-  EMPTY_HISTORY,
   eraseMask,
   extendStroke,
   hasErase,
   paintStrokes,
   patchPxToUv,
-  recordHistory,
-  redoHistory,
   speckMask,
   specksToPx,
   storedErase,
-  undoHistory,
   uvToPatchPx,
   type EraseSettings,
   type PatchGrid,
 } from "../src/projection/erase.ts";
 import { buildPatch, editMapping, type PhotoPixels } from "../src/projection/patch.ts";
 import { projectionSchema } from "../src/projection/schema.ts";
-import { fromCalibration, newDraft, toCalibration, withPhotos } from "../src/projection/wizard.ts";
+import { fromCalibration, newDraft, toCalibration, withPhotos } from "../src/projection/draft.ts";
 import { parseProjection, updateProjectionText } from "../src/projection/yamlDoc.ts";
 
 const arm = resolveBody(null).regions["arm-left"].profile;
@@ -128,20 +124,6 @@ describe("removing small specks", () => {
     expect(hasErase(null)).toBe(false);
     expect(storedErase({ specks_mm2: 0, strokes: [] })).toBeNull();
     expect(storedErase({ specks_mm2: 2, strokes: [] })).toEqual({ specks_mm2: 2, strokes: [] });
-  });
-});
-
-describe("undo and redo", () => {
-  it("steps back and forth through the snapshots", () => {
-    const a: EraseSettings = { specks_mm2: 0, strokes: [{ size_cm: 1, points: [[0.3, 0.3]] }] };
-    let h = recordHistory(EMPTY_HISTORY, null);
-    const undone = undoHistory(h, a)!;
-    expect(undone.state).toBeNull();
-    h = undone.history;
-    expect(undoHistory(h, null)).toBeNull();
-    const redone = redoHistory(h, null)!;
-    expect(redone.state).toBe(a);
-    expect(redoHistory(redone.history, a)).toBeNull();
   });
 });
 
@@ -257,7 +239,7 @@ describe("edited photos of another shape", () => {
   });
 
   it("keeps the fit in the file and the draft, only next to an edit", () => {
-    const d = withPhotos({ ...newDraft("arm-left"), name: "rose" }, ["photos/a.jpg"]);
+    const d = withPhotos({ ...newDraft("arm-left"), name: "rose" }, [{ file: "photos/a.jpg", cleaned: null }]);
     d.photos[0]!.cleanedFit = "contain";
     let r = toCalibration(d, arm);
     if (!r.ok) throw new Error(r.error);
@@ -305,7 +287,7 @@ describe("the eraser in the projection file", () => {
     expect(updateProjectionText(more, parsed.calibration)).toBe(anubis);
   });
 
-  it("keeps the eraser through the wizard's draft and drops empty settings", () => {
+  it("keeps the eraser through the workspace draft and drops empty settings", () => {
     const cal = structuredClone(parsed.calibration);
     cal.erase = { specks_mm2: 0, strokes: [{ size_cm: 1, points: [[0.3, 0.4]] }] };
     const d = fromCalibration(cal);
