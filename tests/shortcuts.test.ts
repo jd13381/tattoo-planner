@@ -61,6 +61,16 @@ describe("shortcutAction", () => {
     expect(shortcutAction(press("v", { isEditableTarget: true }), "mac")).toBeNull();
   });
 
+  it("maps the add keys F, T and B, not with modifiers or while typing", () => {
+    expect(shortcutAction(press("f"), "mac")).toEqual({ type: "add", element: "figure" });
+    expect(shortcutAction(press("T"), "other")).toEqual({ type: "add", element: "existing" });
+    expect(shortcutAction(press("b"), "mac")).toEqual({ type: "add", element: "band" });
+    expect(shortcutAction(press("f", { shiftKey: true }), "mac")).toBeNull();
+    expect(shortcutAction(press("b", { altKey: true }), "mac")).toBeNull();
+    expect(shortcutAction(press("f", { ctrlKey: true }), "other")).toBeNull();
+    expect(shortcutAction(press("t", { isEditableTarget: true }), "mac")).toBeNull();
+  });
+
   it("accepts [ and ] typed with Option/AltGr", () => {
     expect(shortcutAction(press("[", { altKey: true }), "mac")).toEqual({ type: "layerDown" });
   });

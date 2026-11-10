@@ -1,0 +1,458 @@
+/* pages: rules added by the 2026-11 UX overhaul (see docs/claude-decisions.md). Tokens live in ../styles.css. */
+
+/* ── Home additions ─────────────────────────────────────────────────────────────────────────── */
+
+.home-section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.home-add-button {
+  height: 24px;
+  gap: 4px;
+  padding: 0 8px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.home-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.home-summary > div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.home-summary dt {
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.home-summary dd {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.home-summary dd .faint {
+  font-size: var(--fs-md);
+  font-weight: 500;
+}
+
+.region-card-pct {
+  display: grid;
+  justify-items: end;
+  line-height: 1.1;
+}
+
+.region-card-pct .num {
+  font-size: var(--fs-xl, 18px);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.region-card-pct .unit {
+  font-size: var(--fs-2xs);
+  color: var(--faint);
+}
+
+.region-card-start {
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+/* ── Settings page frame (src/settings/PageFrame.tsx) ───────────────────────────────────────── */
+
+.pg-frame {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--s-6) var(--s-5) var(--s-8);
+  display: grid;
+  gap: var(--s-5);
+  align-content: start;
+}
+
+.pg-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+}
+
+.pg-head-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.pg-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 28px;
+}
+
+.pg-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.pg-desc {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+
+.pg-head-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+@media (max-width: 720px) {
+  .pg-head {
+    flex-wrap: wrap;
+  }
+}
+
+/* ── Empty state pattern (Compare, Projection overview) ─────────────────────────────────────── */
+
+.pg-empty {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: var(--s-3);
+  max-width: 480px;
+  padding: var(--s-6) var(--s-5);
+}
+
+.pg-empty h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pg-empty p {
+  margin: 0;
+  max-width: 46ch;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.pg-empty-art {
+  color: var(--faint);
+  margin-bottom: var(--s-2);
+}
+
+.pg-empty-art svg {
+  display: block;
+  overflow: visible;
+}
+
+.pg-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
+}
+
+.pg-art-surface {
+  fill: var(--surface);
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.pg-art-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pg-art-accent {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pg-art-fill {
+  fill: var(--accent-soft);
+  stroke: var(--accent-line);
+  stroke-width: 1;
+}
+
+.pg-art-label {
+  fill: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+/* Three small steps with a caption each. */
+.pg-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3);
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+}
+
+.pg-step {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  color: var(--faint);
+}
+
+.pg-step span {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.pg-step span b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ── Settings navigation icons ───────────────────────────────────────────────────────────────── */
+
+.pg-nav-icon {
+  flex: none;
+  display: inline-flex;
+  opacity: 0.8;
+}
+
+.pg-nav-dot {
+  margin-left: auto;
+}
+
+/* ── Appearance: theme preview cards ─────────────────────────────────────────────────────────── */
+
+.pg-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+.pg-theme-card {
+  height: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: stretch;
+  gap: var(--s-3);
+  padding: var(--s-2);
+  border-radius: var(--r-xl, 14px);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  text-align: left;
+  transition:
+    box-shadow var(--dur-1, 120ms) ease,
+    background var(--dur-1, 120ms) ease;
+}
+
+.pg-theme-card:hover {
+  box-shadow: inset 0 0 0 1px var(--border-hover);
+}
+
+.pg-theme-card[aria-checked="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.pg-theme-preview {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: 132px;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* System: both miniatures stacked, the light one cut along a diagonal. */
+.pg-theme-preview[data-preview="system"] {
+  position: relative;
+}
+
+.pg-theme-preview[data-preview="system"] .pg-mini {
+  grid-area: 1 / 1;
+}
+
+.pg-theme-preview[data-preview="system"] .pg-mini[data-tone="light"] {
+  clip-path: polygon(0 0, 58% 0, 42% 100%, 0 100%);
+}
+
+.pg-theme-label {
+  display: grid;
+  gap: 1px;
+  padding: 0 var(--s-2) var(--s-1);
+}
+
+.pg-theme-name {
+  font-weight: 600;
+  font-size: var(--fs-md);
+  color: var(--text);
+}
+
+/* Fixed palettes: the miniatures show the other theme, so they cannot use the live tokens. */
+.pg-mini {
+  --pv-bg: #0b0b0e;
+  --pv-bar: #131318;
+  --pv-panel: #16161c;
+  --pv-line: #2a2a33;
+  --pv-text: #3a3a46;
+  --pv-canvas: #101015;
+  --pv-skin: #d8cfc6;
+  display: grid;
+  grid-template-rows: 18px 1fr;
+  min-width: 0;
+  background: var(--pv-bg);
+}
+
+.pg-mini[data-tone="light"] {
+  --pv-bg: #f3f3f6;
+  --pv-bar: #ffffff;
+  --pv-panel: #ffffff;
+  --pv-line: #dcdce3;
+  --pv-text: #c3c3cf;
+  --pv-canvas: #e9e9ee;
+  --pv-skin: #d2c4b8;
+}
+
+.pg-mini-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  background: var(--pv-bar);
+  border-bottom: 1px solid var(--pv-line);
+}
+
+.pg-mini-bar i {
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--pv-text);
+}
+
+.pg-mini-bar i:first-child {
+  background: var(--accent);
+  width: 10px;
+}
+
+.pg-mini-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30%;
+  min-height: 0;
+}
+
+.pg-mini-canvas {
+  display: grid;
+  place-items: center;
+  background: var(--pv-canvas);
+}
+
+.pg-mini-figure {
+  width: 14px;
+  height: 58px;
+  border-radius: 7px 7px 5px 5px;
+  background: var(--pv-skin);
+}
+
+.pg-mini-side {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 8px 6px;
+  background: var(--pv-panel);
+  border-left: 1px solid var(--pv-line);
+}
+
+.pg-mini-side i {
+  height: 5px;
+  border-radius: 2px;
+  background: var(--pv-text);
+}
+
+.pg-mini-side i:nth-child(2) {
+  width: 70%;
+}
+
+@media (max-width: 720px) {
+  .pg-theme-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Image generation ────────────────────────────────────────────────────────────────────────── */
+
+.pg-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.pg-privacy .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--faint);
+}
+
+/* A save button with nothing to save reads as unavailable, not as half pressed. */
+.key-save:disabled {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--faint);
+  opacity: 1;
+}
+
+/* ── Body & measurements: legend for sample values ───────────────────────────────────────────── */
+
+.measure-legend {
+  margin: 0 0 8px;
+  color: var(--faint);
+  font-size: var(--fs-2xs);
+}
+
+.measure-legend-sample {
+  color: var(--muted);
+  font-style: italic;
+}

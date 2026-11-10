@@ -1,6 +1,8 @@
-import { useState, type DragEvent } from "react";
-import type { LayoutElement } from "../layout/schema.ts";
-import { LockIcon } from "../ui/icons.tsx";
+import { useState, type DragEvent, type ReactNode } from "react";
+import type { ElementType, LayoutElement } from "../layout/schema.ts";
+import { BandIcon, ExistingIcon, FigureIcon, LineIcon, LockIcon } from "../ui/icons.tsx";
+import { GripIcon } from "./editorIcons.tsx";
+import { KIND_LABEL } from "./labels.ts";
 import { dropIndex } from "./layoutOps.ts";
 
 type Props = {
@@ -14,13 +16,24 @@ type Props = {
   onMove: (from: number, to: number) => void;
   /** false leaves out the heading (a tabbed panel names the list instead). */
   heading?: boolean;
+  /** Image URL per element id (figures and existing tattoos with an image); the rest show an icon. */
+  thumbs?: ReadonlyMap<string, string>;
+  /** Shown instead of the list while the variant has no elements. */
+  empty?: ReactNode;
 };
 
 type Drop = { over: number; above: boolean };
 
+const KIND_ICON: Record<ElementType, ReactNode> = {
+  figure: <FigureIcon />,
+  existing: <ExistingIcon />,
+  band: <BandIcon />,
+  line: <LineIcon />,
+};
+
 /** Every element of the variant, topmost first: select, lock, and drag to change the layer order. */
 export function ElementList(props: Props) {
-  const { elements, issues, selected, onSelect, onToggleLock, onMove, heading = true } = props;
+  const { elements, issues, selected, onSelect, onToggleLock, onMove, heading = true, thumbs } = props;
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
   const order = elements.map((_, i) => elements.length - 1 - i);
@@ -45,19 +58,15 @@ export function ElementList(props: Props) {
           <h2>
             Elements <span className="muted small">{elements.length}</span>
           </h2>
-          <span
-            className="faint xs"
-            title="The list shows the top layer first; drag a row to change the order."
-          >
-            top layer first
-          </span>
         </div>
       )}
+      {elements.length === 0 && props.empty}
       <ul>
         {order.map((i) => {
           const el = elements[i]!;
           const locked = !!el.locked;
           const dots = issues[i] ?? [];
+          const thumb = thumbs?.get(el.id);
           const dropCls =
             drop && drop.over === i && dragFrom !== null && dragFrom !== i
               ? drop.above
@@ -82,16 +91,23 @@ export function ElementList(props: Props) {
               }}
               onDragEnd={endDrag}
             >
+              <span className="el-grip" aria-hidden="true" title="Drag to change the layer order">
+                <GripIcon />
+              </span>
               <button
                 type="button"
                 className="element-select"
                 aria-current={i === selected ? "true" : undefined}
                 onClick={() => onSelect(i)}
-                title={`${el.id} (${el.type}), layer ${i + 1} of ${elements.length}`}
+                title={`${el.id} (${KIND_LABEL[el.type].toLowerCase()}), layer ${i + 1} of ${elements.length}`}
               >
-                <span className={`swatch cat-${el.type}`} aria-hidden="true" />
-                <span className="element-id">{el.id}</span>
-                <span className="element-type">{el.type}</span>
+                <span className={`el-thumb el-thumb-${el.type}`} aria-hidden="true">
+                  {thumb ? <img src={thumb} alt="" loading="lazy" draggable={false} /> : KIND_ICON[el.type]}
+                </span>
+                <span className="el-text">
+                  <span className="element-id">{el.id}</span>
+                  <span className="element-type">{KIND_LABEL[el.type]}</span>
+                </span>
                 {dots.length > 0 && (
                   <span
                     className="issue-dot"
@@ -106,7 +122,11 @@ export function ElementList(props: Props) {
                 className={`ghost icon-button lock-toggle${locked ? " on" : ""}`}
                 aria-pressed={locked}
                 aria-label={`${locked ? "Unlock" : "Lock"} ${el.id}`}
-                title={locked ? "Locked: cannot be moved, edited or deleted. Click to unlock." : "Lock"}
+                title={
+                  locked
+                    ? "Locked: cannot be moved, edited or deleted. Click to unlock."
+                    : "Lock against accidental edits"
+                }
                 onClick={() => onToggleLock(i)}
               >
                 <LockIcon open={!locked} />
@@ -115,6 +135,7 @@ export function ElementList(props: Props) {
           );
         })}
       </ul>
+      {elements.length > 1 && <p className="el-order-hint">Listed front to back. Drag a row to reorder.</p>}
     </section>
   );
 }

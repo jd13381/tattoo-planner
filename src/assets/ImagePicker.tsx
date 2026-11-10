@@ -9,6 +9,7 @@ import { filterAssets, NO_FILTER, type AssetFilter } from "./filter.ts";
 import { pickerBox } from "./pickerPlacement.ts";
 import { assetImageUrl, type AssetInfo, type AssetListing } from "./types.ts";
 import { PickerScopeControls, usePickerScope } from "./usePickerScope.tsx";
+import { CloseIcon } from "../ui/icons.tsx";
 
 type Props = {
   listing: AssetListing | null;
@@ -107,7 +108,12 @@ export function ImagePicker({ listing, current, elementId, anchor, onPick, onClo
           <PickerScopeControls scope={scope} />
         </div>
         {shown.length === 0 ? (
-          <p className="muted small">Nothing matches.</p>
+          <p className="muted small picker-none">
+            Nothing matches.{" "}
+            <button type="button" className="link" onClick={() => setFilter(NO_FILTER)}>
+              Clear the search
+            </button>
+          </p>
         ) : (
           <ul className="asset-grid picker-grid">
             {shown.map((a) => (
@@ -151,7 +157,7 @@ export function ImagePicker({ listing, current, elementId, anchor, onPick, onClo
           <kbd className="kbd">Esc</kbd> closes
         </span>
         <button type="button" className="ghost icon-button small-button" aria-label="Close" onClick={onClose}>
-          ×
+          <CloseIcon />
         </button>
       </div>
       {body}

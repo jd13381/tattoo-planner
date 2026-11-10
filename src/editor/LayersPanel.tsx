@@ -144,7 +144,7 @@ export function LayerList(props: ListProps) {
               className={`ghost icon-button lock-toggle${b.locked ? " on" : ""}`}
               aria-pressed={!!b.locked}
               aria-label={`${b.locked ? "Unlock" : "Lock"} ${layerName(b)}`}
-              title={b.locked ? "Locked: click to unlock" : "Lock"}
+              title={b.locked ? "Locked: click to unlock" : "Lock against accidental edits"}
               onClick={() => onChange(i, { ...b, locked: b.locked ? undefined : true })}
             >
               <LockIcon open={!b.locked} />
@@ -258,9 +258,17 @@ type PanelProps = {
   onSelectShape: (index: number | null) => void;
 };
 
-function Field({ k, unit, children }: { k: string; unit?: string; children: ReactNode }) {
+const SHAPE_LABEL: Record<string, string> = {
+  rect: "Rectangle",
+  ellipse: "Ellipse",
+  polygon: "Polygon",
+  span: "Section",
+};
+
+function Field(props: { k: string; unit?: string; title?: string; children: ReactNode }) {
+  const { k, unit, children } = props;
   return (
-    <label className="field-box">
+    <label className="field-box" title={props.title}>
       <span className="k" aria-hidden="true">
         {k}
       </span>
@@ -309,13 +317,16 @@ export function LayerPanel(props: PanelProps) {
       <div className="panel-head inspector-head">
         <span className="swatch cat-background" aria-hidden="true" />
         <h2>{layerName(b)}</h2>
-        <span className="faint">background</span>
+        <span className="faint">Background layer</span>
         <span className="spacer" />
         <button
           type="button"
           className={`ghost icon-button lock-toggle${locked ? " on" : ""}`}
           aria-pressed={locked}
           aria-label={locked ? "Unlock" : "Lock"}
+          title={
+            locked ? "Locked: cannot be edited or deleted. Click to unlock." : "Lock against accidental edits"
+          }
           onClick={() => onChange({ ...b, locked: locked ? undefined : true })}
         >
           <LockIcon open={!locked} />
@@ -357,8 +368,8 @@ export function LayerPanel(props: PanelProps) {
         </button>
       </div>
       <div className="props">
-        <label>
-          name
+        <label className="ins-row">
+          Name
           <input
             type="text"
             value={b.name ?? ""}
@@ -368,8 +379,8 @@ export function LayerPanel(props: PanelProps) {
           />
         </label>
         <h3 className="props-head">Source</h3>
-        <label>
-          kind
+        <label className="ins-row">
+          Type
           <select
             value={kind}
             disabled={locked}
@@ -388,8 +399,8 @@ export function LayerPanel(props: PanelProps) {
           </select>
         </label>
         {"standard" in src && (
-          <label>
-            background
+          <label className="ins-row">
+            Background
             <select
               value={src.standard}
               disabled={locked}
@@ -401,15 +412,15 @@ export function LayerPanel(props: PanelProps) {
               {standard.map((s) => (
                 <option key={s.name} value={s.name}>
                   {s.label}
-                  {s.imageUrl ? "" : " (procedural)"}
+                  {s.imageUrl ? "" : " (drawn)"}
                 </option>
               ))}
             </select>
           </label>
         )}
         {"pattern" in src && (
-          <label>
-            pattern
+          <label className="ins-row">
+            Pattern
             <select
               value={src.pattern}
               disabled={locked}
@@ -434,8 +445,8 @@ export function LayerPanel(props: PanelProps) {
           </label>
         )}
         {"image" in src && (
-          <label>
-            image
+          <label className="ins-row">
+            Image
             <select
               value={src.image}
               disabled={locked}
@@ -455,7 +466,7 @@ export function LayerPanel(props: PanelProps) {
         )}
         <div className="field-pair">
           {"pattern" in src ? (
-            <Field k="Scale" unit="×">
+            <Field k="Scale" unit="×" title="Size of the pattern: 1 is its natural size">
               {num(src.scale, (scale) => setSource({ ...src, scale }), {
                 step: 0.1,
                 min: 0.1,
@@ -464,7 +475,7 @@ export function LayerPanel(props: PanelProps) {
               })}
             </Field>
           ) : (
-            <Field k="Tile" unit="cm">
+            <Field k="Tile" unit="cm" title="Width of one repeat of the background on the skin">
               {num(
                 src.tile_cm,
                 (t) =>
@@ -483,36 +494,37 @@ export function LayerPanel(props: PanelProps) {
             </Field>
           )}
           {("pattern" in src ? isTilePattern : true) && (
-            <Field k="↻" unit="°">
+            <Field k="Rotation" unit="°">
               {num(src.rotation_deg, (rotation_deg) => setSource({ ...src, rotation_deg }), {
                 step: 5,
-                label: "rotation °",
+                placeholder: "0",
+                label: "Rotation in degrees",
               })}
             </Field>
           )}
         </div>
         {(isTilePattern || "standard" in src || "image" in src) && (
           <div className="field-pair">
-            <Field k="X" unit="cm">
+            <Field k="Shift ↔" unit="cm" title="Moves the background around the limb">
               {num(
                 src.offset_cm?.x,
                 (x) => setSource({ ...src, offset_cm: { x: x ?? 0, y: src.offset_cm?.y ?? 0 } }),
-                { label: "offset around cm" },
+                { label: "Shift around in cm", placeholder: "0" },
               )}
             </Field>
-            <Field k="Y" unit="cm">
+            <Field k="Shift ↕" unit="cm" title="Moves the background along the limb">
               {num(
                 src.offset_cm?.y,
                 (y) => setSource({ ...src, offset_cm: { x: src.offset_cm?.x ?? 0, y: y ?? 0 } }),
-                { label: "offset along cm" },
+                { label: "Shift along in cm", placeholder: "0" },
               )}
             </Field>
           </div>
         )}
         {!("image" in src) && (
           <>
-            <label>
-              density
+            <label className="ins-row">
+              Density
               <input
                 type="range"
                 min={0}
@@ -521,11 +533,11 @@ export function LayerPanel(props: PanelProps) {
                 disabled={locked}
                 value={src.density ?? ("pattern" in src && !isTilePattern ? 0.3 : 0.5)}
                 onChange={(e) => setSource({ ...src, density: e.target.valueAsNumber })}
-                aria-label="density"
+                aria-label="Density"
               />
             </label>
-            <label>
-              ink
+            <label className="ins-row">
+              Ink colour
               <span className="color-field">
                 <input
                   type="color"
@@ -539,8 +551,8 @@ export function LayerPanel(props: PanelProps) {
           </>
         )}
         <h3 className="props-head">Look</h3>
-        <label>
-          opacity
+        <label className="ins-row">
+          Opacity
           <input
             type="range"
             min={0}
@@ -551,11 +563,14 @@ export function LayerPanel(props: PanelProps) {
             onChange={(e) =>
               onChange({ ...b, opacity: e.target.valueAsNumber === 1 ? undefined : e.target.valueAsNumber })
             }
-            aria-label="opacity"
+            aria-label="Opacity"
           />
         </label>
-        <label>
-          blend
+        <label
+          className="ins-row"
+          title="Ink on skin darkens the skin like real ink; Normal covers it like paint"
+        >
+          Blending
           <select
             value={b.blend ?? "multiply"}
             disabled={locked}
@@ -569,24 +584,25 @@ export function LayerPanel(props: PanelProps) {
           >
             {BLEND_MODES.map((m) => (
               <option key={m} value={m}>
-                {m === "multiply" ? "Multiply (ink on skin)" : "Normal"}
+                {m === "multiply" ? "Ink on skin" : "Normal"}
               </option>
             ))}
           </select>
         </label>
-        <label title="Skin left free around every motif on top, so the motifs look embedded in the background">
-          gap
-          <span className="field-pair">
-            <Field k="↔" unit="cm">
-              {num(b.gap_cm, (gap_cm) => onChange({ ...b, gap_cm }), {
-                step: 0.1,
-                min: 0,
-                label: "gap around motifs cm",
-                placeholder: "0",
-              })}
-            </Field>
-          </span>
-        </label>
+        <div className="field-pair">
+          <Field
+            k="Motif gap"
+            unit="cm"
+            title="Skin left free around every motif on top, so the motifs look embedded in the background"
+          >
+            {num(b.gap_cm, (gap_cm) => onChange({ ...b, gap_cm }), {
+              step: 0.1,
+              min: 0,
+              label: "Gap around motifs in cm",
+              placeholder: "0",
+            })}
+          </Field>
+        </div>
         <h3 className="props-head">
           Where <span className="props-head-note">{coverSummary(b)}</span>
         </h3>
@@ -628,25 +644,22 @@ export function LayerPanel(props: PanelProps) {
               ))}
             </div>
             {(props.tool === "brush" || props.tool === "eraser") && (
-              <label>
-                brush
-                <span className="field-pair">
-                  <Field k="r" unit="cm">
-                    {num(props.brushCm, (n) => props.onBrushCm(Math.max(0.1, n ?? 1)), {
-                      step: 0.1,
-                      min: 0.1,
-                      label: "brush radius cm",
-                    })}
-                  </Field>
-                </span>
-              </label>
+              <div className="field-pair">
+                <Field k="Brush size" unit="cm" title="Radius of the brush and the eraser">
+                  {num(props.brushCm, (n) => props.onBrushCm(Math.max(0.1, n ?? 1)), {
+                    step: 0.1,
+                    min: 0.1,
+                    label: "Brush radius in cm",
+                  })}
+                </Field>
+              </div>
             )}
             <div className="field-pair">
-              <Field k="Feather" unit="cm">
+              <Field k="Soft edge" unit="cm" title="How far the area's edge fades into the skin">
                 {num(b.feather_cm, (feather_cm) => onChange({ ...b, feather_cm }), {
                   step: 0.1,
                   min: 0,
-                  label: "soft edge cm",
+                  label: "Soft edge in cm",
                   placeholder: "0",
                 })}
               </Field>
@@ -660,7 +673,7 @@ export function LayerPanel(props: PanelProps) {
                       className="ghost small-button"
                       onClick={() => props.onSelectShape(k)}
                     >
-                      {s.kind}
+                      {SHAPE_LABEL[s.kind] ?? s.kind}
                       {"w_cm" in s
                         ? ` ${s.w_cm} × ${s.h_cm} cm`
                         : s.kind === "polygon"
@@ -670,7 +683,8 @@ export function LayerPanel(props: PanelProps) {
                     <button
                       type="button"
                       className="ghost icon-button danger"
-                      aria-label={`Remove ${s.kind} ${k + 1}`}
+                      aria-label={`Remove ${(SHAPE_LABEL[s.kind] ?? s.kind).toLowerCase()} ${k + 1}`}
+                      title="Remove this shape"
                       disabled={locked}
                       onClick={() => {
                         props.onSelectShape(null);
@@ -690,7 +704,7 @@ export function LayerPanel(props: PanelProps) {
                 disabled={locked}
                 onClick={() => onChange({ ...b, mask: undefined })}
               >
-                Clear painted mask ({b.mask!.length} strokes)
+                Clear the painted area ({b.mask!.length} strokes)
               </button>
             )}
           </>
@@ -698,6 +712,7 @@ export function LayerPanel(props: PanelProps) {
         <h3 className="props-head">Notes</h3>
         <textarea
           rows={2}
+          aria-label="Notes"
           value={b.notes ?? ""}
           disabled={locked}
           onChange={(e) => onChange({ ...b, notes: e.target.value || undefined })}

@@ -14,6 +14,8 @@ import { ToastRegion, useToast } from "../ui/Toast.tsx";
 import type { ArmState, Pose } from "../viewer/useArm.ts";
 import { DeleteProjectionDialog, SAMPLE_PROJECTION_HINT } from "./DeleteProjection.tsx";
 import { layoutsShowing } from "./layoutLink.ts";
+import { HowItWorks } from "../settings/EmptyArt.tsx";
+import { PageFrame } from "../settings/PageFrame.tsx";
 import { ProjectionPage } from "./ProjectionPage.tsx";
 import { ProjectionWorkspace } from "./ProjectionWorkspace.tsx";
 import { projectionRegion, type ProjectionCalibration } from "./schema.ts";
@@ -161,20 +163,15 @@ function ProjectionList(props: {
 
   return (
     <div className="projection-list-page">
-      <div className="projection-list">
-        <header className="projection-list-head">
-          <div>
-            <h1>Existing tattoos</h1>
-            <p className="muted">
-              Bring a tattoo you already have onto the body from one or more photos of it. Mark its outline
-              and two distances on each photo; the planner wraps the tattoo round the body part where the
-              photos show it and shows the result live in 3D.
-            </p>
-          </div>
+      <PageFrame
+        title="Existing tattoos"
+        description="Bring a tattoo you already have onto the body from photos of it. Mark its outline and two distances on each photo; the planner wraps it round the body and shows the result live in 3D."
+        actions={
           <button type="button" className="primary" onClick={props.onAdd}>
             Add existing tattoo
           </button>
-        </header>
+        }
+      >
         {loadError && (
           <p className="notice error" role="alert">
             {loadError}
@@ -182,12 +179,13 @@ function ProjectionList(props: {
         )}
         {files === null && !loadError && <p className="muted">Loading…</p>}
         {files !== null && files.length === 0 && !loadError && (
-          <section className="empty">
-            <h2>No existing tattoos yet</h2>
-            <p className="muted">
+          <section className="pg-empty" aria-labelledby="proj-empty-title">
+            <h2 id="proj-empty-title">No existing tattoos yet</h2>
+            <p>
               Take one to four photos of the tattoo from about a metre away, from different sides, and put
               them into the project folder. Then press Add existing tattoo.
             </p>
+            <HowItWorks />
           </section>
         )}
         {files !== null && files.length > 0 && (
@@ -269,7 +267,7 @@ function ProjectionList(props: {
             })}
           </ul>
         )}
-      </div>
+      </PageFrame>
     </div>
   );
 }

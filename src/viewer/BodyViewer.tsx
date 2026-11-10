@@ -6,12 +6,20 @@ import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { BufferGeometry } from "three";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ResolvedBody } from "../body/body.ts";
 import type { Placement } from "../body/placement.ts";
 import { REGION_IDS, REGIONS, type RegionId } from "../body/regions.ts";
 import { NeutralBody } from "./NeutralBody.tsx";
-import { armGeometry, CAP_COLOR, CAP_ROUGHNESS, LIGHTS, SKIN_ROUGHNESS, skinTexture } from "./scene.ts";
+import { armGeometry, CAP_COLOR, CAP_ROUGHNESS, SKIN_ROUGHNESS, skinTexture } from "./scene.ts";
+import {
+  applyAccent,
+  STAGE_DPR,
+  STAGE_GL,
+  StageLights,
+  StageShadow,
+  useCameraFlight,
+  useOutlineMaterial,
+} from "./Stage.tsx";
 import { useFreeInsets } from "./useFreeInsets.ts";
 import { BODY_VIEWS, boundsAspect, CAMERA_FOV, fitCamera, type BodyViewName } from "./views.ts";
 
@@ -73,15 +81,17 @@ export function BodyViewer({ body, textures, active, onPick, toolbarTarget, fram
         </span>
         <Canvas
           camera={{ fov: CAMERA_FOV, near: 1, far: 4000 }}
-          gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
-          dpr={[1, 2]}
-          onPointerMissed={() => setHover(null)}
+          gl={STAGE_GL}
+          dpr={STAGE_DPR}
+          frameloop="demand"
+          onPointerMissed={(e) => {
+            setHover(null);
+            // Double-click beside the body resets the camera to the current preset.
+            if (e.type === "dblclick") setView((s) => ({ name: s.name, request: s.request + 1 }));
+          }}
         >
-          <hemisphereLight
-            args={[LIGHTS.hemisphere.sky, LIGHTS.hemisphere.ground, LIGHTS.hemisphere.intensity]}
-          />
-          <directionalLight position={LIGHTS.key.position} intensity={LIGHTS.key.intensity} />
-          <directionalLight position={LIGHTS.fill.position} intensity={LIGHTS.fill.intensity} />
+          <StageLights />
+          <StageShadow bounds={body.layout.bounds} />
           {REGION_IDS.map((id) => (
             <RegionMesh
               key={id}
@@ -122,6 +132,10 @@ export function RegionMesh(props: {
   onOut: () => void;
 }) {
   const { geometry, placement, texture, highlight } = props;
+  const outline = useOutlineMaterial(OUTLINE_WIDTH);
+  useEffect(() => {
+    if (highlight) applyAccent(outline);
+  }, [highlight, outline]);
   const map = useMemo(
     () => (texture ? skinTexture(texture.canvas) : null),
     // A new texture per content version, as in ArmModel.
@@ -129,7 +143,8 @@ export function RegionMesh(props: {
     [texture?.canvas, texture?.version],
   );
   useEffect(() => () => map?.dispose(), [map]);
-  const emissive = highlight ? (props.highlightColor ?? "#5a2a18") : "#000000";
+  // A gentle neutral lift on top of the outline (a coloured glow would tint the artwork).
+  const emissive = highlight ? (props.highlightColor ?? HIGHLIGHT_LIFT) : "#000000";
   return (
     <mesh
       geometry={geometry}
@@ -146,20 +161,25 @@ export function RegionMesh(props: {
         color={map ? "#ffffff" : NEUTRAL_SKIN}
         roughness={SKIN_ROUGHNESS}
         emissive={emissive}
-        emissiveIntensity={0.35}
+        emissiveIntensity={0.12}
       />
       <meshStandardMaterial
         attach="material-1"
         color={CAP_COLOR}
         roughness={CAP_ROUGHNESS}
         emissive={emissive}
-        emissiveIntensity={0.35}
+        emissiveIntensity={0.12}
       />
+      {highlight && <mesh geometry={geometry} material={outline} raycast={noRaycast} />}
     </mesh>
   );
 }
 
 const BODY_MARGIN = 1.1;
+/** Width of the hover outline, in cm on the body. */
+const OUTLINE_WIDTH = 0.45;
+const HIGHLIGHT_LIFT = "#ffffff";
+const noRaycast = () => null;
 
 function BodyCameraRig({
   body,
@@ -172,10 +192,13 @@ function BodyCameraRig({
   request: number;
   frameAround?: HTMLElement | null;
 }) {
-  const controls = useRef<OrbitControlsImpl>(null);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
+  const invalidate = useThree((s) => s.invalidate);
+  const { controls, fly } = useCameraFlight();
+  const lastRequest = useRef<{ view: string; request: number } | null>(null);
   const bounds = body.layout.bounds;
+  const height = bounds.max[1] - bounds.min[1];
   const dir = BODY_VIEWS.find((v) => v.name === view)!.dir;
   const insets = useFreeInsets(frameAround, boundsAspect(bounds, dir, BODY_MARGIN));
   useEffect(() => {
@@ -187,11 +210,26 @@ function BodyCameraRig({
       else
         camera.setViewOffset(size.width, size.height, fit.offset[0], fit.offset[1], size.width, size.height);
     }
-    camera.position.set(...fit.position);
-    c.target.set(...fit.target);
-    c.update();
+    const distance = Math.hypot(...fit.position.map((v, i) => v - fit.target[i]!));
+    const prev = lastRequest.current;
+    lastRequest.current = { view, request };
+    fly(
+      { position: fit.position, target: fit.target },
+      prev !== null && (prev.view !== view || prev.request !== request),
+      Math.max(height * 5, distance * 1.5),
+    );
+    invalidate();
     // `dir` follows `view`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bounds, view, request, camera, size.width, size.height, insets]);
-  return <OrbitControls ref={controls} makeDefault enableDamping={false} />;
+  }, [bounds, view, request, camera, size.width, size.height, insets, fly, controls, height]);
+  // Zoom from the whole body down to a single motif.
+  return (
+    <OrbitControls
+      ref={controls}
+      makeDefault
+      enableDamping
+      dampingFactor={0.14}
+      minDistance={height * 0.18}
+    />
+  );
 }

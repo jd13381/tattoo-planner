@@ -40,6 +40,7 @@ import {
   type Handle,
   type ResizeOptions,
 } from "./resize.ts";
+import { placeTag, scaleLabelZones, type TagBounds, type TagRect } from "./tagPlacement.ts";
 import { imagePlacement } from "./viewBox.ts";
 
 type Props = {
@@ -68,6 +69,8 @@ type Props = {
   onZoom?: (pct: number) => void;
   /** Changing this number fits the whole sheet again (the status bar's Fit button). */
   fitRequest?: number;
+  /** A new `nonce` zooms about the middle of the view: factor > 1 zooms in (the status bar's − / +). */
+  zoomRequest?: { factor: number; nonce: number };
   /** false leaves out the usage hint under the editor (the page shows EDITOR_HINT elsewhere). */
   hint?: boolean;
   /** Floats next to the selected figure or existing tattoo (e.g. "Change image"); hidden while dragging. */
@@ -146,6 +149,7 @@ export function UnwrapEditor(props: Props) {
     onCursor,
     onZoom,
     fitRequest,
+    zoomRequest,
     hint = true,
     selectionAction,
     background: bg,
@@ -170,13 +174,24 @@ export function UnwrapEditor(props: Props) {
   const sign = screenSign(profile);
   const lineAt = (du: number) => lineNames[Math.round(wrapU(centerU + du) * 4) % 4]!;
   const edgeLabels = [lineAt(-sign * 0.25), lineAt(sign * 0.25)];
-  const fullView = useMemo<ViewBox>(() => ({ x: -half - 1, y: -1, w: 2 * half + 2, h: L + 2 }), [half, L]);
+  // A margin of 1 cm around the sheet, and a little more above it for the two edge labels.
+  const fullView = useMemo<ViewBox>(
+    () => ({ x: -half - 1, y: -TOP_MARGIN_CM, w: 2 * half + 2, h: L + TOP_MARGIN_CM + 1 }),
+    [half, L],
+  );
   const [view, setView] = useState<ViewBox>(fullView);
   // Fit on request (adjusting state during render, so no extra effect pass).
   const [fitSeen, setFitSeen] = useState(fitRequest);
   if (fitRequest !== fitSeen) {
     setFitSeen(fitRequest);
     setView(fullView);
+  }
+  const [zoomSeen, setZoomSeen] = useState(zoomRequest?.nonce);
+  if (zoomRequest && zoomRequest.nonce !== zoomSeen) {
+    setZoomSeen(zoomRequest.nonce);
+    const w = clampViewWidth(view.w / zoomRequest.factor, fullView.w);
+    const k = w / view.w;
+    setView({ x: view.x + (view.w - w) / 2, y: view.y + (view.h * (1 - k)) / 2, w, h: view.h * k });
   }
   const reportZoom = useEffectEvent((pct: number) => onZoom?.(pct));
   useEffect(() => reportZoom(Math.round((100 * fullView.w) / view.w)), [view.w, fullView.w]);
@@ -240,6 +255,8 @@ export function UnwrapEditor(props: Props) {
       ),
     [layout, profile, existing, aspects, patches],
   );
+
+  const labelZones = useMemo(() => scaleLabelZones(L), [L]);
 
   /** Screen (SVG) position of a skin point. */
   const toSvg = (u: number, y: number) => ({
@@ -507,7 +524,7 @@ export function UnwrapEditor(props: Props) {
     if (!ctm) return;
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
     const f = Math.exp(e.deltaY * 0.0015);
-    const w = Math.min(fullView.w * 2, Math.max(4, view.w * f));
+    const w = clampViewWidth(view.w * f, fullView.w);
     const k = w / view.w;
     setView({ x: p.x - (p.x - view.x) * k, y: p.y - (p.y - view.y) * k, w, h: view.h * k });
   };
@@ -562,18 +579,17 @@ export function UnwrapEditor(props: Props) {
             : undefined
         }
       >
-        <text className="edge-label" x={-half + 0.3} y={-0.3}>
-          {edgeLabels[0]} ←
+        <text className="edge-label" x={-half} y={-6 * px} style={{ fontSize: 10.5 * px }}>
+          ← {edgeLabels[0]}
         </text>
-        <text className="edge-label" x={half - 0.3} y={-0.3} textAnchor="end">
-          → {edgeLabels[1]}
+        <text className="edge-label" x={half} y={-6 * px} textAnchor="end" style={{ fontSize: 10.5 * px }}>
+          {edgeLabels[1]} →
         </text>
         {resolved.map((r, i) => (
           <ShapeOverlay
             passive={!!bg}
             key={r.element.id}
             shape={r.shape}
-            label={r.element.id}
             title={`${r.element.id} (${r.element.type})${r.element.locked ? ", locked" : r.shape.kind === "patch" ? ", placed by its projection" : ""}. Alt-click selects the element underneath.`}
             selected={i === selected}
             hovered={i === hover && !drag}
@@ -586,6 +602,30 @@ export function UnwrapEditor(props: Props) {
             onLeave={() => setHover((h) => (h === i ? null : h))}
           />
         ))}
+        {!bg && (
+          <g className="shape-tags">
+            {resolved.map((r, i) => (
+              <ShapeTag
+                key={r.element.id}
+                label={r.element.id}
+                bounds={shapeBounds(r.shape, toSvg, profile, centerU)}
+                px={px}
+                avoid={
+                  i === selected && r.shape.kind === "box" && !r.element.locked
+                    ? [...labelZones, rotateHandleZone(r.shape, toSvg, px)]
+                    : labelZones
+                }
+                selected={i === selected}
+                hovered={i === hover && !drag}
+                locked={!!r.element.locked}
+                fixed={r.shape.kind === "patch"}
+                onDown={(e) => onElementDown(e, i)}
+                onEnter={() => setHover(i)}
+                onLeave={() => setHover((h) => (h === i ? null : h))}
+              />
+            ))}
+          </g>
+        )}
         {bg && bgLayer && (
           <AreaOverlay
             layer={bgLayer}
@@ -667,7 +707,6 @@ type ToSvg = (u: number, y: number) => { x: number; y: number };
 
 function ShapeOverlay(props: {
   shape: Shape;
-  label: string;
   title: string;
   selected: boolean;
   hovered: boolean;
@@ -683,10 +722,9 @@ function ShapeOverlay(props: {
   /** Shown faintly and ignores the pointer (the Background view). */
   passive?: boolean;
 }) {
-  const { shape, label, title, selected, hovered, locked, toSvg, profile, onDown, passive } = props;
+  const { shape, title, selected, hovered, locked, toSvg, profile, onDown, passive } = props;
   const cls = `shape shape-${shape.kind}${selected && !passive ? " selected" : ""}${hovered && !passive ? " hovered" : ""}${locked ? " locked" : ""}${passive ? " passive" : ""}`;
   let body: React.ReactNode;
-  let labelAt: { x: number; y: number };
   switch (shape.kind) {
     case "box": {
       const c = toSvg(shape.uc, shape.cy);
@@ -702,7 +740,6 @@ function ShapeOverlay(props: {
           />
         </g>
       );
-      labelAt = { x: c.x, y: c.y - shape.h / 2 - 0.4 };
       break;
     }
     case "region":
@@ -712,15 +749,12 @@ function ShapeOverlay(props: {
       const left = ys.map((y) => toSvg(shape.u0, y));
       const right = ys.map((y) => toSvg(shape.u1, y)).reverse();
       body = <polygon points={[...left, ...right].map((p) => `${p.x},${p.y}`).join(" ")} />;
-      labelAt = toSvg(wrappedMidU(shape.u0, shape.u1), shape.y1);
-      labelAt = { x: labelAt.x, y: labelAt.y - 0.4 };
       break;
     }
     case "band": {
       const c = profile.circumferenceAt(shape.y);
       const p = toSvg(props.centerU, shape.y);
       body = <rect x={-c / 2} y={p.y - shape.half} width={c} height={shape.half * 2} />;
-      labelAt = { x: 0, y: p.y - shape.half - 0.4 };
       break;
     }
     case "line": {
@@ -732,7 +766,6 @@ function ShapeOverlay(props: {
           className="line-hit"
         />
       );
-      labelAt = { x: pts[0]!.x + 0.5, y: pts[0]!.y - 0.5 };
       break;
     }
   }
@@ -740,10 +773,121 @@ function ShapeOverlay(props: {
     <g className={cls} onPointerDown={onDown} onPointerEnter={props.onEnter} onPointerLeave={props.onLeave}>
       <title>{title}</title>
       {body}
-      <text x={labelAt.x} y={labelAt.y} textAnchor="middle" className="shape-label">
+    </g>
+  );
+}
+
+/** The sheet's margin above the far end, in cm: room for the edge labels at any window height. */
+const TOP_MARGIN_CM = 1.8;
+
+/** The zoom limits: from twice the whole sheet down to 4 cm across. */
+function clampViewWidth(w: number, fullWidth: number): number {
+  return Math.min(fullWidth * 2, Math.max(4, w));
+}
+
+/** An element's bounding box on the sheet (SVG units), for its name tag. */
+function shapeBounds(shape: Shape, toSvg: ToSvg, profile: RegionProfile, centerU: number): TagBounds {
+  switch (shape.kind) {
+    case "box": {
+      const c = toSvg(shape.uc, shape.cy);
+      const cos = Math.abs(Math.cos(shape.rot));
+      const sin = Math.abs(Math.sin(shape.rot));
+      const ex = (cos * shape.w + sin * shape.h) / 2;
+      const ey = (sin * shape.w + cos * shape.h) / 2;
+      return { left: c.x - ex, right: c.x + ex, top: c.y - ey, bottom: c.y + ey };
+    }
+    case "region":
+    case "patch": {
+      const mid = toSvg(wrappedMidU(shape.u0, shape.u1), shape.y1);
+      const xs = [shape.y0, shape.y1].flatMap((y) => [toSvg(shape.u0, y).x, toSvg(shape.u1, y).x]);
+      return {
+        left: Math.min(...xs),
+        right: Math.max(...xs),
+        top: mid.y,
+        bottom: toSvg(shape.u0, shape.y0).y,
+      };
+    }
+    case "band": {
+      const c = profile.circumferenceAt(shape.y);
+      const y = toSvg(centerU, shape.y).y;
+      return { left: -c / 2, right: c / 2, top: y - shape.half, bottom: y + shape.half };
+    }
+    case "line": {
+      const pts = shape.points.map((p) => toSvg(p.u, p.y));
+      const xs = pts.map((p) => p.x);
+      const ys = pts.map((p) => p.y);
+      return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+    }
+  }
+}
+
+/** The area the rotate handle of a selected box takes, so the box's tag keeps off it. */
+function rotateHandleZone(shape: Extract<Shape, { kind: "box" }>, toSvg: ToSvg, px: number): TagRect {
+  const c = toSvg(shape.uc, shape.cy);
+  const stemTop = -shape.h / 2 - HANDLE_PX.stem * px;
+  const r = (HANDLE_PX.rotateHit + 2) * px;
+  // The handle sits on the box's own "up" axis, which turns with the box.
+  const x = c.x + stemTop * Math.sin(shape.rot);
+  const y = c.y + stemTop * Math.cos(shape.rot);
+  return { x: x - r, y: y - r, w: 2 * r, h: 2 * r };
+}
+
+const TAG_FONT = '500 10.5px "Inter Variable", Inter, system-ui, sans-serif';
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+
+/** Width of a tag's text in screen pixels (an estimate where a canvas cannot measure it). */
+function tagTextWidth(text: string): number {
+  if (measureCtx === undefined) measureCtx = document.createElement("canvas").getContext("2d");
+  if (!measureCtx) return text.length * 6;
+  measureCtx.font = TAG_FONT;
+  return measureCtx.measureText(text).width;
+}
+
+/**
+ * An element's name on the sheet: a small tag on a corner of its box, in screen pixels at any zoom,
+ * clear of the grid's cm labels (tagPlacement.ts). It takes the pointer like the element itself, so
+ * a thin band or a short line can be picked and dragged by its name.
+ */
+function ShapeTag(props: {
+  label: string;
+  bounds: TagBounds;
+  /** SVG units (cm) per screen pixel. */
+  px: number;
+  avoid: readonly TagRect[];
+  selected: boolean;
+  hovered: boolean;
+  locked: boolean;
+  /** Placed by its projection: selectable, but it cannot be moved. */
+  fixed: boolean;
+  onDown: (e: ReactPointerEvent) => void;
+  onEnter: () => void;
+  onLeave: () => void;
+}) {
+  const { label, bounds, px, locked, fixed } = props;
+  const textW = tagTextWidth(label);
+  const w = (textW + 12 + (locked ? 12 : 0)) * px;
+  const h = 17 * px;
+  // The selected element's tag stands clear of its handles.
+  const tag = placeTag(bounds, { w, h }, (props.selected ? 10 : 4) * px, props.avoid);
+  const cls = `shape-tag${props.selected ? " selected" : ""}${props.hovered ? " hovered" : ""}${locked || fixed ? " locked" : ""}`;
+  return (
+    <g
+      className={cls}
+      transform={`translate(${tag.x} ${tag.y})`}
+      onPointerDown={props.onDown}
+      onPointerEnter={props.onEnter}
+      onPointerLeave={props.onLeave}
+    >
+      <rect width={w} height={h} rx={4 * px} />
+      <text x={6 * px} y={h / 2} style={{ fontSize: 10.5 * px }}>
         {label}
-        {locked ? " 🔒" : ""}
       </text>
+      {locked && (
+        <g className="tag-lock" transform={`translate(${w - 14 * px} ${4 * px}) scale(${px})`}>
+          <path d="M2.2 4V2.8a1.8 1.8 0 0 1 3.6 0V4" />
+          <rect x={0.8} y={4} width={6.4} height={5} rx={1.2} />
+        </g>
+      )}
     </g>
   );
 }

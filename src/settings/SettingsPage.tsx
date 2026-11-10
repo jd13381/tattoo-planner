@@ -3,6 +3,7 @@
 // measurements per region, the measuring wizard), the existing tattoos (list, guided setup and the
 // Advanced calibration page), the image-generation status and the appearance (theme).
 import type { ReactNode } from "react";
+import { BodyIcon, ContrastIcon, FolderIcon, ProjectionIcon, SparkleIcon } from "../ui/icons.tsx";
 import type { WorkingLayout } from "../layout/useLayouts.ts";
 import { ProjectionSettings } from "../projection/ProjectionSettings.tsx";
 import { ProjectPage } from "../project/ProjectPage.tsx";
@@ -25,6 +26,14 @@ type Props = {
 };
 
 /** Sections whose page is a full-bleed workspace (a 3D view filling the height). */
+const NAV_ICONS: Record<SettingsSection, ReactNode> = {
+  project: <FolderIcon />,
+  body: <BodyIcon />,
+  projection: <ProjectionIcon />,
+  "image-generation": <SparkleIcon />,
+  appearance: <ContrastIcon />,
+};
+
 const WORKSPACES: ReadonlySet<SettingsSection> = new Set(["body", "projection"]);
 
 export function SettingsPage(props: Props) {
@@ -62,9 +71,15 @@ export function SettingsPage(props: Props) {
                   onSection(s.id);
                 }}
               >
+                <span className="pg-nav-icon">{NAV_ICONS[s.id]}</span>
                 {s.label}
                 {unsaved?.[s.id] && (
-                  <span className="tab-dot" role="img" aria-label="unsaved changes" title="Unsaved changes" />
+                  <span
+                    className="tab-dot pg-nav-dot"
+                    role="img"
+                    aria-label="unsaved changes"
+                    title="Unsaved changes"
+                  />
                 )}
               </a>
             </li>

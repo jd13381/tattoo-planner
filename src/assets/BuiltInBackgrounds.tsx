@@ -6,22 +6,30 @@ import { STANDARD_BACKGROUNDS } from "./useStandardBackgrounds.ts";
 export function BuiltInBackgrounds() {
   const withImage = STANDARD_BACKGROUNDS.filter((s) => s.imageUrl).length;
   return (
-    <section className="builtin-backgrounds" aria-label="Built-in backgrounds">
-      <h3 className="assets-nav-head">Built in</h3>
+    <section className="builtin-backgrounds" aria-labelledby="builtin-backgrounds-title">
+      <div className="builtin-backgrounds-head">
+        <h3 id="builtin-backgrounds-title">Built in</h3>
+        <span className="assets-toolbar-count">{STANDARD_BACKGROUNDS.length}</span>
+      </div>
       <p className="faint small">
-        Standard backgrounds that come with the planner ({withImage} of {STANDARD_BACKGROUNDS.length} with a
-        generated image). Add one to a layout in Layout → Layers → + Background.
-        {withImage === 0 && " Without an image the planner draws a procedural version."}
+        Backgrounds that come with the planner. Add one to a layout in Layout → Layers → + Background.
+        {withImage < STANDARD_BACKGROUNDS.length &&
+          " Those without an image are drawn by the planner as a pattern."}
       </p>
-      <ul className="builtin-backgrounds-grid">
+      <ul className="assets-grid builtin-backgrounds-grid">
         {STANDARD_BACKGROUNDS.map((s) => (
           <li key={s.name} title={`${s.label}, tile ${s.tileCm} cm`}>
-            {s.imageUrl ? (
-              <img src={s.imageUrl} alt={s.label} loading="lazy" />
-            ) : (
-              <span className="builtin-backgrounds-none faint small">procedural</span>
-            )}
-            <span className="small">{s.label}</span>
+            <span className="assets-well">
+              {s.imageUrl ? (
+                <img src={s.imageUrl} alt="" loading="lazy" />
+              ) : (
+                <span className="builtin-backgrounds-none">Pattern</span>
+              )}
+            </span>
+            <span className="assets-caption">
+              <span className="assets-name">{s.label}</span>
+              <span className="assets-usage">{s.tileCm} cm</span>
+            </span>
           </li>
         ))}
       </ul>

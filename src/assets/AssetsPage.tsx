@@ -33,7 +33,6 @@ import {
 import {
   actionToast,
   allHiddenText,
-  emptySectionText,
   filterEmptyText,
   images,
   poseLabel,
@@ -77,10 +76,69 @@ import {
 } from "./types.ts";
 import { parseTags } from "./usage.ts";
 import { announceManifestChanged, useAssetListing, useAssetUsage } from "./useAssets.ts";
+import { THUMB_LABELS, THUMB_MIN_PX, THUMB_SIZES, useThumbSize, type ThumbSize } from "./useThumbSize.ts";
+import {
+  CheckIcon,
+  CloseIcon,
+  EyeOffIcon,
+  LayoutTabIcon,
+  ProjectionIcon,
+  RefreshIcon,
+  SearchIcon,
+  StudioIcon,
+  ThumbsLargeIcon,
+  ThumbsMediumIcon,
+  ThumbsSmallIcon,
+} from "../ui/icons.tsx";
 
 const SETUP_HREF = "#settings/project";
-const READ_ONLY_HINT =
-  "The sample project is read-only. Save it as a new project (Settings → Project) to change images.";
+/** Tooltip of every action the read-only sample disables (the top bar's chip says "read-only"). */
+const READ_ONLY_TIP = "The sample project is read-only. Save it as a new project to change images.";
+
+const THUMB_ICONS: Record<ThumbSize, () => React.ReactNode> = {
+  s: ThumbsSmallIcon,
+  m: ThumbsMediumIcon,
+  l: ThumbsLargeIcon,
+};
+
+/** What an empty section says; `drop`: the section takes dropped files (not in the read-only sample). */
+const EMPTY_STATES: Record<SectionId, { title: string; body: string; drop?: true }> = {
+  all: {
+    title: "No images yet",
+    body: "Reference images, photos and studio results of this project show up here.",
+    drop: true,
+  },
+  ideas: {
+    title: "No ideas yet",
+    body: "Reference images for your tattoo. Make one in the Image studio, or add your own.",
+    drop: true,
+  },
+  studio: {
+    title: "Nothing made in the studio yet",
+    body: "Images you keep in the Image studio, edited or newly created, show up here.",
+  },
+  backgrounds: {
+    title: "No backgrounds of your own yet",
+    body: "Your own background images show up here, next to the built-in ones below.",
+    drop: true,
+  },
+  measuring: {
+    title: "No measuring photos yet",
+    body: "Photos of your arm help check your measurements.",
+    drop: true,
+  },
+  existing: {
+    title: "No tattoo photos yet",
+    body: "Photos of tattoos you already have. Bring one onto the body in Settings → Projection.",
+    drop: true,
+  },
+  unused: { title: "Every image is in use", body: "Each image is used in a layout or a projection." },
+  hidden: {
+    title: "Nothing is hidden",
+    body: "Hide images you do not want in the pickers. Their files stay in the project.",
+  },
+  missing: { title: "No missing files", body: "Every catalogued image has its file." },
+};
 
 const LIBRARY_SECTIONS: SectionId[] = ["ideas", "studio", "backgrounds"];
 const PERSON_SECTIONS: SectionId[] = ["measuring", "existing"];
@@ -121,6 +179,7 @@ export function AssetsPage() {
   const [dropping, setDropping] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [thumbSize, setThumbSize] = useThumbSize();
   const toastSeq = useRef(0);
   const gridRef = useRef<HTMLUListElement>(null);
   const pendingFocus = useRef(false);
@@ -405,39 +464,50 @@ export function AssetsPage() {
   });
 
   // ── Render ────────────────────────────────────────────────────────────────────────────────────
-  let body: React.ReactNode;
-  if (!listing) body = <p className="muted assets-loading">Loading…</p>;
-  else if (listing.status === "unset")
-    body = (
-      <div className="empty">
-        <h2>No project folder yet</h2>
-        <p>
-          Your reference images, photos and exports live in a project folder outside the planner. Set one up
-          to see your images here.
-        </p>
-        <a className="button primary" href={SETUP_HREF}>
-          Set up in Settings → Project
-        </a>
+  if (!listing)
+    return (
+      <div className="assets-page">
+        <p className="muted assets-loading">Loading…</p>
       </div>
     );
-  else if (listing.status === "error")
-    body = (
-      <div className="empty">
-        <h2>The images cannot be read</h2>
-        <p>{listing.message}</p>
-        <a className="button" href={SETUP_HREF}>
-          Open Settings → Project
-        </a>
+  if (listing.status === "unset")
+    return (
+      <div className="assets-page">
+        <div className="empty">
+          <h2>No project folder yet</h2>
+          <p>
+            Your reference images, photos and exports live in a project folder outside the planner. Set one up
+            to see your images here.
+          </p>
+          <a className="button primary" href={SETUP_HREF}>
+            Set up in Settings → Project
+          </a>
+        </div>
       </div>
     );
-  else {
-    const hiddenHere = hiddenInSection(assets, section, ctx);
-    const nav = (id: SectionId) => (
+  if (listing.status === "error")
+    return (
+      <div className="assets-page">
+        <div className="empty">
+          <h2>The images cannot be read</h2>
+          <p>{listing.message}</p>
+          <a className="button" href={SETUP_HREF}>
+            Open Settings → Project
+          </a>
+        </div>
+      </div>
+    );
+
+  const hiddenHere = hiddenInSection(assets, section, ctx);
+  const nav = (id: SectionId) => {
+    const n = counts[id];
+    return (
       <li key={id}>
         <button
           type="button"
-          className={`assets-nav-item${section === id ? " current" : ""}`}
+          className={`assets-nav-item${section === id ? " current" : ""}${n === 0 ? " is-empty" : ""}`}
           aria-current={section === id ? "true" : undefined}
+          aria-label={`${SECTION_LABELS[id]}, ${n === 0 ? "empty" : images(n)}`}
           onClick={() => {
             setSection(id);
             setStudioSub("");
@@ -445,71 +515,103 @@ export function AssetsPage() {
           }}
         >
           <span>{SECTION_LABELS[id]}</span>
-          <span className="faint mono">{counts[id]}</span>
+          {n > 0 && <span className="assets-nav-count">{n}</span>}
         </button>
       </li>
     );
-    let grid: React.ReactNode;
-    if (shown.length > 0)
-      grid = (
-        <ul
-          ref={gridRef}
-          className="asset-grid large assets-grid"
-          role="listbox"
-          aria-label={`${SECTION_LABELS[section]}: ${images(shown.length)}`}
-          aria-multiselectable={selection.active || undefined}
-          onKeyDown={onGridKey}
-          tabIndex={-1}
-        >
-          {shown.map((a) => (
-            <AssetCard
-              key={a.id}
-              asset={a}
-              uses={usage?.[a.id]}
-              usageKnown={usage !== null}
-              selecting={selection.active}
-              selected={selection.ids.includes(a.id)}
-              current={!selection.active && a.id === detailId}
-              tabIndex={a.id === rovingId ? 0 : -1}
-              onClick={(e) => onCardClick(e, a.id)}
-              onFocus={() => setFocusId(a.id)}
-            />
-          ))}
-        </ul>
-      );
-    else if (inSection.length > 0)
-      grid = (
-        <p className="muted small assets-empty-line">
-          {filterEmptyText(filter.text, section)}{" "}
-          <button type="button" className="link" onClick={() => setFilter(NO_FILTER)}>
-            Clear filter
-          </button>
+  };
+
+  const canDrop = !readOnly;
+  let grid: React.ReactNode;
+  if (shown.length > 0)
+    grid = (
+      <ul
+        ref={gridRef}
+        className="assets-grid"
+        style={{ "--assets-tile": `${THUMB_MIN_PX[thumbSize]}px` } as React.CSSProperties}
+        role="listbox"
+        aria-label={`${SECTION_LABELS[section]}: ${images(shown.length)}`}
+        aria-multiselectable={selection.active || undefined}
+        onKeyDown={onGridKey}
+        tabIndex={-1}
+      >
+        {shown.map((a) => (
+          <AssetCard
+            key={a.id}
+            asset={a}
+            uses={usage?.[a.id]}
+            usageKnown={usage !== null}
+            selecting={selection.active}
+            selected={selection.ids.includes(a.id)}
+            current={!selection.active && a.id === detailId}
+            tabIndex={a.id === rovingId ? 0 : -1}
+            onClick={(e) => onCardClick(e, a.id)}
+            onCheck={() => setSelection(toggle(selection, a.id))}
+            onFocus={() => setFocusId(a.id)}
+          />
+        ))}
+      </ul>
+    );
+  else if (inSection.length > 0)
+    grid = (
+      <div className="empty assets-empty">
+        <h2>No matches</h2>
+        <p>{filterEmptyText(filter.text, section)}</p>
+        <button type="button" onClick={() => setFilter(NO_FILTER)}>
+          Clear search and tag
+        </button>
+      </div>
+    );
+  else if (hiddenHere > 0)
+    grid = (
+      <div className="empty assets-empty">
+        <h2>Everything here is hidden</h2>
+        <p>{allHiddenText(hiddenHere)} Hidden images stay out of the pickers; their files stay.</p>
+        <button type="button" onClick={() => setShowHidden(true)}>
+          Show hidden images
+        </button>
+      </div>
+    );
+  else {
+    const empty = EMPTY_STATES[section];
+    const firstRun = assets.length === 0 && (section === "all" || section === "ideas");
+    grid = (
+      <div className={`empty assets-empty${section === "backgrounds" ? " small" : ""}`}>
+        <h2>{empty.title}</h2>
+        <p>
+          {empty.body}
+          {empty.drop && canDrop && " Drop image files here to add them."}
         </p>
-      );
-    else if (hiddenHere > 0)
-      grid = (
-        <p className="muted small assets-empty-line">
-          {allHiddenText(hiddenHere)}{" "}
-          <button type="button" className="link" onClick={() => setShowHidden(true)}>
-            Show hidden
-          </button>
-        </p>
-      );
-    else
-      grid = (
-        <div className="assets-empty">
-          <p className="muted">{emptySectionText(section)}</p>
-          {(section === "all" || section === "ideas") && assets.length === 0 && (
-            <button type="button" onClick={reload}>
+        {firstRun && (
+          <>
+            <p>
+              {canDrop ? "Or copy" : "Copy"} images into the <code>images/</code> folder of your project
+              folder, then press <strong>Look for new images</strong>.
+            </p>
+            <button type="button" className="primary" onClick={reload}>
               Look for new images
             </button>
-          )}
-        </div>
-      );
+          </>
+        )}
+        {section === "studio" && (
+          <a className="button" href="#images">
+            Open the Image studio
+          </a>
+        )}
+      </div>
+    );
+  }
 
-    const inUse = selected.filter((a) => isInUse(usage?.[a.id])).length;
-    body = (
-      <div className={`assets-layout${selection.active ? " selecting" : ""}`}>
+  const inUse = selected.filter((a) => isInUse(usage?.[a.id])).length;
+  const showDetail = selection.active ? selected.length > 0 : !!detail;
+  const total = counts[section];
+  const disabledTip = readOnly ? READ_ONLY_TIP : undefined;
+
+  return (
+    <div className="assets-page">
+      <div
+        className={`assets-layout${selection.active ? " selecting" : ""}${showDetail ? " has-detail" : ""}`}
+      >
         <nav className="assets-nav" aria-label="Sections">
           <ul>{nav("all")}</ul>
           <h3 className="assets-nav-head">Library</h3>
@@ -528,14 +630,23 @@ export function AssetsPage() {
           }}
           onDrop={(e) => void onDrop(e)}
         >
-          <div className="assets-filters">
-            <input
-              type="search"
-              placeholder={`Search ${SECTION_LABELS[section].toLowerCase()}: id, notes, source, tags`}
-              value={filter.text}
-              onChange={(e) => setFilter({ ...filter, text: e.target.value })}
-              aria-label="Search images"
-            />
+          <header className="assets-toolbar">
+            <div className="assets-toolbar-title">
+              <h2>{SECTION_LABELS[section]}</h2>
+              <span className="assets-toolbar-count" aria-live="polite">
+                {total === 0 ? "" : shown.length === total ? total : `${shown.length} of ${total}`}
+              </span>
+            </div>
+            <label className="assets-search">
+              <SearchIcon />
+              <input
+                type="search"
+                placeholder="Search images"
+                value={filter.text}
+                onChange={(e) => setFilter({ ...filter, text: e.target.value })}
+                aria-label="Search images"
+              />
+            </label>
             {section === "studio" && (
               <div className="segmented" role="group" aria-label="Made in studio">
                 {(["", "generated", "edit"] as const).map((v) => (
@@ -550,20 +661,23 @@ export function AssetsPage() {
                 ))}
               </div>
             )}
-            <select
-              value={filter.tag}
-              onChange={(e) => setFilter({ ...filter, tag: e.target.value })}
-              aria-label="Tag"
-            >
-              <option value="">All tags</option>
-              {tags.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.value} ({t.count})
-                </option>
-              ))}
-            </select>
-            {section !== "hidden" && (
-              <label className="inline switch-label">
+            {tags.length > 0 && (
+              <select
+                className="assets-tag-select"
+                value={filter.tag}
+                onChange={(e) => setFilter({ ...filter, tag: e.target.value })}
+                aria-label="Tag"
+              >
+                <option value="">All tags</option>
+                {tags.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.value} ({t.count})
+                  </option>
+                ))}
+              </select>
+            )}
+            {section !== "hidden" && (counts.hidden > 0 || showHidden) && (
+              <label className="inline switch-label" title="Also show images left out of the pickers">
                 <input
                   type="checkbox"
                   role="switch"
@@ -574,33 +688,71 @@ export function AssetsPage() {
                 Show hidden
               </label>
             )}
-            <span className="faint small">
-              {shown.length} of {counts[section]}
+            <span className="spacer" />
+            {scanNote && <span className="faint small assets-note">{scanNote}</span>}
+            <span className="segmented assets-size" role="group" aria-label="Thumbnail size">
+              {THUMB_SIZES.map((s) => {
+                const Icon = THUMB_ICONS[s];
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    className="icon-button"
+                    aria-pressed={thumbSize === s}
+                    aria-label={THUMB_LABELS[s]}
+                    title={THUMB_LABELS[s]}
+                    onClick={() => setThumbSize(s)}
+                  >
+                    <Icon />
+                  </button>
+                );
+              })}
             </span>
-          </div>
-          {readOnly && <p className="notice info small">{READ_ONLY_HINT}</p>}
+            <button
+              type="button"
+              className="ghost icon-button"
+              onClick={reload}
+              aria-label="Look for new images"
+              title="Look for new images copied into the project folder"
+            >
+              <RefreshIcon />
+            </button>
+            {assets.length > 0 && (
+              <button
+                type="button"
+                aria-pressed={selection.active}
+                className={selection.active ? "primary" : ""}
+                title={selection.active ? "End selecting (Esc)" : "Choose several images (or ⌘-click)"}
+                onClick={() => setSelection(selection.active ? stopSelecting() : startSelecting(selection))}
+              >
+                {selection.active ? "Done" : "Select"}
+              </button>
+            )}
+          </header>
           {notice && (
-            <p className="notice warn small">
+            <p className="notice warn small assets-notice">
               {notice}{" "}
               <button type="button" className="link" onClick={() => setNotice(null)}>
                 Dismiss
               </button>
             </p>
           )}
-          {grid}
-          {section === "backgrounds" && <BuiltInBackgrounds />}
-          {listing.warnings.length > 0 && (
-            <details className="small warn">
-              <summary>
-                {listing.warnings.length} catalogue warning{listing.warnings.length === 1 ? "" : "s"}
-              </summary>
-              <ul>
-                {listing.warnings.map((w) => (
-                  <li key={w}>{w}</li>
-                ))}
-              </ul>
-            </details>
-          )}
+          <div className="assets-scroll">
+            {grid}
+            {section === "backgrounds" && <BuiltInBackgrounds />}
+            {listing.warnings.length > 0 && (
+              <details className="small warn assets-warnings">
+                <summary>
+                  {listing.warnings.length} catalogue warning{listing.warnings.length === 1 ? "" : "s"}
+                </summary>
+                <ul>
+                  {listing.warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
           {dropping && (
             <div className="assets-drop" aria-hidden="true">
               Drop to add to {dropLabel}
@@ -609,92 +761,79 @@ export function AssetsPage() {
           {selection.active && (
             <div className="assets-actionbar" role="toolbar" aria-label="Selected images">
               <span className="assets-actionbar-count" aria-live="polite">
-                {selection.ids.length} selected
-                {inUse > 0 && <span className="faint"> · {inUse} in use</span>}
+                {selection.ids.length === 0 ? (
+                  <span className="muted">Click images to select them · Shift-click for a range</span>
+                ) : (
+                  <>
+                    {selection.ids.length} selected
+                    {inUse > 0 && <span className="faint"> · {inUse} in use</span>}
+                  </>
+                )}
               </span>
               <span className="spacer" />
-              <HideButton
-                assets={selected}
-                disabled={readOnly || busy || selected.length === 0}
-                onHide={(hide) => void act(selection.ids.slice(), hide ? "hide" : "unhide")}
-              />
-              <MoveSelect
-                disabled={readOnly || busy || selected.length === 0}
-                persons={persons}
-                onMove={(category, p) => void act(selection.ids.slice(), "move", { category, person: p })}
-              />
-              <button
-                type="button"
-                className="danger"
-                disabled={readOnly || busy || selected.length === 0}
-                onClick={() => openTrash(selection.ids.slice())}
-              >
-                Move to Trash…
-              </button>
-              <button type="button" className="primary" onClick={() => setSelection(stopSelecting())}>
-                Done
-              </button>
+              <span className="assets-tip" title={disabledTip}>
+                <HideButton
+                  assets={selected}
+                  disabled={readOnly || busy || selected.length === 0}
+                  onHide={(hide) => void act(selection.ids.slice(), hide ? "hide" : "unhide")}
+                />
+              </span>
+              <span className="assets-tip" title={disabledTip}>
+                <MoveSelect
+                  disabled={readOnly || busy || selected.length === 0}
+                  persons={persons}
+                  onMove={(category, p) => void act(selection.ids.slice(), "move", { category, person: p })}
+                />
+              </span>
+              <span className="assets-tip" title={disabledTip}>
+                <button
+                  type="button"
+                  className="danger"
+                  disabled={readOnly || busy || selected.length === 0}
+                  onClick={() => openTrash(selection.ids.slice())}
+                >
+                  Move to Trash…
+                </button>
+              </span>
             </div>
           )}
         </section>
-        <aside className="assets-detail" aria-label="Image details">
-          {selection.active && selected.length > 0 ? (
-            <SelectionSummary assets={selected} usage={usage} />
-          ) : detail ? (
-            <AssetDetail
-              key={detail.id}
-              asset={detail}
-              all={assets}
-              uses={usage?.[detail.id] ?? []}
-              usageKnown={usage !== null}
-              readOnly={readOnly}
-              persons={persons}
-              busy={busy}
-              onOpen={setDetailId}
-              onHide={(hide) => void act([detail.id], hide ? "hide" : "unhide")}
-              onMove={(category, p) => void act([detail.id], "move", { category, person: p })}
-              onTrash={() => openTrash([detail.id])}
-            />
-          ) : (
-            <p className="muted small assets-detail-empty">
-              {selection.active
-                ? "Click images to select them. Shift-click selects a range."
-                : "Click an image to see where it is used and to edit it. Press Select to choose several."}
-            </p>
-          )}
-        </aside>
+        {showDetail && (
+          <aside
+            className="assets-detail"
+            aria-label={selection.active ? "Selected images" : "Image details"}
+          >
+            {selection.active ? (
+              <SelectionSummary
+                assets={selected}
+                usage={usage}
+                onClose={() => setSelection(stopSelecting())}
+              />
+            ) : (
+              detail && (
+                <AssetDetail
+                  key={detail.id}
+                  asset={detail}
+                  all={assets}
+                  uses={usage?.[detail.id] ?? []}
+                  usageKnown={usage !== null}
+                  readOnly={readOnly}
+                  persons={persons}
+                  busy={busy}
+                  onOpen={setDetailId}
+                  onClose={() => {
+                    setDetailId(null);
+                    focusCard(detail.id);
+                  }}
+                  onHide={(hide) => void act([detail.id], hide ? "hide" : "unhide")}
+                  onMove={(category, p) => void act([detail.id], "move", { category, person: p })}
+                  onTrash={() => openTrash([detail.id])}
+                />
+              )
+            )}
+          </aside>
+        )}
       </div>
-    );
-  }
-
-  return (
-    <div className="assets-page">
-      <header className="assets-head">
-        <h2>Assets</h2>
-        {ok && <span className="faint mono">{images(assets.length)}</span>}
-        <span className="spacer" />
-        {scanNote && <span className="faint small assets-note">{scanNote}</span>}
-        {ok && (
-          <button
-            type="button"
-            onClick={reload}
-            title="Catalogue images newly copied into the project folder"
-          >
-            Look for new images
-          </button>
-        )}
-        {ok && assets.length > 0 && (
-          <button
-            type="button"
-            aria-pressed={selection.active}
-            className={selection.active ? "primary" : ""}
-            onClick={() => setSelection(selection.active ? stopSelecting() : startSelecting(selection))}
-          >
-            {selection.active ? "Done" : "Select"}
-          </button>
-        )}
-      </header>
-      {body}
       {dialog && (
         <TrashDialogView
           dialog={dialog}
@@ -724,12 +863,16 @@ function AssetCard(props: {
   current: boolean;
   tabIndex: number;
   onClick: (e: MouseEvent) => void;
+  /** The round check in the corner: selects this image (and starts select mode). */
+  onCheck: () => void;
   onFocus: () => void;
 }) {
   const { asset: a, uses } = props;
+  const used = isInUse(uses);
   const label = [
     a.id,
     CATEGORY_LABELS_ONE[a.effectiveCategory],
+    props.usageKnown && usageBadge(uses),
     a.hidden && "hidden",
     !a.exists && "file missing",
   ]
@@ -742,27 +885,36 @@ function AssetCard(props: {
       aria-selected={props.selecting ? props.selected : props.current}
       aria-label={label}
       tabIndex={props.tabIndex}
-      className={`asset-card assets-card${props.current ? " current" : ""}${props.selected ? " selected" : ""}${a.exists ? "" : " missing"}${a.hidden ? " hidden-asset" : ""}`}
+      className={`assets-card${props.current ? " current" : ""}${props.selected ? " selected" : ""}${props.selecting ? " selecting" : ""}${a.exists ? "" : " missing"}${a.hidden ? " hidden-asset" : ""}`}
       title={[a.id, a.source, a.notes].filter(Boolean).join("\n")}
       onClick={props.onClick}
       onFocus={props.onFocus}
     >
-      {a.exists ? (
-        <img src={assetImageUrl(a.id)} alt={a.notes ?? a.id} loading="lazy" decoding="async" />
-      ) : (
-        <span className="asset-missing">file missing</span>
-      )}
-      {props.selecting && (
-        <span className={`select-check${props.selected ? " on" : ""}`} aria-hidden="true">
-          {props.selected ? "✓" : ""}
+      <span className="assets-well">
+        {a.exists ? (
+          <img src={assetImageUrl(a.id)} alt="" loading="lazy" decoding="async" draggable={false} />
+        ) : (
+          <span className="assets-missing">File missing</span>
+        )}
+      </span>
+      <span
+        className={`select-check${props.selected ? " on" : ""}`}
+        aria-hidden="true"
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onCheck();
+        }}
+      >
+        {props.selected && <CheckIcon />}
+      </span>
+      {a.hidden && (
+        <span className="assets-flag" aria-hidden="true">
+          <EyeOffIcon /> Hidden
         </span>
       )}
-      <span className="asset-id">{a.id}</span>
-      <span className="asset-badges">
-        {props.usageKnown && (
-          <span className={`asset-badge${isInUse(uses) ? " used" : ""}`}>{usageBadge(uses)}</span>
-        )}
-        {a.hidden && <span className="asset-badge">hidden</span>}
+      <span className="assets-caption">
+        <span className="assets-name">{a.id}</span>
+        {props.usageKnown && used && <span className="assets-usage">{usageBadge(uses)}</span>}
       </span>
     </li>
   );
@@ -829,14 +981,34 @@ function MoveSelect(props: {
   );
 }
 
-function SelectionSummary({ assets, usage }: { assets: AssetInfo[]; usage: UsageMap | null }) {
+function SelectionSummary({
+  assets,
+  usage,
+  onClose,
+}: {
+  assets: AssetInfo[];
+  usage: UsageMap | null;
+  onClose: () => void;
+}) {
   const bySection = facets(assets.map((a) => CATEGORY_LABELS[a.effectiveCategory]));
   const used = assets.filter((a) => isInUse(usage?.[a.id]));
+  const hidden = assets.filter((a) => a.hidden).length;
   return (
     <section className="asset-detail">
-      <h3 className="asset-detail-id">{images(assets.length)} selected</h3>
+      <header className="assets-detail-head">
+        <h3 className="asset-detail-id">{images(assets.length)} selected</h3>
+        <button
+          type="button"
+          className="ghost icon-button"
+          aria-label="End selecting"
+          title="End selecting (Esc)"
+          onClick={onClose}
+        >
+          <CloseIcon />
+        </button>
+      </header>
       <ul className="selection-strip" aria-hidden="true">
-        {assets.slice(0, 8).map((a) => (
+        {assets.slice(0, 12).map((a) => (
           <li key={a.id}>
             {a.exists ? <img src={assetImageUrl(a.id)} alt="" /> : <span className="asset-missing" />}
           </li>
@@ -851,32 +1023,55 @@ function SelectionSummary({ assets, usage }: { assets: AssetInfo[]; usage: Usage
         ))}
         <dt>In use</dt>
         <dd>{used.length === 0 ? "none" : used.map((a) => a.id).join(", ")}</dd>
-        <dt>Hidden</dt>
-        <dd>{assets.filter((a) => a.hidden).length}</dd>
+        {hidden > 0 && (
+          <>
+            <dt>Hidden</dt>
+            <dd>{hidden}</dd>
+          </>
+        )}
       </dl>
-      <p className="faint small">
-        <kbd className="kbd">H</kbd> hides, <kbd className="kbd">Delete</kbd> moves to the Trash,{" "}
-        <kbd className="kbd">Esc</kbd> ends selecting.
+      <p className="faint small assets-keys">
+        <kbd className="kbd">H</kbd> hides · <kbd className="kbd">Delete</kbd> moves to the Trash ·{" "}
+        <kbd className="kbd">Esc</kbd> ends selecting
       </p>
     </section>
   );
 }
 
-function UseLink({ assetId, use }: { assetId: string; use: AssetUse }) {
-  const text = describeUse(assetId, use).slice(assetId.length + 2);
+/** One place an image is used, as a chip that opens it. */
+function UseChip({ assetId, use }: { assetId: string; use: AssetUse }) {
+  const title = describeUse(assetId, use).slice(assetId.length + 2);
   if (use.kind === "layout")
     return (
       <button
         type="button"
-        className="link"
+        className="assets-use"
+        title={`Open ${title}`}
         onClick={() => showElement({ layout: use.layout, element: use.element })}
       >
-        {text}
+        <LayoutTabIcon />
+        <span>{use.layout}</span>
+        {use.element && <span className="assets-use-sub">{use.element}</span>}
       </button>
     );
-  if (use.kind === "projection") return <a href="#settings/projection">{text}</a>;
-  if (use.kind === "session") return <a href="#images">{text}</a>;
-  return <span>{text}</span>;
+  if (use.kind === "projection")
+    return (
+      <a className="assets-use" href="#settings/projection" title={`Open ${title}`}>
+        <ProjectionIcon />
+        <span>{use.label}</span>
+        <span className="assets-use-sub">
+          {use.cleaned ? "cleaned " : ""}photo {use.photo}
+        </span>
+      </a>
+    );
+  if (use.kind === "session")
+    return (
+      <a className="assets-use" href="#images" title="Open the Image studio">
+        <StudioIcon />
+        <span>Open in the Image studio</span>
+      </a>
+    );
+  return <span className="assets-use">{title}</span>;
 }
 
 function AssetDetail(props: {
@@ -888,6 +1083,7 @@ function AssetDetail(props: {
   persons: PersonRef[];
   busy: boolean;
   onOpen: (id: string) => void;
+  onClose: () => void;
   onHide: (hide: boolean) => void;
   onMove: (category: AssetCategory, person: string | null) => void;
   onTrash: () => void;
@@ -924,6 +1120,7 @@ function AssetDetail(props: {
   const layoutUses = uses.filter((u) => u.kind !== "derived");
   const pose = asset.effectiveCategory === "measuring" ? poseLabel(asset.file) : null;
   const owner = props.persons.find((p) => p.id === asset.effectivePerson);
+  const tip = readOnly ? READ_ONLY_TIP : undefined;
 
   const save = async () => {
     setState({ kind: "saving" });
@@ -946,23 +1143,43 @@ function AssetDetail(props: {
 
   return (
     <section className="asset-detail">
+      <header className="assets-detail-head">
+        <h3 className="asset-detail-id">{asset.id}</h3>
+        <button
+          type="button"
+          className="ghost icon-button"
+          aria-label="Close details"
+          title="Close (Esc)"
+          onClick={props.onClose}
+        >
+          <CloseIcon />
+        </button>
+      </header>
       <div className="asset-detail-image">
         {asset.exists ? (
           <img src={assetImageUrl(asset.id)} alt={asset.notes ?? asset.id} />
         ) : (
-          <span className="asset-missing">file missing</span>
+          <span className="asset-missing">File missing</span>
         )}
       </div>
-      <h3 className="asset-detail-id">{asset.id}</h3>
       <div className="asset-detail-section">
-        <span className="chip muted">{CATEGORY_LABELS_ONE[asset.effectiveCategory]}</span>
-        <MoveSelect
-          disabled={readOnly || props.busy}
-          persons={props.persons}
-          current={asset}
-          onMove={props.onMove}
-        />
+        <span className="chip plain">{CATEGORY_LABELS_ONE[asset.effectiveCategory]}</span>
+        {asset.hidden && (
+          <span className="chip plain">
+            <EyeOffIcon /> Hidden
+          </span>
+        )}
+        <span className="spacer" />
+        <span className="assets-tip" title={tip}>
+          <MoveSelect
+            disabled={readOnly || props.busy}
+            persons={props.persons}
+            current={asset}
+            onMove={props.onMove}
+          />
+        </span>
       </div>
+      {asset.notes && readOnly && <p className="assets-detail-notes">{asset.notes}</p>}
       <dl className="asset-facts">
         <dt>File</dt>
         <dd className="mono">{asset.file}</dd>
@@ -999,8 +1216,26 @@ function AssetDetail(props: {
           </>
         )}
       </dl>
+
+      <div className="assets-detail-block">
+        <h4 className="props-head">Used in</h4>
+        {!props.usageKnown ? (
+          <p className="muted small">Checking…</p>
+        ) : layoutUses.length === 0 ? (
+          <p className="muted small">Not used in a layout or projection yet.</p>
+        ) : (
+          <ul className="assets-uses">
+            {layoutUses.map((u, i) => (
+              <li key={i}>
+                <UseChip assetId={asset.id} use={u} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {children.length > 0 && (
-        <>
+        <div className="assets-detail-block">
           <h4 className="props-head">Edits made from it</h4>
           <ul className="selection-strip">
             {children.map((c) => (
@@ -1015,85 +1250,117 @@ function AssetDetail(props: {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {readOnly ? (
+        <>
+          {asset.tags.length > 0 && (
+            <div className="assets-detail-block">
+              <h4 className="props-head">Tags</h4>
+              <ul className="assets-tags">
+                {asset.tags.map((t) => (
+                  <li key={t} className="assets-tag">
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="assets-readonly small">
+            This is the read-only sample. To edit tags and notes, hide or trash images,{" "}
+            <a href={SETUP_HREF}>save it as a new project</a>.
+          </p>
         </>
-      )}
-      <h4 className="props-head">Used in</h4>
-      {!props.usageKnown ? (
-        <p className="muted small">Checking…</p>
-      ) : layoutUses.length === 0 ? (
-        <p className="muted small">Not used in any layout or projection.</p>
       ) : (
-        <ul className="asset-uses">
-          {layoutUses.map((u, i) => (
-            <li key={i}>
-              <UseLink assetId={asset.id} use={u} />
-            </li>
-          ))}
-        </ul>
+        <form
+          className="assets-fields"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <label>
+            <span>Tags</span>
+            <input
+              type="text"
+              value={tags}
+              placeholder="comma-separated, e.g. medusa, realistic"
+              onChange={(e) => setTags(e.target.value)}
+            />
+          </label>
+          <label>
+            <span>Notes</span>
+            <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </label>
+          <div className="assets-fields-foot">
+            <span className="small" role="status">
+              {state.kind === "saving" ? (
+                <span className="muted">Saving…</span>
+              ) : state.kind === "saved" ? (
+                <span className="ok-text">Saved</span>
+              ) : state.kind === "error" ? (
+                <span className="error-text">Not saved: {state.message}</span>
+              ) : dirty ? (
+                <span className="muted">Unsaved changes</span>
+              ) : null}
+            </span>
+            <span className="spacer" />
+            {dirty && (
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  setTags(asset.tags.join(", "));
+                  setNotes(asset.notes ?? "");
+                  setState({ kind: "idle" });
+                }}
+              >
+                Revert
+              </button>
+            )}
+            <button type="submit" className="primary" disabled={!dirty || state.kind === "saving"}>
+              Save
+            </button>
+          </div>
+        </form>
       )}
-      <form
-        className="props"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save();
-        }}
-      >
-        <label>
-          Tags
-          <input
-            type="text"
-            value={tags}
-            placeholder="comma-separated, e.g. medusa, realistic"
-            disabled={readOnly}
-            onChange={(e) => setTags(e.target.value)}
-          />
-        </label>
-        <label>
-          Notes
-          <textarea rows={3} value={notes} disabled={readOnly} onChange={(e) => setNotes(e.target.value)} />
-        </label>
-        <div className="toolbar">
-          <button
-            type="submit"
-            className={dirty ? "primary" : ""}
-            disabled={readOnly || !dirty || state.kind === "saving"}
-          >
-            Save
-          </button>
+
+      <div className="assets-detail-actions">
+        <span className="assets-tip" title={tip}>
           <button
             type="button"
             onClick={() => props.onHide(!asset.hidden)}
             disabled={readOnly || props.busy}
             title={
-              asset.hidden
-                ? "Offer this image in the pickers again (H)"
-                : "Leave this image out of the pickers; the file and its entry stay (H)"
+              readOnly
+                ? undefined
+                : asset.hidden
+                  ? "Offer this image in the pickers again (H)"
+                  : "Leave this image out of the pickers; the file and its entry stay (H)"
             }
           >
             {asset.hidden ? "Unhide" : "Hide"}
           </button>
-          {desktop && projectDir && asset.exists && (
-            <button
-              type="button"
-              className="ghost"
-              onClick={() =>
-                void desktop.revealInFinder(`${projectDir}/${asset.file}`).catch(() => undefined)
-              }
-            >
-              Reveal in Finder
-            </button>
-          )}
-          <span className="spacer" />
-          {state.kind === "saved" && <span className="small ok-text">Saved</span>}
-        </div>
-        {state.kind === "error" && <p className="small error-text">Not saved: {state.message}</p>}
-        {readOnly && <p className="faint small">{READ_ONLY_HINT}</p>}
-      </form>
+        </span>
+        {desktop && projectDir && asset.exists && (
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => void desktop.revealInFinder(`${projectDir}/${asset.file}`).catch(() => undefined)}
+          >
+            Reveal in Finder
+          </button>
+        )}
+      </div>
+
       <div className="danger-zone">
-        <button type="button" className="danger" disabled={readOnly || props.busy} onClick={props.onTrash}>
-          Move to Trash…
-        </button>
-        <span className="faint small">The file goes to the Trash; undo for a few seconds.</span>
+        <span className="assets-tip" title={tip}>
+          <button type="button" className="danger" disabled={readOnly || props.busy} onClick={props.onTrash}>
+            Move to Trash…
+          </button>
+        </span>
+        <span className="faint small">The file goes to the Trash. You can undo for a few seconds.</span>
       </div>
     </section>
   );

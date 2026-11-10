@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { RegionKind } from "../body/profile.ts";
+import { ChevronIcon, CoverageIcon } from "../editor/editorIcons.tsx";
 import { InfoIcon } from "../ui/icons.tsx";
 import {
   CATEGORIES,
@@ -38,6 +39,16 @@ const NOTE: Record<RegionKind, string> = {
 
 const WHOLE: Record<RegionKind, string> = { arm: "Whole arm", leg: "Whole leg", torso: "Whole torso" };
 
+/** Column heads of the collapsible float: short words under the swatches. */
+const HEADS: Record<Category, string> = {
+  figure: "Figure",
+  existing: "Tattoo",
+  background: "Backg.",
+  band: "Band",
+  line: "Line",
+  open: "Open",
+};
+
 const TITLES: Record<Category, string> = {
   figure: "Figures",
   existing: "Existing tattoo",
@@ -60,11 +71,23 @@ type Props = {
    * numbers without "%", zeros as a dot, and a bar for the open skin.
    */
   variant?: "panel" | "float";
+  /**
+   * Layout tab (float only): the panel folds into a one-line summary ("19% covered · 81% open") that
+   * opens the table again. The page owns and remembers the state.
+   */
+  collapsible?: { open: boolean; onToggle: () => void };
 };
 
 /** Coverage per zone (PROJECT_BRIEF.md §10.1 F7): the share of skin each element type takes. */
-export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant = "panel" }: Props) {
+export function MetricsPanel({
+  coverage,
+  title = "Coverage",
+  compareTo,
+  variant = "panel",
+  collapsible,
+}: Props) {
   const float = variant === "float";
+  const fold = float ? collapsible : undefined;
   const rows: { key: ZoneKey; label: string }[] = [
     ...ZONES_BY_KIND[coverage.kind].map((z) => ({ key: z.id, label: z.label })),
     { key: "total", label: WHOLE[coverage.kind] },
@@ -72,8 +95,34 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
   const delta = compareTo ? coverageDelta(compareTo.coverage, coverage) : null;
   const [noteOpen, setNoteOpen] = useState(false);
   const note = NOTE[coverage.kind];
+  if (fold && !fold.open) {
+    const open = sharePct(coverage.total, "open");
+    return (
+      <button
+        type="button"
+        className="float cov-pill"
+        aria-expanded={false}
+        aria-label={`${title}: ${100 - open}% covered, ${open}% open skin. Show the table per zone.`}
+        title="Show the coverage per zone"
+        onClick={fold.onToggle}
+      >
+        <CoverageIcon />
+        <span className="cov-pill-title">{title}</span>
+        <span className="cov-pill-meter" aria-hidden="true">
+          <i style={{ width: `${100 - open}%` }} />
+        </span>
+        <span className="cov-pill-text">
+          <b>{100 - open}%</b> covered <span className="cov-pill-dot">·</span> <b>{open}%</b> open
+        </span>
+        <ChevronIcon dir="up" />
+      </button>
+    );
+  }
   return (
-    <section className={float ? "float metrics compact" : "panel metrics"} aria-label={title}>
+    <section
+      className={float ? `float metrics compact${fold ? " cov-table" : ""}` : "panel metrics"}
+      aria-label={title}
+    >
       <div className={float ? "float-head" : "panel-head"}>
         <h2 className={float ? "float-title" : undefined}>{title}</h2>
         {float && <span className="spacer" />}
@@ -88,6 +137,18 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
         >
           <InfoIcon />
         </button>
+        {fold && (
+          <button
+            type="button"
+            className="ghost icon-button"
+            aria-label={`Collapse ${title.toLowerCase()}`}
+            aria-expanded
+            title="Collapse to a one-line summary"
+            onClick={fold.onToggle}
+          >
+            <ChevronIcon dir="down" />
+          </button>
+        )}
       </div>
       <table>
         <thead>
@@ -95,7 +156,13 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
             <th>Zone</th>
             {CATEGORIES.map((c) => (
               <th key={c} className={`num cat-${c}`} title={TITLES[c]}>
-                {float && c !== "open" ? <span className="sr-only">{TITLES[c]}</span> : LABELS[c]}
+                {fold ? (
+                  <span className="cov-head">{HEADS[c]}</span>
+                ) : float && c !== "open" ? (
+                  <span className="sr-only">{TITLES[c]}</span>
+                ) : (
+                  LABELS[c]
+                )}
               </th>
             ))}
           </tr>
@@ -149,7 +216,7 @@ export function MetricsPanel({ coverage, title = "Coverage", compareTo, variant 
           })}
         </tbody>
       </table>
-      {float && (
+      {float && !fold && (
         // The column heads are swatches only (no room for words): one line says which is which.
         <p className="metrics-legend" aria-hidden="true">
           {CATEGORIES.filter((c) => c !== "open").map((c) => (

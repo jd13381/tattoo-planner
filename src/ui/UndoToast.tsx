@@ -2,6 +2,7 @@
 // pauses while the pointer or the keyboard focus is on it. `onExpire` runs when it closes without
 // undo (timeout or ×). Each message gets a fresh timer.
 import { useEffect, useRef, useState } from "react";
+import { CloseIcon } from "./icons.tsx";
 
 export type UndoToastMessage = {
   id: number;
@@ -73,7 +74,7 @@ function ToastBody({ message, ms, onClose }: { message: UndoToastMessage; ms: nu
           onCloseRef.current();
         }}
       >
-        ×
+        <CloseIcon />
       </button>
     </div>
   );

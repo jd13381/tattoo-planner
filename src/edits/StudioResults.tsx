@@ -2,7 +2,7 @@
 // for the attempts grid and the focus view with before and after side by side. UI only; the rules
 // live in session.ts and studio.ts.
 import { assetImageUrl } from "../assets/types.ts";
-import { versionLabel } from "./session.ts";
+import { versionTitle } from "./studioWords.ts";
 import { elapsedLabel, formatUsd, hasInput, hasResult } from "./studio.ts";
 import { jobUrl, type EditJob } from "./types.ts";
 
@@ -58,7 +58,7 @@ function AttemptButtons({ job, busy, versionIndex, onPick, onCancel }: { job: Ed
   if (versionIndex !== null)
     return (
       <div className="tile-actions">
-        <span className="chip ok">is {versionLabel(versionIndex)}</span>
+        <span className="chip ok">{versionTitle(versionIndex)}</span>
       </div>
     );
   if (!hasResult(job)) return null;
@@ -214,14 +214,14 @@ export function FocusView({ job, ...actions }: { job: EditJob } & AttemptActions
 
 export type StripVersion = {
   index: number;
-  /** Image of the version; null for the blank artboard of a new image (v0). */
+  /** Image of the version; null for the blank artboard of a new image (index 0). */
   src: string | null;
   /** Manifest id when the version is saved. */
   saved?: string;
   title: string;
 };
 
-/** The session's versions v0 … vN; the last one (outlined) is where the next run starts. */
+/** The session's versions (the original, version 1 … N); the last one (outlined) is where the next run starts. */
 export function VersionStrip({
   versions,
   viewing,
@@ -252,14 +252,12 @@ export function VersionStrip({
               {v.src ? <img src={v.src} alt="" /> : <span className="faint">blank</span>}
             </span>
             <span className="strip-label">
-              <span className="mono">{versionLabel(v.index)}</span>
-              {v.saved ? (
+              <span>{v.index === 0 && !v.src ? "Blank" : versionTitle(v.index)}</span>
+              {v.saved && (
                 <span className="strip-saved" title={`Saved as ${v.saved}`}>
                   saved
                 </span>
-              ) : v.index === 0 ? (
-                <span className="faint">source</span>
-              ) : null}
+              )}
             </span>
           </button>
         </li>

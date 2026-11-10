@@ -1,0 +1,107 @@
+/* viewer: rules added by the 2026-11 UX overhaul (see docs/claude-decisions.md). Tokens live in ../styles.css. */
+
+/* Elbow pose: the compact trigger (ArmViewer.tsx PoseControl variant="panel"). */
+.vw-pose-trigger {
+  height: 30px;
+  gap: 6px;
+  padding: 0 8px 0 10px;
+  font-size: var(--fs-xs);
+  color: var(--text);
+}
+
+.vw-pose-name {
+  color: var(--muted);
+}
+
+.vw-pose-state {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.vw-pose-trigger .icon,
+.vw-pose-trigger svg {
+  width: 14px;
+  height: 14px;
+  color: var(--faint);
+  transition: transform var(--dur-1, 120ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.vw-pose-trigger[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+/* In the Compare inspector the trigger spans the panel. */
+.cmp-pose .vw-pose-trigger {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.cmp-pose .vw-pose-trigger svg {
+  margin-left: auto;
+}
+
+.vw-pose-pop {
+  display: grid;
+  gap: 10px;
+  min-width: 240px;
+}
+
+.vw-pose-pop .popover-title {
+  margin: 0;
+}
+
+/* An open popover lifts its floating panel above the panels that follow it. */
+.float:has(.vw-pose-pop) {
+  z-index: 6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vw-pose-trigger svg {
+    transition: none;
+  }
+}
+
+/* A compact, dismissible hint on a 3D stage (StageHint.tsx); a page class positions it. */
+.vw-hint {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 4px 5px 10px;
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+}
+
+.vw-hint-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+  padding-top: 2px;
+}
+
+.vw-hint-body > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+button.vw-hint-close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  padding: 0;
+  color: var(--faint);
+}
+
+button.vw-hint-close:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.vw-hint-close svg {
+  width: 12px;
+  height: 12px;
+}

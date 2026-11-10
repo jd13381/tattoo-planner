@@ -1,0 +1,459 @@
+/* library: rules added by the 2026-11 UX overhaul (see docs/claude-decisions.md). Tokens live in ../styles.css. */
+/* Assets tab, asset pickers and the Image studio's image list. Existing classes keep their rules in
+   styles.css (tests/styles.test.ts); only new classes are declared here. */
+
+/* ── Assets: toolbar ── */
+.assets-toolbar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 52px;
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.assets-toolbar-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 0;
+  margin-right: var(--s-2);
+}
+
+.assets-toolbar-title h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.assets-toolbar-count {
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.assets-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 140px;
+  min-width: 120px;
+  max-width: 300px;
+}
+
+.assets-search > .icon {
+  position: absolute;
+  left: 8px;
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.assets-search input[type="search"] {
+  width: 100%;
+  padding-left: 28px;
+}
+
+.assets-tag-select {
+  max-width: 140px;
+}
+
+/* A narrow grid column (small window, detail open): the size control goes first. */
+@container assets-main (max-width: 620px) {
+  .assets-size {
+    display: none;
+  }
+}
+
+.assets-size button.icon-button {
+  width: 28px;
+  padding: 0;
+}
+
+.assets-notice {
+  margin: var(--s-2) var(--s-3) 0;
+}
+
+/* The scrolling grid area under the toolbar. */
+.assets-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-4);
+}
+
+.assets-layout.selecting .assets-scroll {
+  padding-bottom: 88px;
+}
+
+.assets-warnings {
+  margin-top: var(--s-4);
+}
+
+/* A wrapper that carries the tooltip of a disabled control (disabled buttons get no hover events). */
+.assets-tip {
+  display: inline-flex;
+}
+
+.assets-loading {
+  padding: var(--s-6);
+  text-align: center;
+}
+
+/* ── Assets: section navigation ── */
+.assets-nav-count {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+button.assets-nav-item.current .assets-nav-count {
+  color: var(--accent-text);
+}
+
+/* ── Assets: grid ── */
+.assets-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--assets-tile, 156px), 1fr));
+  gap: var(--s-4) var(--s-3);
+  align-items: start;
+}
+
+/* The image well: true colours on a recessed checkerboard, with room around the image so bright
+   images do not glare edge to edge on the dark UI. */
+.assets-well {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 9%;
+  border-radius: var(--r-lg);
+  /* A checkerboard at half the usual contrast: transparency stays visible, the grid stays calm. */
+  background: repeating-conic-gradient(
+      var(--thumb-checker-a) 0 25%,
+      color-mix(in srgb, var(--thumb-checker-b) 50%, var(--thumb-checker-a)) 0 50%
+    )
+    0 0 / 12px 12px;
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+  transition: box-shadow var(--dur-1, 120ms) var(--ease-out, ease-out);
+}
+
+.assets-well img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 2px;
+  transition: transform var(--dur-2, 200ms) var(--ease-out, ease-out);
+}
+
+li.assets-card:hover .assets-well img {
+  transform: scale(1.035);
+}
+
+.assets-missing {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  color: var(--warn-text);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+.assets-caption {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.assets-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* Where it is used: quiet, the "Unused" smart album covers the rest. */
+.assets-usage {
+  flex: none;
+  color: var(--faint);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.assets-flag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  background: var(--badge-bg);
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+}
+
+/* ── Assets: detail ── */
+.assets-detail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: -2px -6px 0 0;
+}
+
+.assets-detail-head .asset-detail-id {
+  flex: 1;
+}
+
+.assets-detail-notes {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.assets-detail-block {
+  display: grid;
+  gap: 6px;
+}
+
+.assets-detail-block > .props-head {
+  margin: 0;
+}
+
+.assets-uses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+button.assets-use,
+a.assets-use,
+.assets-use {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  max-width: 100%;
+  padding: 0 9px 0 7px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+button.assets-use:hover,
+a.assets-use:hover {
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--text);
+}
+
+.assets-use > .icon {
+  flex: none;
+  color: var(--muted);
+}
+
+.assets-use > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.assets-use-sub {
+  color: var(--faint);
+  font-weight: 400;
+}
+
+.assets-tags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.assets-tag {
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.assets-fields {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.assets-fields label {
+  display: grid;
+  gap: 4px;
+}
+
+.assets-fields label > span {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+.assets-fields input,
+.assets-fields textarea {
+  width: 100%;
+}
+
+.assets-fields-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-h);
+}
+
+.assets-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.assets-readonly {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.assets-keys {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assets-well,
+  .assets-well img {
+    transition: none;
+  }
+  li.assets-card:hover .assets-well img {
+    transform: none;
+  }
+}
+
+/* ── Image studio ── */
+.studio-hint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.builtin-op-label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.builtin-op-desc {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-2xs);
+  font-weight: 400;
+  color: var(--faint);
+}
+
+button.builtin-op.on .builtin-op-label {
+  color: var(--accent-text);
+}
+
+button.builtin-op.on .builtin-op-desc {
+  white-space: normal;
+  color: var(--muted);
+}
+
+.studio-keyline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 4px;
+  margin: 0;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+
+.studio-keycard {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--s-3);
+  margin: var(--s-3) 0;
+  padding: var(--s-3);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.studio-keycard-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.studio-keycard-text {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.studio-keycard-text strong {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.studio-keycard-text p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+/* Why the run button is off, right above it. */
+.studio-run-reason {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight, 1.35);
+}
+
+.studio-section-hint {
+  margin: 0;
+}

@@ -13,6 +13,7 @@ import {
   type BuiltinParams,
 } from "./builtin.ts";
 import { drawPixels, loadPixels } from "./pixelsDom.ts";
+import { firstSentence } from "./studioWords.ts";
 
 export function BuiltinPanel({
   opId,
@@ -32,6 +33,8 @@ export function BuiltinPanel({
       {BUILTIN_OPS.map((op) => {
         const on = op.id === opId;
         const values = on ? cleanParams(op.id, params) : {};
+        // The selected one also shows the rest of its hint (the first sentence is on the button).
+        const more = op.hint.trim().slice(firstSentence(op.hint).length).trim();
         return (
           <li key={op.id} className={on ? "on" : undefined}>
             <button
@@ -39,11 +42,11 @@ export function BuiltinPanel({
               role="radio"
               aria-checked={on}
               className={`builtin-op${on ? " on" : ""}`}
-              title={op.hint}
               disabled={disabled}
               onClick={() => onOp(op.id)}
             >
-              {op.label}
+              <span className="builtin-op-label">{op.label}</span>
+              <span className="builtin-op-desc">{firstSentence(op.hint)}</span>
             </button>
             {on && op.params.length > 0 && (
               <div className="builtin-controls">
@@ -83,7 +86,7 @@ export function BuiltinPanel({
                 )}
               </div>
             )}
-            {on && <p className="faint small builtin-hint">{op.hint}</p>}
+            {on && more && <p className="faint small builtin-hint">{more}</p>}
           </li>
         );
       })}

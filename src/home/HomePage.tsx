@@ -15,7 +15,14 @@ import type { RegionTexture } from "../viewer/BodyViewer.tsx";
 import { anubisSize, type ArmState } from "../viewer/useArm.ts";
 import { BODY_VIEWS } from "../viewer/views.ts";
 import { HomeViewer, type HomeView } from "./HomeViewer.tsx";
-import { homeRegions, plannedSummary, regionStats, type HomeRegion, type RegionStats } from "./model.ts";
+import {
+  homeRegions,
+  homeSummary,
+  plannedSummary,
+  regionStats,
+  type HomeRegion,
+  type RegionStats,
+} from "./model.ts";
 
 type Props = {
   project: ProjectStatus;
@@ -57,6 +64,8 @@ export function HomePage({ project, arm, onOpenRegion, onOpenProject, unsaved }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [regions, arm.body],
   );
+
+  const summary = useMemo(() => homeSummary(regions, stats), [regions, stats]);
 
   const [textures, setTextures] = useState<Partial<Record<RegionId, RegionTexture>>>({});
   const onTexture = useCallback(
@@ -113,7 +122,6 @@ export function HomePage({ project, arm, onOpenRegion, onOpenProject, unsaved }:
         />
         {current && (
           <header className="home-hero">
-            <PersonAvatar person={current} size="lg" />
             <div>
               <p className="home-eyebrow">
                 {project.sample ? "Sample project" : (project.name ?? "Project")}
@@ -188,6 +196,7 @@ export function HomePage({ project, arm, onOpenRegion, onOpenProject, unsaved }:
 
       <aside className="home-side" aria-label="People and regions">
         {project.sample && <SampleBanner onSave={onOpenProject} />}
+        {!loading && planned && <SummaryTiles summary={summary} />}
         <PeopleSection
           persons={persons}
           currentId={current?.id ?? null}
@@ -216,6 +225,31 @@ export function HomePage({ project, arm, onOpenRegion, onOpenProject, unsaved }:
         {!project.sample && project.sampleAvailable && <SampleInvite />}
       </aside>
     </div>
+  );
+}
+
+function SummaryTiles({ summary }: { summary: ReturnType<typeof homeSummary> }) {
+  return (
+    <dl className="home-summary" aria-label="Overview" title="Coverage is the mean over the planned regions">
+      <div>
+        <dt>Planned</dt>
+        <dd>
+          {summary.planned}
+          <span className="faint"> / {summary.total}</span>
+        </dd>
+      </div>
+      <div>
+        <dt>Motifs</dt>
+        <dd>{summary.motifs}</dd>
+      </div>
+      <div>
+        <dt>Coverage</dt>
+        <dd>
+          {summary.averagePct ?? 0}
+          <span className="faint">%</span>
+        </dd>
+      </div>
+    </dl>
   );
 }
 
@@ -252,24 +286,12 @@ function RegionCard(props: {
         )}
       </span>
       <span className="region-card-body">
-        <span className="region-card-title">
-          {label}
-          {r.variant && (
-            <span
-              className="region-card-variant"
-              title={r.marked ? "Marked active" : "First variant (none marked)"}
-            >
-              {r.marked && <StarIcon filled />}
-              {r.variant}
-            </span>
-          )}
-        </span>
+        <span className="region-card-title">{label}</span>
         {r.error ? (
           <span className="region-card-stats error-text">The layout file has errors</span>
         ) : stats ? (
           <>
             <span className="region-card-stats">
-              <span className="num">{stats.coveragePct}%</span> covered <span aria-hidden="true">·</span>{" "}
               <span className="num">{stats.motifs}</span> {stats.motifs === 1 ? "motif" : "motifs"}
               {r.variants > 1 && (
                 <>
@@ -278,14 +300,29 @@ function RegionCard(props: {
                 </>
               )}
             </span>
+            {r.variants > 1 && r.variant && (
+              <span
+                className="region-card-variant"
+                title={r.marked ? "Marked active" : "First variant (none marked)"}
+              >
+                {r.marked && <StarIcon filled />}
+                Showing: {r.variant}
+              </span>
+            )}
             <span className="coverage-meter" aria-hidden="true">
               <span style={{ width: `${Math.min(100, stats.coveragePct)}%` }} />
             </span>
           </>
         ) : (
-          <span className="region-card-stats faint">No layout yet</span>
+          <span className="region-card-stats region-card-start">Start planning</span>
         )}
       </span>
+      {stats && !r.error && (
+        <span className="region-card-pct">
+          <span className="num">{stats.coveragePct}</span>
+          <span className="unit">% covered</span>
+        </span>
+      )}
       <span className="region-card-go" aria-hidden="true">
         {r.layout ? <ArrowRightIcon /> : <PlusIcon />}
       </span>
@@ -335,9 +372,22 @@ function PeopleSection(props: {
     <section className="home-section">
       <div className="home-section-head">
         <h3 className="home-section-title">People</h3>
-        <button type="button" className="link small" onClick={props.onManage}>
-          Manage
-        </button>
+        <span className="home-section-actions">
+          <button
+            type="button"
+            className="ghost small home-add-button"
+            onClick={() => setAdding((a) => !a)}
+            disabled={sample}
+            aria-expanded={adding}
+            aria-controls="home-add-person"
+            title={sample ? "The sample is read-only: save it as a project to add people" : "Add a person"}
+          >
+            <PlusIcon /> Add person
+          </button>
+          <button type="button" className="link small" onClick={props.onManage}>
+            Manage
+          </button>
+        </span>
       </div>
       <div className="people-row">
         {persons.map((p) => (
@@ -356,23 +406,6 @@ function PeopleSection(props: {
             </span>
           </button>
         ))}
-        <button
-          type="button"
-          className="person-card add"
-          onClick={() => setAdding((a) => !a)}
-          disabled={sample}
-          aria-expanded={adding}
-          aria-controls="home-add-person"
-          title={sample ? "The sample is read-only: save it as a project to add people" : "Add a person"}
-        >
-          <span className="person-avatar add" aria-hidden="true">
-            <PlusIcon />
-          </span>
-          <span className="person-card-text">
-            <span className="person-card-name">Add person</span>
-            <span className="faint small">Own body, layouts</span>
-          </span>
-        </button>
       </div>
       {adding && (
         <div className="home-add-person" id="home-add-person">

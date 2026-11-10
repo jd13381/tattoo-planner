@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createPortal } from "react-dom";
 import { AssetBrowser } from "../assets/AssetBrowser.tsx";
 import { ImagePicker } from "../assets/ImagePicker.tsx";
-import type { AssetInfo } from "../assets/types.ts";
+import { assetImageUrl, type AssetInfo } from "../assets/types.ts";
 import { useAssetListing } from "../assets/useAssets.ts";
 import { useLayoutSources } from "../assets/useLayoutSources.ts";
 import { SHOW_ELEMENT_EVENT, type ShowElement } from "../assets/navigation.ts";
@@ -33,7 +33,6 @@ import {
   ExistingIcon,
   FigureIcon,
   FillerIcon,
-  FitIcon,
   HelpIcon,
   HomeIcon,
   ImageIcon,
@@ -48,6 +47,9 @@ import {
 import { createValueStore, useValue, type ValueStore } from "../ui/valueStore.ts";
 import { ToastRegion, useToast } from "../ui/Toast.tsx";
 import { freeSpot, newElement, suggestVariantName } from "./edit.ts";
+import { GridIcon, MinusIcon, PlusSmallIcon, SidePanelIcon, TargetIcon } from "./editorIcons.tsx";
+import { countNoun, elementSummary, KIND_HELP, KIND_LABEL, KIND_SHORT } from "./labels.ts";
+import { readFlag, writeFlag } from "./viewPrefs.ts";
 import { ElementList } from "./ElementList.tsx";
 import { ColorField, ElementPanel } from "./ElementPanel.tsx";
 import { canRedo, canUndo, createHistory, push, redo, reset, seal, undo, type History } from "./history.ts";
@@ -83,7 +85,13 @@ import {
   removeShape,
   setLayer,
 } from "./backgroundOps.ts";
-import { AddLayerMenu, LayerList, LayerPanel, type BackgroundTool } from "./LayersPanel.tsx";
+import {
+  AddLayerMenu,
+  BACKGROUND_TOOLS,
+  LayerList,
+  LayerPanel,
+  type BackgroundTool,
+} from "./LayersPanel.tsx";
 import { patternInfo } from "../render/backgrounds/catalogue.ts";
 import type { MotifDisplay } from "../render/reference.ts";
 import type { BackgroundLayer, BackgroundSource } from "../layout/schema.ts";
@@ -115,12 +123,32 @@ const PX_PER_CM = 12;
 /** Metrics resolution: 6 px per cm gives areas within a fraction of a percent. */
 const METRICS_PX_PER_CM = 6;
 
-/** The tool rail's add buttons, in rail order. Lines are drawn with the Line tool (brush). */
-const ADD_TOOLS: { type: ElementType; label: string; icon: ReactNode }[] = [
-  { type: "figure", label: "Figure", icon: <FigureIcon /> },
-  { type: "existing", label: "Existing tattoo", icon: <ExistingIcon /> },
-  { type: "band", label: "Band", icon: <BandIcon /> },
+/** The tool rail's add buttons, in rail order, with their keys. Lines are drawn with the Line tool. */
+const ADD_TOOLS: { type: "figure" | "existing" | "band"; icon: ReactNode; key: string }[] = [
+  { type: "figure", icon: <FigureIcon />, key: "F" },
+  { type: "existing", icon: <ExistingIcon />, key: "T" },
+  { type: "band", icon: <BandIcon />, key: "B" },
 ];
+
+const READ_ONLY_HINT =
+  "The sample is read-only: try anything, nothing is saved. Create your own project to keep a layout (Settings → Project).";
+
+/** Remembered view choices (src/editor/viewPrefs.ts). */
+const COVERAGE_KEY = "layout.coverage";
+const SIDE_PANEL_KEY = "layout.sidePanel";
+
+/** The body of a tool's tooltip: its name with the key, and one line on what it does. */
+function ToolTip({ name, keys, children }: { name: string; keys?: string; children: ReactNode }) {
+  return (
+    <span className="tip" aria-hidden="true">
+      <span className="rt-head">
+        <span className="rt-name">{name}</span>
+        {keys && <kbd className="kbd">{keys}</kbd>}
+      </span>
+      <span className="rt-desc">{children}</span>
+    </span>
+  );
+}
 
 /** A free name for a new layout on a region: torso-1, torso-2, … */
 function draftName(region: RegionId, taken: string[]): string {
@@ -216,6 +244,28 @@ export function LayoutPage({
     if (v === "background") setDrawing(false);
   };
   const [fitRequest, setFitRequest] = useState(0);
+  const [zoomRequest, setZoomRequest] = useState({ factor: 1, nonce: 0 });
+  const zoomBy = (factor: number) => setZoomRequest((z) => ({ factor, nonce: z.nonce + 1 }));
+  // The coverage table folds into a one-line summary; the side panel can be put away on a narrow
+  // window (it is always shown on a wide one). Both choices are remembered.
+  const [coverageOpen, setCoverageOpen] = useState(() => readFlag(COVERAGE_KEY, false));
+  const [panelOpen, setPanelOpen] = useState(() => readFlag(SIDE_PANEL_KEY, true));
+  // On a narrow window the open table and the side panel would cover each other: opening one puts
+  // the other away.
+  const narrow = () => window.matchMedia("(max-width: 1279px)").matches;
+  const setCoverage = (open: boolean) => {
+    writeFlag(COVERAGE_KEY, open);
+    setCoverageOpen(open);
+  };
+  const showPanel = (open: boolean) => {
+    writeFlag(SIDE_PANEL_KEY, open);
+    setPanelOpen(open);
+    if (open && coverageOpen && narrow()) setCoverage(false);
+  };
+  const toggleCoverage = () => {
+    if (!coverageOpen && panelOpen && narrow()) showPanel(false);
+    setCoverage(!coverageOpen);
+  };
   // Cursor and zoom of the 2D editor change on every pointer move: only the status bar re-renders.
   const [cursor] = useState(() => createValueStore<SkinUV | null>(null));
   const [zoom] = useState(() => createValueStore(100));
@@ -734,12 +784,14 @@ export function LayoutPage({
     toast.show(`Deleted ${sel.id} (${keyHint("Mod+Z")} to undo)`, "info");
   };
 
-  const canSave = dirty && !validationError;
+  const canSave = dirty && !validationError && !readOnlyProject;
+  const explainReadOnly = () => toast.show(READ_ONLY_HINT, "info");
   const selFixed = !!sel?.locked || (selected !== null && resolvedEls[selected]?.shape.kind === "patch");
   const runShortcut = (a: ShortcutAction) => {
     switch (a.type) {
       case "save":
-        if (canSave && layout) void doSave(layout);
+        if (readOnlyProject) explainReadOnly();
+        else if (canSave && layout) void doSave(layout);
         else if (!dirty) toast.show("No unsaved changes", "info");
         return;
       case "undo":
@@ -778,6 +830,8 @@ export function LayoutPage({
       }
       return;
     }
+    // F, T and B add an element (in the Background view B is the brush, handled above).
+    if (a.type === "add") return addElement(a.element);
     if (selected === null || !sel) return;
     switch (a.type) {
       case "duplicate":
@@ -866,6 +920,15 @@ export function LayoutPage({
       ]
     : [];
   const errors = !!(loadError || parseError || saveError || otherIssues.length > 0);
+
+  // Elements list: the image of each figure as its row's thumbnail.
+  const thumbs = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const el of layout?.elements ?? [])
+      if (isFigureLike(el) && el.asset && assetMap?.get(el.asset)?.exists)
+        out.set(el.id, assetImageUrl(el.asset));
+    return out;
+  }, [layout, assetMap]);
 
   const kbdSave = keyHint("Mod+S");
   const assetCount = listing?.status === "ok" ? listing.assets.length : null;
@@ -982,7 +1045,7 @@ export function LayoutPage({
               className="primary"
               data-autofocus
               disabled={!canSave}
-              title={canSave ? undefined : "Fix the layout errors first"}
+              title={canSave ? undefined : readOnlyProject ? READ_ONLY_HINT : "Fix the layout errors first"}
               onClick={() => void resolveSwitch("save")}
             >
               Save
@@ -1041,16 +1104,20 @@ export function LayoutPage({
       <span className="popover-anchor">
         <button
           type="button"
-          onClick={() => setSaveAsOpen((o) => !o)}
+          className={readOnlyProject ? "lp-readonly" : undefined}
+          onClick={() => (readOnlyProject ? explainReadOnly() : setSaveAsOpen((o) => !o))}
           disabled={!layout || !!validationError}
-          aria-expanded={saveAsOpen}
-          aria-haspopup="dialog"
-          title="Save what you see as a new variant to try an alternative"
+          aria-disabled={readOnlyProject || undefined}
+          aria-expanded={readOnlyProject ? undefined : saveAsOpen}
+          aria-haspopup={readOnlyProject ? undefined : "dialog"}
+          title={
+            readOnlyProject ? READ_ONLY_HINT : "Save what you see as a new variant to try an alternative"
+          }
         >
           Save as…
         </button>
         <Popover
-          open={saveAsOpen && !!layout}
+          open={saveAsOpen && !!layout && !readOnlyProject}
           onClose={() => setSaveAsOpen(false)}
           label="Save as"
           align="end"
@@ -1069,16 +1136,36 @@ export function LayoutPage({
           )}
         </Popover>
       </span>
-      <button
-        type="button"
-        className={dirty ? "primary" : ""}
-        onClick={() => layout && void doSave(layout)}
-        disabled={!canSave}
-        aria-keyshortcuts={platform === "mac" ? "Meta+S" : "Control+S"}
-        title={dirty ? `Save the changes to the variant's YAML file (${kbdSave})` : "No unsaved changes"}
-      >
-        Save <kbd className="kbd">{kbdSave}</kbd>
-      </button>
+      {readOnlyProject ? (
+        // Not disabled: a click (or the key) says why nothing can be saved here.
+        <button
+          type="button"
+          className="lp-readonly"
+          aria-disabled="true"
+          onClick={explainReadOnly}
+          aria-keyshortcuts={platform === "mac" ? "Meta+S" : "Control+S"}
+          title={READ_ONLY_HINT}
+        >
+          Save <kbd className="kbd">{kbdSave}</kbd>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={dirty ? "primary" : ""}
+          onClick={() => layout && void doSave(layout)}
+          disabled={!canSave}
+          aria-keyshortcuts={platform === "mac" ? "Meta+S" : "Control+S"}
+          title={
+            dirty
+              ? validationError
+                ? "Fix the layout errors first"
+                : `Save the changes to this variant (${kbdSave})`
+              : "No unsaved changes"
+          }
+        >
+          Save <kbd className="kbd">{kbdSave}</kbd>
+        </button>
+      )}
       <ExportButton
         input={exportInput}
         blocked={exportBlocked}
@@ -1121,48 +1208,18 @@ export function LayoutPage({
             <button
               type="button"
               className="tool"
-              aria-pressed={!drawing}
+              aria-pressed={!drawing && (!inBackground || bgTool === "select")}
               aria-label="Select and move"
               aria-keyshortcuts="V"
-              onClick={() => setDrawing(false)}
+              onClick={() => {
+                setDrawing(false);
+                if (inBackground) setBgTool("select");
+              }}
             >
               <SelectIcon />
-              <span className="tool-key" aria-hidden="true">
-                V
-              </span>
-              <span className="tip" aria-hidden="true">
-                Select &amp; move <kbd className="kbd">V</kbd>
-              </span>
-            </button>
-            <span className="rail-sep" aria-hidden="true" />
-            <span className="rail-label" aria-hidden="true">
-              Add
-            </span>
-            {ADD_TOOLS.map((t) => (
-              <button
-                key={t.type}
-                type="button"
-                className="tool"
-                aria-label={`Add ${t.label.toLowerCase()}`}
-                onClick={() => addElement(t.type)}
-              >
-                {t.icon}
-                <span className="tip" aria-hidden="true">
-                  Add {t.label.toLowerCase()}
-                </span>
-              </button>
-            ))}
-            <button
-              type="button"
-              className="tool"
-              aria-pressed={inBackground}
-              aria-label="Background layers: edit the layers under the motifs"
-              onClick={() => enterView(inBackground ? "motifs" : "background")}
-            >
-              <FillerIcon />
-              <span className="tip" aria-hidden="true">
-                Background layers (under the motifs)
-              </span>
+              <ToolTip name="Select and move" keys="V">
+                Click an element to select it, drag it to move it. Drag the empty sheet to pan.
+              </ToolTip>
             </button>
             <button
               type="button"
@@ -1177,12 +1234,44 @@ export function LayoutPage({
               }}
             >
               <RedLineIcon />
-              <span className="tool-key" aria-hidden="true">
-                R
-              </span>
-              <span className="tip" aria-hidden="true">
-                Line: draw on the 3D view <kbd className="kbd">R</kbd>
-              </span>
+              <ToolTip name="Draw a line" keys="R">
+                {KIND_HELP.line} Click again, or press Esc, to stop drawing.
+              </ToolTip>
+            </button>
+            <span className="rail-sep" aria-hidden="true" />
+            <span className="rail-label" aria-hidden="true">
+              Add
+            </span>
+            {ADD_TOOLS.map((t) => (
+              <button
+                key={t.type}
+                type="button"
+                className="tool rt-add"
+                aria-label={`Add ${KIND_LABEL[t.type].toLowerCase()}`}
+                aria-keyshortcuts={t.key}
+                onClick={() => {
+                  if (inBackground) enterView("motifs");
+                  addElement(t.type);
+                }}
+              >
+                {t.icon}
+                <ToolTip name={`Add ${KIND_LABEL[t.type].toLowerCase()}`} keys={t.key}>
+                  {KIND_HELP[t.type]}
+                </ToolTip>
+              </button>
+            ))}
+            <span className="rail-sep" aria-hidden="true" />
+            <button
+              type="button"
+              className="tool"
+              aria-pressed={inBackground}
+              aria-label="Background layers: edit the layers under the motifs"
+              onClick={() => enterView(inBackground ? "motifs" : "background")}
+            >
+              <FillerIcon />
+              <ToolTip name="Background layers">
+                Clouds, stars, patterns or an image under the motifs. Opens the Background view.
+              </ToolTip>
             </button>
             <span className="spacer" />
             <span className="popover-anchor">
@@ -1196,9 +1285,9 @@ export function LayoutPage({
                 onClick={() => setHelpOpen((o) => !o)}
               >
                 <HelpIcon />
-                <span className="tip" aria-hidden="true">
-                  Keyboard shortcuts <kbd className="kbd">?</kbd>
-                </span>
+                <ToolTip name="Keyboard shortcuts" keys="?">
+                  Every key of the editor, on one card.
+                </ToolTip>
               </button>
               <Popover
                 open={helpOpen}
@@ -1226,7 +1315,7 @@ export function LayoutPage({
                     <dd>Select the element underneath (2D editor)</dd>
                   </div>
                 </dl>
-                <p className="faint small">Inactive while typing in a field, except save.</p>
+                <p className="faint small sc-note">Keys rest while you type in a field, except Save.</p>
               </Popover>
             </span>
           </aside>
@@ -1250,6 +1339,7 @@ export function LayoutPage({
               onCursor={cursor.set}
               onZoom={zoom.set}
               fitRequest={fitRequest}
+              zoomRequest={zoomRequest}
               hint={false}
               background={
                 inBackground
@@ -1327,16 +1417,16 @@ export function LayoutPage({
                 </span>
               )}
               <span className="toolbar-sep" aria-hidden="true" />
-              <label className="inline switch-label" title="1 cm grid over the skin, bold every 5 cm">
-                <input
-                  type="checkbox"
-                  role="switch"
-                  className="switch"
-                  checked={grid}
-                  onChange={(e) => setGrid(e.target.checked)}
-                />
-                Grid
-              </label>
+              <button
+                type="button"
+                className="ghost bar-toggle"
+                aria-pressed={grid}
+                onClick={() => setGrid((g) => !g)}
+                title="Grid: 1 cm lines over the skin, bold every 5 cm, labelled every 10 cm"
+              >
+                <GridIcon />
+                <span className="bar-toggle-label">Grid</span>
+              </button>
               <span className="toolbar-sep" aria-hidden="true" />
               <span
                 className="segmented"
@@ -1362,8 +1452,10 @@ export function LayoutPage({
               cursor={cursor}
               zoom={zoom}
               fallback={sel ? elementAnchor(sel) : null}
+              fallbackName={sel?.id}
               format={(p) => formatPointCm(profile, p, regionNames(region))}
               onFit={() => setFitRequest((n) => n + 1)}
+              onZoom={zoomBy}
             />
           </section>
 
@@ -1484,9 +1576,28 @@ export function LayoutPage({
                 <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} variant="panel" />
               </div>
             )}
-            {metrics && <MetricsPanel coverage={metrics} variant="float" />}
+            {metrics && (
+              <MetricsPanel
+                coverage={metrics}
+                variant="float"
+                collapsible={{ open: coverageOpen, onToggle: toggleCoverage }}
+              />
+            )}
 
-            <div className="ws-stack">
+            {!panelOpen && (
+              // Narrow windows only (CSS): the side panel is put away to give the 3D view the room.
+              <button
+                type="button"
+                className="float ws-panel-open"
+                aria-expanded={false}
+                onClick={() => showPanel(true)}
+                title="Show the elements and their properties"
+              >
+                <SidePanelIcon />
+                {sel ? sel.id : "Elements"}
+              </button>
+            )}
+            <div className={`ws-stack${panelOpen ? "" : " ws-stack-away"}`}>
               <section className="float side-tabs" aria-label="Elements and assets">
                 <div className="float-head" role="tablist" aria-label="Side panel">
                   <button
@@ -1529,14 +1640,7 @@ export function LayoutPage({
                   <span className="spacer" />
                   {sideTab === "layers" ? (
                     <AddLayerMenu standard={STANDARD_BACKGROUNDS} images={allAssets} onAdd={onAddLayer} />
-                  ) : sideTab === "elements" ? (
-                    <span
-                      className="faint xs"
-                      title="The list shows the top layer first; drag a row to change the order."
-                    >
-                      top first
-                    </span>
-                  ) : (
+                  ) : sideTab === "elements" ? null : (
                     <button
                       type="button"
                       className="ghost small-button"
@@ -1546,6 +1650,16 @@ export function LayoutPage({
                       Reload
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="ghost icon-button small-button ws-panel-close"
+                    aria-label="Hide the side panel"
+                    aria-expanded
+                    title="Hide this panel to give the 3D view the room"
+                    onClick={() => showPanel(false)}
+                  >
+                    <SidePanelIcon />
+                  </button>
                 </div>
                 <div
                   className="side-tab-body"
@@ -1578,6 +1692,13 @@ export function LayoutPage({
                         setElement(i, { ...el, locked: el.locked ? undefined : true });
                       }}
                       onMove={(from, to) => apply((l) => moveLayerTo(l, from, to))}
+                      thumbs={thumbs}
+                      empty={
+                        <p className="el-empty">
+                          Nothing here yet. Add a figure, an existing tattoo or a band with the tools on the
+                          left.
+                        </p>
+                      }
                     />
                   ) : (
                     <AssetBrowser
@@ -1622,12 +1743,25 @@ export function LayoutPage({
                         <h2>Background</h2>
                         <span className="faint">layers under the motifs</span>
                       </div>
-                      <p className="muted small">
+                      <p className="ins-help bg-intro">
                         {layers.length === 0
                           ? "Add a layer with the + in the Layers tab: a standard background such as clouds, stars or smoke, a line pattern, or a tileable image from the project."
                           : "Select a layer in the list to edit it. Each layer covers the whole region or an area you draw or paint; motifs on top cover it."}
                       </p>
-                      <p className="faint small">{BACKGROUND_HINT}</p>
+                      <h3 className="props-head">Tools for a layer's area</h3>
+                      <dl className="shortcut-list bg-help">
+                        {BACKGROUND_TOOLS.map((t) => (
+                          <div key={t.id}>
+                            <dt>
+                              <kbd>{t.key}</kbd> {t.label}
+                            </dt>
+                            <dd>{t.hint}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                      <p className="ins-help">
+                        Delete removes the selected shape. Motifs are dimmed here and cannot be picked.
+                      </p>
                     </section>
                   )
                 ) : sel && selected !== null ? (
@@ -1653,18 +1787,41 @@ export function LayoutPage({
                     }}
                   />
                 ) : (
-                  <section className="panel variant-panel">
+                  <section className="panel variant-panel" aria-label="Layout variant">
                     <div className="panel-head inspector-head">
                       <h2>{layout.name}</h2>
-                      <span className="faint">variant</span>
+                      <span className="faint">{REGIONS[region].label} layout</span>
                       <span className="spacer" />
                       {dirty && <span className="chip warn">unsaved</span>}
                     </div>
-                    <label className="props">
-                      description
+                    <dl className="vp-stats">
+                      <div title={elementSummary(layout.elements.map((e) => e.type))}>
+                        <dt>Elements</dt>
+                        <dd>{layout.elements.length}</dd>
+                      </div>
+                      <div title="Background layers under the motifs">
+                        <dt>Backgrounds</dt>
+                        <dd>{layers.length}</dd>
+                      </div>
+                      <div title="Share of the skin under an element or a background layer">
+                        <dt>Covered</dt>
+                        <dd>
+                          {metrics
+                            ? `${100 - Math.round((100 * metrics.total.byCategory.open) / (metrics.total.area || 1))}%`
+                            : "–"}
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="ins-help vp-summary">
+                      {elementSummary(layout.elements.map((e) => e.type))}
+                      {layers.length > 0 ? `, ${countNoun(layers.length, "background layer")}` : ""}.
+                    </p>
+                    <label className="props vp-desc">
+                      Description
                       <textarea
                         rows={3}
                         value={layout.description ?? ""}
+                        placeholder="What this variant tries, in a sentence or two"
                         onChange={(e) =>
                           commit(
                             (l) => ({ ...l, description: e.target.value || undefined }),
@@ -1673,9 +1830,42 @@ export function LayoutPage({
                         }
                       />
                     </label>
-                    <p className="muted small">
-                      {layout.elements.length} elements. Select one in the list or the editor to edit it.
+                    <h3 className="props-head">Add to this layout</h3>
+                    <div className="vp-actions">
+                      {ADD_TOOLS.map((t) => (
+                        <button
+                          key={t.type}
+                          type="button"
+                          onClick={() => addElement(t.type)}
+                          title={KIND_HELP[t.type]}
+                        >
+                          {t.icon}
+                          <span className="vp-action-name">{KIND_LABEL[t.type]}</span>
+                          <span className="vp-action-help">{KIND_SHORT[t.type]}</span>
+                          <kbd className="kbd">{t.key}</kbd>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        aria-pressed={drawing}
+                        onClick={() => {
+                          setView3d("region");
+                          setDrawing((d) => !d);
+                        }}
+                        title={KIND_HELP.line}
+                      >
+                        <RedLineIcon />
+                        <span className="vp-action-name">{drawing ? "Stop drawing" : "Line"}</span>
+                        <span className="vp-action-help">{KIND_SHORT.line}</span>
+                        <kbd className="kbd">R</kbd>
+                      </button>
+                    </div>
+                    <p className="ins-help">
+                      {layout.elements.length > 0
+                        ? "To edit an element, click it on the sheet or in the list above."
+                        : "New elements land in the middle of the sheet. Drag them into place."}
                     </p>
+                    {readOnlyProject && <p className="ins-help vp-readonly">{READ_ONLY_HINT}</p>}
                   </section>
                 )}
               </div>
@@ -1705,40 +1895,72 @@ export function LayoutPage({
   );
 }
 
-/** Bottom of the 2D view: the skin point under the cursor (or the selection's anchor), zoom and Fit. */
+/** Bottom of the 2D view: the skin point under the pointer (or the selection's centre) and the zoom. */
 function StatusBar(props: {
   cursor: ValueStore<SkinUV | null>;
   zoom: ValueStore<number>;
   fallback: SkinUV | null;
+  /** Whose position `fallback` is (the selected element). */
+  fallbackName?: string;
   format: (p: SkinUV) => string;
   onFit: () => void;
+  /** Zooms by a factor about the middle of the view. */
+  onZoom: (factor: number) => void;
 }) {
   const hover = useValue(props.cursor);
   const zoom = useValue(props.zoom);
   const p = hover ?? props.fallback;
   return (
-    <div className="float status-bar" title={EDITOR_HINT}>
-      {p ? (
-        <>
-          <span className="mono">u {p.u.toFixed(2)}</span>
-          <span className="mono">v {p.v.toFixed(2)}</span>
-          <span className="faint status-cm">{props.format(p)}</span>
-        </>
-      ) : (
-        <span className="faint">Point at the skin to read its position.</span>
-      )}
+    <div className="float status-bar">
+      <span className="sb-where" title={EDITOR_HINT}>
+        <TargetIcon />
+        {p ? (
+          <>
+            {!hover && props.fallbackName && <span className="sb-name">{props.fallbackName}</span>}
+            <span className="sb-cm">{props.format(p)}</span>
+            {hover && (
+              // The pointer's numbers; a selection's are in the inspector.
+              <span
+                className="sb-uv mono"
+                title="The same point as the layout file stores it: u around, v along"
+              >
+                u {p.u.toFixed(2)} · v {p.v.toFixed(2)}
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="faint">Point at the skin to read a position</span>
+        )}
+      </span>
       <span className="spacer" />
-      <button
-        type="button"
-        className="ghost icon-button small-button"
-        onClick={props.onFit}
-        aria-label="Fit the whole sheet"
-        title="Fit the whole sheet (double-click the background)"
-      >
-        <FitIcon />
-      </button>
-      <span className="mono faint" aria-label={`Zoom ${zoom}%`}>
-        {zoom}%
+      <span className="sb-zoom" role="group" aria-label="Zoom">
+        <button
+          type="button"
+          className="ghost icon-button small-button"
+          onClick={() => props.onZoom(1 / 1.25)}
+          aria-label="Zoom out"
+          title="Zoom out (or scroll)"
+        >
+          <MinusIcon />
+        </button>
+        <button
+          type="button"
+          className="ghost small-button sb-zoom-value mono"
+          onClick={props.onFit}
+          aria-label={`Zoom ${zoom}%. Fit the whole sheet`}
+          title="Fit the whole sheet (or double-click the background)"
+        >
+          {zoom}%
+        </button>
+        <button
+          type="button"
+          className="ghost icon-button small-button"
+          onClick={() => props.onZoom(1.25)}
+          aria-label="Zoom in"
+          title="Zoom in (or scroll)"
+        >
+          <PlusSmallIcon />
+        </button>
       </span>
     </div>
   );

@@ -50,7 +50,7 @@ export function KeyCheckNotice({ onOpenSettings }: { onOpenSettings: () => void 
     }
   };
   return (
-    <div className={`notice key-notice ${notice.tone === "error" ? "error" : ""}`} role="alert">
+    <div className={`notice key-notice anim-enter${notice.tone === "error" ? " error" : ""}`} role="alert">
       <h2>{notice.title}</h2>
       <p>{notice.body}</p>
       <div className="key-notice-actions">

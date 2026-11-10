@@ -13,7 +13,9 @@ import {
   type KeyCheckStatus,
   type KeyOverview,
 } from "../edits/keyCheck.ts";
+import { LockIcon } from "../ui/icons.tsx";
 import { announceKeyCheck, keyApi } from "./openaiKeyClient.ts";
+import { PageFrame } from "./PageFrame.tsx";
 
 /**
  * docs/privacy.md in the repository. It moves with the repository when the public one opens
@@ -148,23 +150,25 @@ export function ImageGenerationSettings() {
   );
 
   return (
-    <div className="settings-section">
-      <header className="settings-section-head">
-        <h2>Image generation</h2>
-        {chip}
-        {loadFailed && <span className="chip error">No answer</span>}
-      </header>
-      <p className="muted">
-        The Image studio can redraw a reference image or create a new one with OpenAI’s GPT Image, using your
-        own API key. It is optional: everything else works without a key. A request sends the image and your
-        instruction to OpenAI and costs a few cents.
-      </p>
-      <p className="muted">
-        Privacy: images are only sent to OpenAI when you run a generative edit. The key is only sent to
-        OpenAI, with those requests and with the key check below (no images).{" "}
-        <a href={PRIVACY_URL} target="_blank" rel="noreferrer">
-          What the planner sends, and where
-        </a>
+    <PageFrame
+      title="Image generation"
+      status={
+        <>
+          {chip}
+          {loadFailed && <span className="chip error">No answer</span>}
+        </>
+      }
+      description="Optional. The Image studio can redraw a reference image or create a new one with OpenAI’s GPT Image, using your own API key. Everything else works without one."
+    >
+      <p className="pg-privacy">
+        <LockIcon />
+        <span>
+          Images and your instruction go to OpenAI only when you run a generative edit (a few cents each). The
+          key goes only to OpenAI, with those requests and the key check.{" "}
+          <a href={PRIVACY_URL} target="_blank" rel="noreferrer">
+            What the planner sends, and where
+          </a>
+        </span>
       </p>
 
       <section className="df-panel" aria-label="API key">
@@ -204,7 +208,12 @@ export function ImageGenerationSettings() {
                 onChange={(e) => setDraft(e.target.value)}
               />
             </label>
-            <button type="submit" className="primary" disabled={busy !== null || !draft.trim()}>
+            <button
+              type="submit"
+              className="primary key-save"
+              disabled={busy !== null || !draft.trim()}
+              title={draft.trim() ? undefined : "Paste a key first"}
+            >
               {busy === "save" ? "Checking…" : "Check & save"}
             </button>
             {removable && (
@@ -223,20 +232,16 @@ export function ImageGenerationSettings() {
             <code>.env</code> and restart it.
           </p>
         )}
-        <div className="key-check-row">
-          <button type="button" disabled={!active || busy !== null} onClick={() => void test()}>
-            {busy === "test" ? "Testing…" : "Test key"}
-          </button>
-          {shown ? (
-            <p className={`field-hint ${resultTone(shown.status)}`} role="status">
-              {shown.message}
+        {active && (
+          <div className="key-check-row">
+            <button type="button" disabled={busy !== null} onClick={() => void test()}>
+              {busy === "test" ? "Testing…" : "Test key"}
+            </button>
+            <p className={`field-hint ${shown ? resultTone(shown.status) : ""}`} role="status">
+              {shown ? shown.message : "Not checked yet in this session."}
             </p>
-          ) : (
-            <p className="field-hint">
-              {active ? "Not checked yet in this session." : "Save a key to check it."}
-            </p>
-          )}
-        </div>
+          </div>
+        )}
         {error && (
           <p className="field-hint error key-error" role="alert">
             {error}
@@ -260,13 +265,13 @@ export function ImageGenerationSettings() {
           Check the key when the planner starts
         </label>
         <p className="df-panel-note">
-          Once per start, the planner’s server asks OpenAI whether the key can use{" "}
-          {overview?.model ?? "the image model"} (one small request with the key, no images, no cost) and
-          shows a notice if it no longer works. Off: nothing is sent until you run a generative edit or press{" "}
+          Once per start, the planner asks OpenAI whether the key can use{" "}
+          {overview?.model ?? "the image model"} (one small request, no images, no cost) and warns you if it
+          no longer works. Off: nothing is sent until you run a generative edit or press{" "}
           <strong>Test key</strong>.
         </p>
       </section>
-    </div>
+    </PageFrame>
   );
 }
 

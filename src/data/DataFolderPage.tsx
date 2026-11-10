@@ -1,5 +1,6 @@
-// The project folder's contents for Settings → Project (src/project/ProjectPage.tsx): file tables on
-// the left, the expected structure and what uses it on the right.
+// The project folder's contents for Settings → Project (src/project/ProjectPage.tsx), in a closed
+// "Project folder details" disclosure: file tables on the left, the expected structure and what uses
+// it on the right.
 import { useEffect, useState } from "react";
 import type { ExpectedEntry } from "./expected.ts";
 import { countFiles, EXPECTED_ENTRIES, formatSize, groupByFolder, isPresent } from "./expected.ts";
@@ -48,14 +49,46 @@ export function useDataListing(): { state: State; checking: boolean; check: () =
   return { state, checking, check };
 }
 
-/** The project folder's structure and files, under the project details in Settings → Project. */
-export function FolderContents() {
-  const { state, checking, check } = useDataListing();
+/**
+ * Settings → Project, last: the folder's files and expected structure in a disclosure that starts
+ * closed (it is for troubleshooting). Problems reading the folder show above it, always visible.
+ */
+export function ProjectFolderDetails() {
+  const data = useDataListing();
+  const { state } = data;
   const listing = state.kind === "loaded" ? state.listing : null;
   const files = listing?.status === "ok" ? listing.files : null;
-  const shown = files ? visibleEntries(files) : EXPECTED_ENTRIES.filter((e) => !e.older);
-  const present = files ? shown.filter((e) => isPresent(e, files)).length : null;
+  const shown = files ? visibleEntries(files) : null;
+  const present = files && shown ? shown.filter((e) => isPresent(e, files)).length : null;
+  const meta =
+    files && shown
+      ? `${files.length} file${files.length === 1 ? "" : "s"} · ${present} of ${shown.length} expected parts`
+      : state.kind === "loading"
+        ? "Reading the folder…"
+        : null;
+  return (
+    <>
+      <FolderProblems state={state} />
+      <details className="prj-disclosure">
+        <summary>
+          <span className="prj-disclosure-text">
+            <span className="prj-disclosure-title">Project folder details</span>
+            <span className="prj-disclosure-sub">
+              What is in the folder and what the planner expects there. Useful for troubleshooting.
+            </span>
+          </span>
+          {meta && <span className="prj-disclosure-meta">{meta}</span>}
+        </summary>
+        <div className="prj-disclosure-body">
+          <FolderContents data={data} />
+        </div>
+      </details>
+    </>
+  );
+}
 
+function FolderProblems({ state }: { state: State }) {
+  const listing = state.kind === "loaded" ? state.listing : null;
   return (
     <>
       {state.kind === "failed" && (
@@ -68,6 +101,20 @@ export function FolderContents() {
           <strong>The project folder cannot be read:</strong> <code>{listing.dir}</code>: {listing.message}.
         </p>
       )}
+    </>
+  );
+}
+
+/** The project folder's structure and files (inside ProjectFolderDetails). */
+export function FolderContents({ data }: { data: ReturnType<typeof useDataListing> }) {
+  const { state, checking, check } = data;
+  const listing = state.kind === "loaded" ? state.listing : null;
+  const files = listing?.status === "ok" ? listing.files : null;
+  const shown = files ? visibleEntries(files) : EXPECTED_ENTRIES.filter((e) => !e.older);
+  const present = files ? shown.filter((e) => isPresent(e, files)).length : null;
+
+  return (
+    <>
       {listing?.status === "ok" && listing.truncated && (
         <p className="notice warn">The listing is truncated: the folder holds more files than shown here.</p>
       )}

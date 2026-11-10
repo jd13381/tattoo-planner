@@ -7,29 +7,6 @@ export function images(n: number): string {
   return `${n} image${n === 1 ? "" : "s"}`;
 }
 
-/** What an empty section says, or null when it has nothing special to say. */
-export function emptySectionText(section: SectionId): string | null {
-  switch (section) {
-    case "ideas":
-    case "all":
-      return "No ideas yet. Drop reference images here, or make one in the Image studio.";
-    case "studio":
-      return "Nothing made in the Image studio yet. Images you keep there show up here.";
-    case "backgrounds":
-      return "No backgrounds yet. Drop background images here.";
-    case "measuring":
-      return "No measuring photos yet. They help check your measurements. Drop photos of your arm here.";
-    case "existing":
-      return "No photos of existing tattoos yet. Add them here, then bring a tattoo onto the body in Settings → Projection.";
-    case "unused":
-      return "Every image is used in a layout or a projection.";
-    case "hidden":
-      return "No hidden images. Hide images you do not want in the pickers; their files stay.";
-    case "missing":
-      return "Every catalogued image has its file.";
-  }
-}
-
 export function filterEmptyText(text: string, section: SectionId): string {
   return text.trim()
     ? `Nothing matches '${text.trim()}' in ${SECTION_LABELS[section]}.`

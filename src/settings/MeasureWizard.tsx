@@ -121,19 +121,21 @@ export function MeasureWizard({ arm, region, onExit, onSave, saving }: Props) {
           onEdit={(key) => setIndex(steps.findIndex((s) => s.key === key))}
         />
       ) : (
-        <div className="mw-scroll">
-          <MeasureDiagram kind={def.kind} diagram={step.diagram} label={step.label} />
-          <section className="mw-step" aria-label={`Step ${stepNo} of ${steps.length}`}>
-            <h3 className="mw-label">{step.label}</h3>
-            <p className="mw-instruction">{step.instruction}</p>
-          </section>
-          {index === 0 && (
-            <ul className="mw-tips" aria-label="Tips">
-              {WIZARD_TIPS.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
-            </ul>
-          )}
+        <>
+          <div className="mw-scroll">
+            <MeasureDiagram kind={def.kind} diagram={step.diagram} label={step.label} />
+            <section className="mw-step" aria-label={`Step ${stepNo} of ${steps.length}`}>
+              <h3 className="mw-label">{step.label}</h3>
+              <p className="mw-instruction">{step.instruction}</p>
+            </section>
+            {index === 0 && (
+              <ul className="mw-tips" aria-label="Tips">
+                {WIZARD_TIPS.map((t) => (
+                  <li key={t}>{t}</li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="mw-entry-card">
             {index === 0 && (
               <label className="mw-field">
@@ -183,7 +185,7 @@ export function MeasureWizard({ arm, region, onExit, onSave, saving }: Props) {
               {value === null ? fallbackNote : "Shown on the 3D model now."}
             </p>
           </div>
-        </div>
+        </>
       )}
       <div className="mw-nav">
         <button type="button" className="ghost" onClick={() => go(index - 1)} disabled={index === 0}>

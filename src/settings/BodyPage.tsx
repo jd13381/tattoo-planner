@@ -1,6 +1,7 @@
 // Settings → Body & measurements: the sample body and own height, a region picker, the region in 3D
 // with the 1 cm grid, and per region either the measurements form or the "Measure yourself" wizard.
 // Edits are a live draft (every tab shows them); Save writes them into measurements.yaml.
+import { StageHint } from "../viewer/StageHint.tsx";
 import { useEffect, useMemo, useState } from "react";
 import { regionBendDeg, supportsBend } from "../body/bend.ts";
 import { bodyStatus, fieldStatuses, formatCm, type FieldStatus } from "../body/fieldStatus.ts";
@@ -113,7 +114,7 @@ export function BodyPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
               <PoseControl bendDeg={pose.bendDeg} onChange={pose.setBendDeg} variant="panel" />
             </div>
           )}
-          <div className="float arm-legend" title={ORBIT_HINT}>
+          <StageHint id="body-legend" className="arm-legend" title={ORBIT_HINT}>
             <span>
               <i className="arm-key grid" aria-hidden="true" />1 cm grid, bold every 5 cm
             </span>
@@ -122,7 +123,7 @@ export function BodyPage({ arm, pose }: { arm: ArmState; pose: Pose }) {
               centre lines: {lines}
             </span>
             <span className="faint">{ORBIT_HINT}</span>
-          </div>
+          </StageHint>
         </section>
         <aside className="float measurements" aria-label="Body and measurements">
           {wizard ? (
@@ -263,9 +264,7 @@ function MeasurementsForm({
                 arm.setHeight(v === fileHeight ? undefined : v);
               }}
             />
-            <span className="tag">
-              {bs.heightCm === null ? "sample" : bs.heightChanged ? "edited" : "own"}
-            </span>
+            <span className="tag">{bs.heightCm === null ? "" : bs.heightChanged ? "edited" : "own"}</span>
           </label>
         </fieldset>
 
@@ -297,7 +296,10 @@ function MeasurementsForm({
             {own === 0
               ? `Nothing measured on the ${def.label.toLowerCase()} yet: it shows the ${SAMPLES[bs.body].label.toLowerCase()}${bs.heightCm ? `, scaled to ${formatCm(bs.heightCm)} cm` : ""}.`
               : `${own} of ${fields.length} values measured; the others come from the ${fields.some((f) => f.own === null && f.fallbackSource === "other-side") ? "other side or the " : ""}sample body.`}{" "}
-            Measuring is optional. Empty fields show the value in use as a hint.
+          </p>
+          <p className="measure-legend">
+            <span className="measure-legend-sample">Muted values</span> come from the sample body. Measuring
+            is optional.
           </p>
         </fieldset>
 
@@ -325,7 +327,13 @@ function MeasurementsForm({
 function FieldRow({ f, onChange }: { f: FieldStatus; onChange: (n: number | null) => void }) {
   const ratio = isRatio(f.key);
   const from = f.fallbackSource === "other-side" ? "the other side" : "the sample body";
-  const tag = f.source === "edited" && f.file !== null ? `was ${formatCm(f.file)}` : SOURCE_TAGS[f.source];
+  // Sample values are told apart by their muted style (see the legend), not by a word on every row.
+  const tag =
+    f.source === "sample"
+      ? ""
+      : f.source === "edited" && f.file !== null
+        ? `was ${formatCm(f.file)}`
+        : SOURCE_TAGS[f.source];
   const title =
     f.own === null
       ? `Not measured: ${formatCm(f.fallback)}${ratio ? "" : " cm"} from ${from}${f.changed && f.file !== null ? ` (file: ${formatCm(f.file)})` : ""}`
