@@ -1,0 +1,698 @@
+/* layout: rules added by the 2026-11 UX overhaul (see docs/claude-decisions.md). Tokens live in ../styles.css. */
+
+/* The name tags over the 2D sheet (tokens on .layout-page in ../styles.css): a touch softer on light. */
+:root.light .layout-page {
+  --tag-bg: rgba(24, 24, 32, 0.78);
+  --tag-bg-strong: rgba(24, 24, 32, 0.92);
+}
+
+/* ── Tool rail ──────────────────────────────────────────────────────────────────────────────────── */
+
+.rt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rt-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.rt-desc {
+  color: var(--muted);
+}
+
+/* The add tools act at once (they are not modes): a small plus on the icon says so. */
+.tool.rt-add::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 7px;
+  height: 7px;
+  background:
+    linear-gradient(currentColor, currentColor) center / 7px 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) center / 1.5px 7px no-repeat;
+  opacity: 0.75;
+}
+
+.tool.rt-add:active:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* ── 2D view: bar, tags, status ─────────────────────────────────────────────────────────────────── */
+
+button.bar-toggle {
+  gap: 6px;
+  padding: 0 9px 0 7px;
+}
+
+/* Narrow 2D column: the Grid toggle keeps its icon (its tooltip and name stay). */
+@container ws2d (max-width: 520px) {
+  .bar-toggle .bar-toggle-label {
+    display: none;
+  }
+  button.bar-toggle {
+    width: var(--control-h);
+    padding: 0;
+  }
+  .ws-2d-bar .segmented button {
+    padding-inline: 8px;
+  }
+  .ws-2d-bar .toolbar-sep {
+    margin-inline: 0;
+  }
+}
+
+.shape-tag {
+  cursor: move;
+}
+
+.shape-tag.locked {
+  cursor: pointer;
+}
+
+.shape-tag > rect {
+  fill: var(--tag-bg);
+  stroke: var(--tag-line);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.shape-tag text {
+  fill: var(--tag-text);
+  font-family: var(--font-ui);
+  font-weight: 500;
+  dominant-baseline: central;
+  user-select: none;
+}
+
+.shape-tag.hovered > rect {
+  fill: var(--tag-bg-strong);
+  stroke: var(--accent-hover);
+}
+
+.shape-tag.selected > rect {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.shape-tag.selected text {
+  fill: var(--on-ink);
+}
+
+.tag-lock {
+  fill: none;
+  stroke: var(--tag-text);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+.tag-lock rect {
+  fill: var(--tag-text);
+  stroke: none;
+}
+
+.shape-tag.selected .tag-lock {
+  stroke: var(--on-ink);
+}
+
+.shape-tag.selected .tag-lock rect {
+  fill: var(--on-ink);
+}
+
+/* While something is dragged the tags let the pointer through. */
+.unwrap-editor svg.dragging .shape-tag,
+.unwrap-editor svg.resizing .shape-tag,
+.unwrap-editor svg.panning .shape-tag {
+  pointer-events: none;
+}
+
+.sb-where {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sb-where > .icon {
+  color: var(--faint);
+}
+
+.sb-name {
+  flex: none;
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sb-cm {
+  flex: 0 1 auto;
+  min-width: 4em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The pointer's position as the layout file stores it: the detail behind the words. */
+.sb-uv {
+  flex: none;
+  font-size: var(--fs-2xs);
+}
+
+@container ws2d (max-width: 470px) {
+  .sb-uv {
+    display: none;
+  }
+}
+
+.sb-zoom {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+button.sb-zoom-value {
+  min-width: 46px;
+  padding: 0 6px;
+  justify-content: center;
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+}
+
+/* ── Coverage: the folded summary and the labelled table ────────────────────────────────────────── */
+
+button.cov-pill {
+  left: 12px;
+  bottom: 12px;
+  height: 32px;
+  gap: 8px;
+  padding: 0 8px 0 10px;
+  border-radius: var(--r-lg);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+button.cov-pill:hover:not(:disabled) {
+  background: var(--panel);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-float);
+  color: var(--text);
+}
+
+.cov-pill > .icon {
+  color: var(--faint);
+}
+
+.cov-pill-title {
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.cov-pill-meter {
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--press);
+  overflow: hidden;
+}
+
+.cov-pill-meter i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.cov-pill-text b {
+  font: 600 var(--fs-xs) var(--font-mono);
+  color: var(--text);
+}
+
+.cov-pill-dot {
+  color: var(--faint);
+}
+
+.ws-3d .metrics.compact.cov-table {
+  width: 344px;
+  transform-origin: left bottom;
+  animation: cov-open var(--dur-2, 200ms) var(--ease-out, ease) both;
+}
+
+@keyframes cov-open {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+/* Column heads: the blockout swatch with its word under it. */
+.cov-table thead th {
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.cov-table.metrics.compact thead th {
+  padding-inline: 2px;
+  overflow: visible;
+}
+
+.cov-table thead th[class*="cat-"]::before {
+  display: block;
+  margin: 0 0 3px auto;
+}
+
+.cov-table.metrics.compact tbody td {
+  padding-inline: 2px;
+}
+
+.cov-head {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--faint);
+}
+
+.cov-table.metrics.compact th:first-child,
+.cov-table.metrics.compact td:first-child {
+  width: 24%;
+  padding-left: 12px;
+}
+
+.cov-table.metrics.compact th:last-child,
+.cov-table.metrics.compact td:last-child {
+  width: 23%;
+  padding-right: 12px;
+}
+
+/* ── Side panel: put away on a narrow window ────────────────────────────────────────────────────── */
+
+button.ws-panel-open,
+button.ws-panel-close {
+  display: none;
+}
+
+@media (max-width: 1279px) {
+  .ws-stack.ws-stack-away {
+    display: none;
+  }
+  .ws-stack {
+    animation: ws-stack-in var(--dur-2, 200ms) var(--ease-out, ease) both;
+  }
+  button.ws-panel-open {
+    display: inline-flex;
+    top: 58px;
+    right: 12px;
+    z-index: 3;
+    height: 30px;
+    max-width: 180px;
+    gap: 7px;
+    padding: 0 10px 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--fs-xs);
+    color: var(--text);
+  }
+  button.ws-panel-open:hover:not(:disabled) {
+    background: var(--panel);
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-float);
+  }
+  button.ws-panel-close {
+    display: inline-flex;
+  }
+  /* The folded coverage keeps to its figures. */
+  .cov-pill-title,
+  .cov-pill-meter {
+    display: none;
+  }
+}
+
+@keyframes ws-stack-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+
+/* ── Elements list ──────────────────────────────────────────────────────────────────────────────── */
+
+.el-grip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 34px;
+  color: var(--faint);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity var(--dur-1, 120ms) ease;
+}
+
+.element-row:hover .el-grip,
+.element-row:focus-within .el-grip {
+  opacity: 0.7;
+}
+
+.el-thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  background: var(--press);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--muted);
+  overflow: hidden;
+}
+
+.el-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--thumb-paper);
+}
+
+.el-thumb-line {
+  color: var(--red);
+}
+
+.el-text {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.el-text .element-type {
+  flex: none;
+}
+
+.el-order-hint,
+.el-empty {
+  margin: 6px 8px 4px 20px;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+.el-empty {
+  margin: 10px 12px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+/* ── Inspector ──────────────────────────────────────────────────────────────────────────────────── */
+
+.props label.ins-row,
+.props .ins-row {
+  grid-template-columns: 76px minmax(0, 1fr);
+  color: var(--muted);
+}
+
+.props label.ins-check {
+  padding-left: 84px;
+  color: var(--text);
+}
+
+/* The position in words: the first thing to read; the two numbers under it are the detail. */
+.ins-readout {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: var(--r-md);
+  background: var(--press-soft);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ins-readout span + span {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.ins-help {
+  margin: 2px 0 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh);
+  color: var(--faint);
+}
+
+.ins-locked {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+/* Unit letters (u, v) read as a quiet suffix. */
+.field-box .u {
+  font-family: var(--font-mono);
+}
+
+.image-swap-thumb.ins-noimage {
+  grid-template-rows: auto auto;
+  align-content: center;
+  gap: 2px;
+  padding: 14px 12px;
+}
+
+.image-swap-thumb.ins-noimage > p {
+  padding: 0;
+}
+
+/* Changing the image: a quiet button on the image itself, not a second primary next to Save. */
+button.ins-change-image {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  height: 26px;
+  gap: 6px;
+  padding: 0 9px 0 7px;
+  background: var(--badge-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--border-strong),
+    var(--elev-1, 0 1px 2px rgba(0, 0, 0, 0.3));
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+button.ins-change-image:hover:not(:disabled) {
+  background: var(--badge-bg-hover);
+  box-shadow:
+    inset 0 0 0 1px var(--accent-line),
+    var(--elev-1, 0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.ins-noimage button.ins-change-image {
+  position: static;
+  justify-self: center;
+  margin-top: 6px;
+}
+
+.ins-adv {
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+button.ins-adv-toggle {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 6px;
+  height: 30px;
+  margin-top: 4px;
+  padding: 0 6px 0 2px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.ins-adv-note {
+  margin-left: auto;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--accent-text);
+}
+
+.ins-adv-body {
+  display: grid;
+  gap: 6px;
+  padding: 2px 0 4px;
+}
+
+.ins-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.ins-sub-note {
+  color: var(--faint);
+}
+
+.ins-sub button.link {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+}
+
+/* ── Inspector with nothing selected: the variant ───────────────────────────────────────────────── */
+
+.vp-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.vp-stats > div {
+  padding: 8px 10px 9px;
+  border-radius: var(--r-md);
+  background: var(--press-soft);
+}
+
+.vp-stats dt {
+  font-size: var(--fs-2xs);
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.vp-stats dd {
+  margin: 2px 0 0;
+  font: 600 17px / 1.15 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.ins-help.vp-summary {
+  margin: 0 0 12px;
+}
+
+label.props.vp-desc {
+  margin-top: 0;
+  color: var(--muted);
+}
+
+.vp-actions {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 10px;
+}
+
+.vp-actions button {
+  justify-content: flex-start;
+  gap: 8px;
+  height: 34px;
+  min-width: 0;
+  padding: 0 8px;
+  font-weight: 400;
+}
+
+.vp-actions button > .icon {
+  color: var(--muted);
+}
+
+.vp-action-name {
+  flex: none;
+  font-weight: 500;
+}
+
+.vp-action-help {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  font-size: var(--fs-xs);
+  color: var(--faint);
+}
+
+.vp-actions button[aria-pressed="true"] {
+  background: var(--red-soft);
+  box-shadow: inset 0 0 0 1px var(--red-line);
+}
+
+.ins-help.vp-readonly {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Top bar: Save on the read-only sample ──────────────────────────────────────────────────────── */
+
+/* Looks unavailable but takes a click, which says why (LayoutPage.tsx explainReadOnly). */
+button.lp-readonly,
+button.lp-readonly:hover:not(:disabled) {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--faint);
+  cursor: help;
+}
+
+/* ── Background view: the inspector with no layer selected ──────────────────────────────────────── */
+
+.ins-help.bg-intro {
+  margin: 0 0 4px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+.shortcut-list.bg-help {
+  margin-top: 8px;
+}
+
+.shortcut-list.bg-help > div {
+  grid-template-columns: 6.5em minmax(0, 1fr);
+}
+
+.shortcut-list.bg-help dt {
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ── Popovers of this tab ───────────────────────────────────────────────────────────────────────── */
+
+.shortcuts-popover .sc-note {
+  margin: 0;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-3d .metrics.compact.cov-table,
+  .ws-stack {
+    animation: none;
+  }
+  .tool .tip,
+  .el-grip {
+    transition: none;
+  }
+}

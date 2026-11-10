@@ -1,0 +1,1228 @@
+/* start: rules added by the 2026-11 UX overhaul (see docs/claude-decisions.md). Tokens live in ../styles.css.
+ * Prefixes: ws- start screen (welcome), md- modal dialog frame, fp- folder picker, np- new-project
+ * form, prj- Settings → Project, pp- its People panel. */
+
+/* ── Start screen ─────────────────────────────────────────────────────────────────────────────── */
+
+.ws-page {
+  max-width: 1120px;
+  min-height: calc(100dvh - var(--header-h) - 2 * var(--s-6));
+  margin: 0 auto;
+  display: grid;
+  align-content: center;
+}
+
+.ws-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr);
+  gap: clamp(var(--s-6), 5vw, 64px);
+  align-items: center;
+}
+
+.ws-intro {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 540px;
+  min-width: 0;
+}
+
+.ws-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  margin: 0;
+  padding: 3px 10px 3px 8px;
+  border-radius: var(--r-pill);
+  background: var(--ok-soft);
+  box-shadow: inset 0 0 0 1px var(--ok-line);
+  color: var(--ok);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+.ws-title {
+  margin: 0;
+  font-size: clamp(26px, 3.2vw, 36px);
+  line-height: 1.12;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  color: var(--text-strong);
+  text-wrap: balance;
+}
+
+.ws-lead {
+  margin: calc(-1 * var(--s-1, 4px)) 0 0;
+  max-width: 460px;
+  font-size: var(--fs-lg);
+  line-height: 1.5;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.ws-notices {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.ws-notices > .notice {
+  margin: 0;
+}
+
+/* The three ways in: big rows, the sample lit on a first run. */
+.ws-actions {
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+
+button.ws-action {
+  width: 100%;
+  height: auto;
+  min-height: 64px;
+  padding: 12px 14px 12px 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: stretch;
+  gap: var(--s-3);
+  text-align: left;
+  white-space: normal;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+button.ws-action:hover:not(:disabled) {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-hover);
+}
+
+button.ws-action:active:not(:disabled) {
+  background: var(--surface-2);
+}
+
+button.ws-action.featured {
+  background: radial-gradient(ellipse 70% 140% at 0% 0%, var(--accent-soft), transparent 70%), var(--surface);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+button.ws-action.featured:hover:not(:disabled) {
+  background:
+    radial-gradient(ellipse 70% 140% at 0% 0%, var(--accent-soft), transparent 80%), var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.ws-action-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--muted);
+}
+
+.ws-action.featured .ws-action-icon {
+  background: var(--accent);
+  box-shadow: inset 0 1px 0 var(--primary-sheen);
+  color: var(--on-ink);
+}
+
+.ws-action-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ws-action-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ws-action-sub {
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.ws-badge {
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent-text);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ws-action-go {
+  display: grid;
+  color: var(--faint);
+  transition: transform var(--dur-1, 120ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+button.ws-action:hover:not(:disabled) .ws-action-go,
+button.ws-action:focus-visible .ws-action-go {
+  color: var(--text);
+  transform: translateX(2px);
+}
+
+/* Recent projects: a quiet list under the ways in. */
+.ws-recent {
+  display: grid;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.ws-section-title {
+  margin: 0;
+  padding: 0 2px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.ws-recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  display: grid;
+  gap: 2px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+button.ws-recent-row {
+  width: 100%;
+  height: auto;
+  min-height: 44px;
+  padding: 6px 10px 6px 6px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: stretch;
+  gap: var(--s-3);
+  text-align: left;
+  box-shadow: none;
+}
+
+button.ws-recent-row:hover:not(:disabled) {
+  background: var(--hover);
+  box-shadow: none;
+}
+
+button.ws-recent-row.missing:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.ws-recent-tile {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.ws-recent-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ws-recent-name,
+.ws-recent-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-recent-name {
+  font-size: var(--fs-md);
+  color: var(--text);
+}
+
+.ws-recent-path {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.ws-recent-row.missing .ws-recent-name {
+  color: var(--muted);
+}
+
+.ws-recent-go,
+.ws-recent-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  color: var(--faint);
+}
+
+.ws-recent-go {
+  opacity: 0;
+  transition: opacity var(--dur-1, 120ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+button.ws-recent-row:hover:not(:disabled) .ws-recent-go,
+button.ws-recent-row:focus-visible .ws-recent-go {
+  opacity: 1;
+  color: var(--text);
+}
+
+/* The visual: a stage like the 3D view, with the body and the unwrap sheet drawn in SVG. */
+.ws-visual {
+  position: relative;
+  aspect-ratio: 1 / 0.95;
+  border-radius: 16px;
+  background: var(--canvas-3d);
+  box-shadow: inset 0 0 0 1px var(--canvas-edge);
+  overflow: hidden;
+}
+
+.ws-art {
+  position: absolute;
+  inset: 6% 4% 4%;
+  width: 92%;
+  height: 90%;
+}
+
+.ws-art-floor {
+  fill: var(--shadow-color-deep);
+  opacity: 0.6;
+}
+
+.ws-art-body {
+  fill: var(--skin);
+  stroke: var(--skin);
+  filter: drop-shadow(0 1px 1.5px var(--shadow-color-deep));
+}
+
+.ws-art-body > :not(.ws-art-limb) {
+  stroke: none;
+}
+
+.ws-art-limb {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ws-art-motif {
+  fill: var(--figure);
+}
+
+.ws-art-red {
+  fill: none;
+  stroke: var(--red);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.ws-art-paper {
+  fill: var(--skin);
+  filter: drop-shadow(0 6px 14px var(--shadow-color-deep));
+}
+
+.ws-art-grid {
+  fill: none;
+  stroke: var(--figure);
+  stroke-width: 0.8;
+  opacity: 0.14;
+}
+
+.ws-art-link {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.4;
+  stroke-dasharray: 3 5;
+  stroke-linecap: round;
+  animation: ws-flow 1.6s linear infinite;
+}
+
+.ws-art-link-dot {
+  fill: var(--muted);
+}
+
+.ws-art-label {
+  fill: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+@keyframes ws-flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+/* A calm entrance: the text, then the visual. */
+.ws-intro > *,
+.ws-visual {
+  animation: ws-rise var(--dur-3, 320ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+.ws-intro > :nth-child(2) {
+  animation-delay: 30ms;
+}
+
+.ws-intro > :nth-child(3) {
+  animation-delay: 60ms;
+}
+
+.ws-intro > :nth-child(n + 4) {
+  animation-delay: 90ms;
+}
+
+.ws-visual {
+  animation-delay: 80ms;
+}
+
+@keyframes ws-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (max-width: 860px) {
+  .ws-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ws-intro {
+    max-width: none;
+  }
+  .ws-visual {
+    display: none;
+  }
+}
+
+/* ── Modal dialog frame (FolderPicker.tsx: Modal) ─────────────────────────────────────────────── */
+
+.md-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: var(--s-4);
+  background: var(--scrim);
+  animation: md-fade var(--dur-2, 200ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+.md-dialog {
+  width: min(520px, 100%);
+  max-height: min(680px, calc(100dvh - 2 * var(--s-4)));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 0 0 1px var(--border-strong),
+    var(--elev-4, var(--shadow-2));
+  animation: md-pop var(--dur-2, 200ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+.md-dialog:focus {
+  outline: none;
+}
+
+.md-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: 16px 12px 12px 20px;
+}
+
+.md-titles {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.md-titles h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.md-subtitle {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.md-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  padding: 12px 16px 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+@keyframes md-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes md-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+/* ── Folder picker ────────────────────────────────────────────────────────────────────────────── */
+
+.md-dialog.fp-dialog {
+  width: min(600px, 100%);
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+}
+
+.fp-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: 0 16px 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fp-bar > .chip {
+  flex: none;
+}
+
+.fp-crumbs {
+  flex: 1;
+  min-width: 0;
+}
+
+.fp-crumbs ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 2px;
+}
+
+.fp-crumbs li {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.fp-sep {
+  display: grid;
+  color: var(--faint);
+  margin: 0 1px;
+}
+
+button.fp-crumb,
+.fp-crumb {
+  height: 24px;
+  max-width: 220px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+button.fp-crumb:hover:not(:disabled) {
+  box-shadow: none;
+  color: var(--text);
+}
+
+.fp-crumb.current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.fp-list {
+  min-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  transition: opacity var(--dur-1, 120ms) ease;
+}
+
+.fp-list:focus {
+  outline: none;
+}
+
+.fp-list.loading {
+  opacity: 0.55;
+}
+
+button.fp-row {
+  width: 100%;
+  height: 34px;
+  padding: 0 8px 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  text-align: left;
+  font-weight: 400;
+  font-size: var(--fs-md);
+  box-shadow: none;
+}
+
+button.fp-row:hover:not(:disabled) {
+  background: var(--hover);
+  box-shadow: none;
+}
+
+button.fp-row:focus-visible {
+  outline: none;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.fp-glyph {
+  display: grid;
+  color: var(--faint);
+}
+
+.fp-row.kind-project .fp-glyph {
+  color: var(--ok);
+}
+
+.fp-row.kind-legacy .fp-glyph {
+  color: var(--warn);
+}
+
+.fp-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fp-go {
+  display: grid;
+  color: var(--faint);
+  opacity: 0;
+}
+
+button.fp-row:hover .fp-go,
+button.fp-row:focus-visible .fp-go {
+  opacity: 1;
+}
+
+.fp-empty {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 48px var(--s-4);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+.fp-empty p {
+  margin: 0;
+}
+
+.fp-empty strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.fp-empty-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--faint);
+}
+
+.fp-more {
+  margin: 6px 10px;
+  font-size: var(--fs-xs);
+}
+
+.notice.fp-error {
+  margin: 4px;
+}
+
+.fp-keys {
+  margin: 0;
+  padding: 6px 20px;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-2xs);
+}
+
+.fp-keys kbd {
+  margin-right: 2px;
+}
+
+.fp-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--faint);
+}
+
+.fp-choose-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── New project form (StartScreen.tsx: NewProjectForm, in a dialog) ──────────────────────────── */
+
+.md-dialog.np-dialog {
+  width: min(520px, 100%);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.np-form {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  min-height: 0;
+}
+
+.np-fields {
+  display: grid;
+  gap: var(--s-4);
+  padding: 6px 20px 20px;
+  overflow-y: auto;
+}
+
+.np-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.np-label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.np-field > input {
+  width: 100%;
+  height: 34px;
+  font-size: var(--fs-md);
+}
+
+.segmented.np-seg {
+  justify-self: start;
+}
+
+.np-hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--faint);
+}
+
+button.np-location {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  justify-content: stretch;
+  gap: 8px;
+  text-align: left;
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font-weight: 400;
+}
+
+button.np-location:hover:not(:disabled) {
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--border-hover);
+}
+
+.np-location-icon {
+  display: grid;
+  color: var(--faint);
+}
+
+.np-location-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.np-location-path.empty {
+  font-family: var(--font-ui);
+  color: var(--faint);
+}
+
+.np-location-action {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--accent-text);
+}
+
+.np-preview {
+  display: grid;
+  gap: var(--s-2);
+  margin-top: calc(-1 * var(--s-2));
+}
+
+.np-target {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+.np-target code {
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+button.link.np-rename {
+  margin-left: auto;
+  padding: 0;
+  font-size: var(--fs-xs);
+}
+
+.np-clash {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--warn-text);
+}
+
+.np-clash.blocking {
+  color: var(--danger);
+}
+
+.notice.np-error {
+  margin: 0 20px 14px;
+}
+
+.np-status {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-intro > *,
+  .ws-visual,
+  .ws-art-link,
+  .md-scrim,
+  .md-dialog {
+    animation: none;
+  }
+  .ws-action-go,
+  .ws-recent-go,
+  .fp-list {
+    transition: none;
+  }
+}
+
+/* ── Settings → Project (ProjectPage.tsx, DataFolderPage.tsx: ProjectFolderDetails) ──────────── */
+
+/* Same centred column as the other Settings sections (.pg-frame in pages.css). */
+.prj-page {
+  max-width: 840px;
+  margin: var(--s-3) auto var(--s-6);
+  display: grid;
+  gap: var(--s-4);
+}
+
+.prj-page > .notice {
+  margin: 0;
+}
+
+/* Identity: icon, name, folder, and the two project actions; the sample's one message below. */
+.prj-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-4);
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.prj-head-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--muted);
+}
+
+.prj-head-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.prj-head-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.prj-eyebrow {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.prj-head.sample .prj-eyebrow {
+  color: var(--warn-text);
+}
+
+.prj-title {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+
+.prj-path {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 0;
+  margin: 2px 0 0;
+  font-size: var(--fs-xs);
+}
+
+.prj-path code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+button.link.prj-reveal {
+  flex: none;
+  padding: 0;
+  font-size: var(--fs-xs);
+}
+
+.prj-head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.prj-sample {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--warn-soft);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
+}
+
+.prj-sample p {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.prj-sample strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.prj-sample > button {
+  flex: none;
+}
+
+/* Cards: the df-panel frame with its title row; the body is padded like the title. */
+.prj-card-body {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+}
+
+.prj-card-body > ul,
+.prj-text {
+  margin: 0;
+}
+
+.prj-text {
+  max-width: 640px;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.prj-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--s-3) var(--s-4);
+}
+
+.prj-field-name input[type="text"] {
+  width: 300px;
+  max-width: 100%;
+}
+
+.prj-card-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border);
+}
+
+.prj-hint {
+  flex: 1;
+  max-width: 560px;
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--faint);
+}
+
+.prj-card-foot > button {
+  margin-left: auto;
+}
+
+/* Project folder details: a closed disclosure, the files and structure inside. */
+.prj-disclosure {
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.prj-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  list-style: none;
+}
+
+.prj-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.prj-disclosure > summary::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin: 0 4px 0 2px;
+  border-right: 1.5px solid var(--faint);
+  border-bottom: 1.5px solid var(--faint);
+  transform: rotate(-45deg);
+  transition: transform var(--dur-1, 120ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.prj-disclosure[open] > summary {
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+
+.prj-disclosure[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+.prj-disclosure > summary:hover {
+  background: var(--row-hover);
+}
+
+.prj-disclosure > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.prj-disclosure-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.prj-disclosure-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.prj-disclosure-sub {
+  font-size: var(--fs-xs);
+  color: var(--faint);
+}
+
+.prj-disclosure-meta {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--faint);
+}
+
+.prj-disclosure-body {
+  display: grid;
+  gap: var(--s-3);
+  padding: 0 var(--s-4) var(--s-4);
+}
+
+.prj-disclosure-body > .notice {
+  margin: 0;
+}
+
+/* People: who is in the project and who is being viewed. */
+.pp-count {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+}
+
+.pp-intro {
+  margin: var(--s-3) var(--s-4);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+.pp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.pp-who {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.pp-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pp-tag {
+  padding: 0 6px;
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--muted);
+}
+
+.pp-body {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.pp-viewing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-h);
+  padding: 0 10px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.pp-viewing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+@media (max-width: 760px) {
+  .prj-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .prj-head-actions {
+    grid-column: 1 / -1;
+    margin-top: var(--s-3);
+  }
+  .prj-sample {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prj-disclosure > summary::before {
+    transition: none;
+  }
+}

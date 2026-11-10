@@ -6,6 +6,12 @@ import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import { loadProjectData } from "./project/projectData.ts";
 import "./styles.css";
+import "./styles/shell.css";
+import "./styles/start.css";
+import "./styles/layout.css";
+import "./styles/viewer.css";
+import "./styles/library.css";
+import "./styles/pages.css";
 import { themeStore } from "./ui/useTheme.ts";
 
 const root = document.getElementById("root");

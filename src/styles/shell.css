@@ -1,0 +1,444 @@
+/* shell: rules added by the 2026-11 UX overhaul (see docs/claude-decisions.md). Tokens live in ../styles.css.
+ *
+ * - .tip-layer      the one tooltip element (src/ui/Tooltip.tsx)
+ * - .cmdk-*         the command palette and its trigger in the top bar (src/ui/CommandPalette.tsx)
+ * - .ctx-*          the people and project menu in the top bar (src/project/PersonSwitcher.tsx)
+ * - .empty-icon     the icon slot of an .empty state */
+
+/* ── Tooltip ──────────────────────────────────────────────────────────────────────────────────── */
+
+.tip-layer {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 280px;
+  padding: 5px 8px;
+  border-radius: var(--r-md);
+  background: var(--tip-bg);
+  color: var(--tip-text);
+  box-shadow: var(--shadow-tip);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-2px);
+}
+
+.tip-layer[data-side="top"] {
+  transform: translateY(2px);
+}
+
+.tip-layer[data-side="left"] {
+  transform: translateX(2px);
+}
+
+.tip-layer[data-side="right"] {
+  transform: translateX(-2px);
+}
+
+.tip-layer.open {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+
+.tip-layer kbd.kbd {
+  color: var(--tip-key);
+  box-shadow: inset 0 0 0 1px var(--tip-key-line);
+}
+
+/* ── Command palette ──────────────────────────────────────────────────────────────────────────── */
+
+/* The trigger in the top bar: looks like a quiet search field. */
+button.cmdk-trigger {
+  gap: 7px;
+  padding: 0 6px 0 8px;
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--faint);
+  font-weight: 400;
+}
+
+button.cmdk-trigger:hover:not(:disabled),
+button.cmdk-trigger[aria-expanded="true"] {
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--border-hover);
+  color: var(--text);
+}
+
+button.cmdk-trigger:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.cmdk-trigger-label {
+  min-width: 64px;
+  text-align: left;
+}
+
+/* A crowded bar (a tab with its own controls up here, or a narrow window): the icon and nothing else. */
+@media (max-width: 1700px) {
+  .app-header:has(.header-slot > *) .cmdk-trigger-label {
+    display: none;
+  }
+}
+
+@media (max-width: 1500px) {
+  .app-header:has(.header-slot > *) button.cmdk-trigger {
+    width: var(--control-h);
+    padding: 0;
+  }
+  .app-header:has(.header-slot > *) .cmdk-trigger kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .cmdk-trigger-label {
+    display: none;
+  }
+}
+
+.cmdk-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: min(16vh, 140px) var(--s-4) var(--s-4);
+  background: var(--scrim);
+  animation: fade-in var(--dur-2) var(--ease-out);
+}
+
+.cmdk {
+  width: min(600px, 100%);
+  max-height: min(520px, calc(100vh - min(16vh, 140px) - var(--s-6)));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--elev-4);
+  --enter-y: -6px;
+  --enter-scale: 0.985;
+  animation: enter var(--dur-2) var(--ease-out);
+}
+
+.cmdk-field {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--faint);
+}
+
+.cmdk-field > .icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+/* The field is bare: the panel is its frame. */
+input.cmdk-input,
+input.cmdk-input:hover:not(:disabled),
+input.cmdk-input:focus-visible,
+input.cmdk-input:focus-visible:hover {
+  flex: 1;
+  height: 100%;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  outline: none;
+  font-size: var(--fs-lg);
+  letter-spacing: -0.005em;
+}
+
+.cmdk-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+  scroll-padding: 34px 0 6px;
+}
+
+.cmdk-group + .cmdk-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.cmdk-group-label {
+  padding: 8px 10px 4px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--r-md);
+  color: var(--muted);
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+
+.cmdk-item.active {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.cmdk-icon {
+  flex: none;
+  width: 20px;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+}
+
+.cmdk-item.active .cmdk-icon {
+  color: var(--accent-text);
+}
+
+.cmdk-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.cmdk-title mark {
+  background: none;
+  color: var(--accent-text);
+  font-weight: 650;
+}
+
+.cmdk-hint {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+
+.cmdk-item.armed {
+  background: var(--danger-soft);
+  box-shadow: inset 0 0 0 1px var(--danger-line);
+}
+
+.cmdk-item.armed .cmdk-title,
+.cmdk-item.armed .cmdk-icon {
+  color: var(--danger);
+}
+
+.cmdk-empty {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: var(--s-8) var(--s-4);
+  color: var(--faint);
+  text-align: center;
+}
+
+.cmdk-empty > .icon {
+  width: 22px;
+  height: 22px;
+  margin-bottom: var(--s-2);
+}
+
+.cmdk-empty p {
+  margin: 0;
+}
+
+.cmdk-empty-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 550;
+}
+
+.cmdk-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  height: 34px;
+  padding: 0 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+
+.cmdk-foot > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── People and project menu ──────────────────────────────────────────────────────────────────── */
+
+/* The project's name inside the chip: quiet, after a hairline. A dot only when it needs a look. */
+.ctx-chip-project {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 16ch;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+  font-weight: 400;
+}
+
+.ctx-chip-project.warn::before,
+.ctx-chip-project.error::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.ctx-chip-project.error::before {
+  background: var(--danger);
+}
+
+/* Where the bar is short the chip names the person only (and on tabs with their own controls it is
+ * the avatar alone, see "Home and persons" in styles.css). */
+@media (max-width: 1600px) {
+  .app-header:has(.header-slot > *) .ctx-chip-project {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .ctx-chip-project {
+    display: none;
+  }
+}
+
+.ctx-project {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: calc(-1 * var(--s-1)) 0 var(--s-2);
+}
+
+.ctx-project-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--muted);
+}
+
+.ctx-project-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  line-height: var(--lh-tight);
+}
+
+.ctx-project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.ctx-project-meta {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+
+.ctx-sample-actions {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 var(--s-2);
+}
+
+.ctx-sample-actions > button:first-child {
+  flex: 1;
+}
+
+.ctx-section {
+  margin: var(--s-3) 0 6px;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border);
+}
+
+.ctx-current {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--accent-text);
+}
+
+/* ── Empty state icon ─────────────────────────────────────────────────────────────────────────── */
+
+.empty-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--s-1);
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--muted);
+}
+
+.empty-icon > .icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* ── Utilities ────────────────────────────────────────────────────────────────────────────────── */
+
+/* A surface that appears on its own (a floating notice): the shared entrance. */
+.anim-enter {
+  animation: enter var(--dur-2) var(--ease-out);
+}

@@ -253,3 +253,176 @@ export const ChevronLeftIcon = () => (
     <path d="m14.5 6-6 6 6 6" />
   </Pro>
 );
+
+/** Settings navigation (Project, Body, Projection, Image generation, Appearance). */
+export const FolderIcon = () => (
+  <Pro size={15}>
+    <path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4l2 2.2h8a1.5 1.5 0 0 1 1.5 1.5v7.8a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" />
+  </Pro>
+);
+
+export const BodyIcon = () => (
+  <Pro size={15}>
+    <circle cx="12" cy="5.5" r="2" />
+    <path d="M6.5 9.5h11M12 9.5v5.5M12 15l-3 5M12 15l3 5" />
+  </Pro>
+);
+
+export const ProjectionIcon = () => (
+  <Pro size={15}>
+    <rect x="3.5" y="5" width="9" height="11" rx="1.5" />
+    <path d="M15.5 8.5c2.5 0 5 1 5 3.5s-2.5 3.5-5 3.5M15.5 12h2" />
+    <path d="M6 13.5 8 11l1.5 1.5L11 11" />
+  </Pro>
+);
+
+export const SparkleIcon = () => (
+  <Pro size={15}>
+    <path d="M12 4v5M12 15v5M4 12h5M15 12h5" />
+    <path d="M7 7l1.5 1.5M15.5 15.5 17 17M17 7l-1.5 1.5M8.5 15.5 7 17" />
+  </Pro>
+);
+
+export const ContrastIcon = () => (
+  <Pro size={15}>
+    <circle cx="12" cy="12" r="8" />
+    <path d="M12 4v16a8 8 0 0 0 0-16z" fill="currentColor" />
+  </Pro>
+);
+
+// App shell (top bar tabs, command palette, project and people menu).
+/** The Layout tab: an unwrap sheet next to a body. */
+export const LayoutTabIcon = () => (
+  <Pro size={14}>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+    <path d="M12 4.5v15M3.5 10.5H12" />
+  </Pro>
+);
+
+/** The Image studio tab. */
+export const StudioIcon = () => (
+  <Pro size={14}>
+    <path d="M12 3.5l1.7 4.3L18 9.5l-4.3 1.7L12 15.5l-1.7-4.3L6 9.5l4.3-1.7z" />
+    <path d="M18.5 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8zM5.5 15.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" />
+  </Pro>
+);
+
+/** The Compare tab: two sheets side by side. */
+export const CompareIcon = () => (
+  <Pro size={14}>
+    <rect x="3.5" y="5" width="7" height="14" rx="1.5" />
+    <rect x="13.5" y="5" width="7" height="14" rx="1.5" />
+  </Pro>
+);
+
+/** The Assets tab: a grid of images. */
+export const AssetsIcon = () => (
+  <Pro size={14}>
+    <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+    <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+    <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+    <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+  </Pro>
+);
+
+/** The Settings tab: two sliders. */
+export const SettingsIcon = () => (
+  <Pro size={14}>
+    <path d="M4 8h9M17 8h3M4 16h3M11 16h9" />
+    <circle cx="15" cy="8" r="2" />
+    <circle cx="9" cy="16" r="2" />
+  </Pro>
+);
+
+export const SearchIcon = () => (
+  <Pro size={14}>
+    <circle cx="11" cy="11" r="6" />
+    <path d="M15.5 15.5 20 20" />
+  </Pro>
+);
+
+export const CheckIcon = () => (
+  <Pro size={14}>
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </Pro>
+);
+
+export const UserIcon = () => (
+  <Pro size={14}>
+    <circle cx="12" cy="8.5" r="3.5" />
+    <path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" />
+  </Pro>
+);
+
+/** Leave the sample or the project. */
+export const LeaveIcon = () => (
+  <Pro size={14}>
+    <path d="M10 4.5H6A1.5 1.5 0 004.5 6v12A1.5 1.5 0 006 19.5h4" />
+    <path d="M15 8l4 4-4 4M19 12H9.5" />
+  </Pro>
+);
+
+/** A body region (command palette). */
+export const BodyRegionIcon = () => (
+  <Pro size={14}>
+    <circle cx="12" cy="5" r="2" />
+    <path d="M12 7.5v7M7 10.5h10M12 14.5l-3 6M12 14.5l3 6" />
+  </Pro>
+);
+
+export const ChevronDownIcon = () => (
+  <Pro size={12}>
+    <path d="m6 9.5 6 6 6-6" />
+  </Pro>
+);
+
+export const CloseIcon = () => (
+  <Pro size={14}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </Pro>
+);
+
+/** Look for new files again (Assets toolbar). */
+export const RefreshIcon = () => (
+  <Pro size={14}>
+    <path d="M19 12a7 7 0 1 1-2.05-4.95" />
+    <path d="M19 4.5V8h-3.5" />
+  </Pro>
+);
+
+/** Hidden image (Assets grid flag). */
+export const EyeOffIcon = () => (
+  <Pro size={12}>
+    <path d="M4 12s3-5.5 8-5.5 8 5.5 8 5.5-3 5.5-8 5.5S4 12 4 12Z" />
+    <path d="M5 5l14 14" />
+  </Pro>
+);
+
+/** Thumbnail size: many small tiles. */
+export const ThumbsSmallIcon = () => (
+  <Pro size={14}>
+    <path d="M5 5h4v4H5zM10 5h4v4h-4zM15 5h4v4h-4zM5 10h4v4H5zM10 10h4v4h-4zM15 10h4v4h-4zM5 15h4v4H5zM10 15h4v4h-4zM15 15h4v4h-4z" />
+  </Pro>
+);
+
+/** Thumbnail size: medium tiles. */
+export const ThumbsMediumIcon = () => (
+  <Pro size={14}>
+    <path d="M5 5h6v6H5zM13 5h6v6h-6zM5 13h6v6H5zM13 13h6v6h-6z" />
+  </Pro>
+);
+
+/** Thumbnail size: a few large tiles. */
+export const ThumbsLargeIcon = () => (
+  <Pro size={14}>
+    <path d="M5 5h14v14H5z" />
+  </Pro>
+);
+
+/** An API key (Image studio: generative engine needs one). */
+export const KeyIcon = () => (
+  <Pro size={14}>
+    <circle cx="8" cy="15" r="3.5" />
+    <path d="M10.5 12.5 18 5M15.5 7.5l2 2M13.5 9.5l1.5 1.5" />
+  </Pro>
+);
