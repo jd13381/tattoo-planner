@@ -20,7 +20,9 @@ export type ShortcutAction =
   | { type: "layerDown" }
   | { type: "help" }
   /** Tool rail: V = select and move, R = toggle the red line brush. */
-  | { type: "tool"; tool: "select" | "draw" };
+  | { type: "tool"; tool: "select" | "draw" }
+  /** Tool rail: F, T and B add a figure, an existing tattoo or a band. */
+  | { type: "add"; element: "figure" | "existing" | "band" };
 
 export type KeyInput = {
   key: string;
@@ -97,6 +99,9 @@ export function shortcutAction(e: KeyInput, platform: Platform): ShortcutAction 
   if (e.altKey) return null;
   if (!e.shiftKey && key === "v") return { type: "tool", tool: "select" };
   if (!e.shiftKey && key === "r") return { type: "tool", tool: "draw" };
+  if (!e.shiftKey && key === "f") return { type: "add", element: "figure" };
+  if (!e.shiftKey && key === "t") return { type: "add", element: "existing" };
+  if (!e.shiftKey && key === "b") return { type: "add", element: "band" };
   if ((key === "Delete" || key === "Backspace") && !e.shiftKey) return { type: "delete" };
   if (key === "Escape" && !e.shiftKey) return { type: "deselect" };
   const arrow = ARROWS[key];
@@ -115,8 +120,11 @@ export const SHORTCUTS: readonly { keys: readonly string[]; description: string 
     keys: ["Esc"],
     description: "Deselect, or leave Draw mode; with nothing selected, back to Home (if opened there)",
   },
-  { keys: ["V"], description: "Select and move tool (leaves Draw mode)" },
-  { keys: ["R"], description: "Draw red line on the 3D arm (toggle)" },
+  { keys: ["V"], description: "Select and move (leaves Draw mode)" },
+  { keys: ["R"], description: "Draw a line on the 3D view (toggle)" },
+  { keys: ["F"], description: "Add a figure" },
+  { keys: ["T"], description: "Add an existing tattoo" },
+  { keys: ["B"], description: "Add a band (in the Background view: the brush)" },
   { keys: ["←", "→", "↑", "↓"], description: "Nudge the selected element by 0.5 cm" },
   { keys: ["Shift+Arrow"], description: "Nudge by 2 cm" },
   { keys: ["]"], description: "Bring forward one layer" },

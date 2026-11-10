@@ -1,8 +1,19 @@
 import { AssetThumb } from "../assets/AssetBrowser.tsx";
-import { ArrowDownIcon, ArrowUpIcon, DuplicateIcon, LockIcon, TrashIcon, WarnIcon } from "../ui/icons.tsx";
-import type { ReactNode } from "react";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  DuplicateIcon,
+  ImageIcon,
+  LockIcon,
+  TrashIcon,
+  WarnIcon,
+} from "../ui/icons.tsx";
+import { useState, type ReactNode } from "react";
 import { BAND_PATTERNS } from "../render/patterns/index.ts";
 import { colorToHex, LINE_SWATCHES } from "./edit.ts";
+import { ChevronIcon } from "./editorIcons.tsx";
+import { filterLabel, KIND_LABEL } from "./labels.ts";
+import { readFlag, writeFlag } from "./viewPrefs.ts";
 import type { AssetInfo } from "../assets/types.ts";
 import { FULL_IMAGE } from "../layout/imageFit.ts";
 import {
@@ -36,7 +47,21 @@ type Props = {
   keys?: Partial<Record<"duplicate" | "delete" | "forward" | "back", string>>;
 };
 
-/** Properties of the selected element. Every field maps 1:1 to the layout YAML. */
+const AROUND_HELP =
+  "Where it sits around the limb, as a part of a full turn: 0 is the main centre line, 0.5 the opposite side. (u in the layout file)";
+const ALONG_HELP =
+  "Where it sits along the limb: 0 at the near end, 1 at the far end. (v in the layout file)";
+
+/** "≈ on the outer line · 15.4 cm from the wrist" as the two parts of the read-out. */
+function readoutParts(positionCm: string): string[] {
+  const text = positionCm.replace(/^≈\s*/, "");
+  return text.split(" · ").map((part, i) => (i === 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part));
+}
+
+/**
+ * Properties of the selected element. Every field maps 1:1 to the layout YAML; the labels are plain
+ * words (labels.ts), the file's own key is named in a field's tooltip where it differs.
+ */
 export function ElementPanel({
   element: el,
   asset,
@@ -58,14 +83,14 @@ export function ElementPanel({
   const num = (
     value: number | null | undefined,
     set: (n: number | null) => void,
-    opts: { step?: number; nullable?: boolean; label?: string } = {},
+    opts: { step?: number; nullable?: boolean; label?: string; placeholder?: string } = {},
   ) => (
     <input
       type="number"
       aria-label={opts.label}
       step={opts.step ?? 0.01}
       value={value ?? ""}
-      placeholder={opts.nullable ? "not set" : undefined}
+      placeholder={opts.placeholder ?? (opts.nullable ? "auto" : undefined)}
       disabled={locked}
       onChange={(e) => {
         const n = e.target.valueAsNumber;
@@ -74,22 +99,20 @@ export function ElementPanel({
       }}
     />
   );
-  const text = (value: string | undefined, set: (s: string | undefined) => void) => (
-    <input
-      type="text"
-      value={value ?? ""}
-      disabled={locked}
-      onChange={(e) => set(e.target.value || undefined)}
-    />
+  const readout = (
+    <p className="ins-readout" title="Measured on the skin, from the element's centre">
+      {readoutParts(positionCm).map((part) => (
+        <span key={part}>{part}</span>
+      ))}
+    </p>
   );
-  const cm = <p className="cm-readout">{positionCm}</p>;
 
   return (
     <section className="panel element-panel" aria-label="Element">
       <div className="panel-head inspector-head">
         <span className={`swatch cat-${el.type}`} aria-hidden="true" />
         <h2>{el.id}</h2>
-        <span className="faint">{el.type}</span>
+        <span className="faint">{KIND_LABEL[el.type]}</span>
         <span className="spacer" />
         <button
           type="button"
@@ -97,13 +120,21 @@ export function ElementPanel({
           aria-pressed={locked}
           aria-label={locked ? "Unlock" : "Lock"}
           title={
-            locked ? "Locked: cannot be moved, edited or deleted. Click to unlock." : "Lock against edits"
+            locked
+              ? "Locked: cannot be moved, edited or deleted. Click to unlock."
+              : "Lock against accidental edits"
           }
           onClick={() => onChange({ ...el, locked: locked ? undefined : true })}
         >
           <LockIcon open={!locked} />
         </button>
       </div>
+      {locked && (
+        <p className="ins-locked">
+          <LockIcon open={false} />
+          Locked. Unlock it to move or edit it.
+        </p>
+      )}
       {flags.length > 0 && (
         <p className="notice warn compact">
           <WarnIcon />
@@ -116,7 +147,7 @@ export function ElementPanel({
         </p>
       )}
       <div className="element-actions">
-        <span className="layer-label" title="Layer 1 is drawn at the bottom">
+        <span className="layer-label" title="Layer 1 is drawn at the bottom; higher layers cover it">
           Layer <b>{index + 1}</b> of {count}
         </span>
         <span className="spacer" />
@@ -146,7 +177,7 @@ export function ElementPanel({
           onClick={onDuplicate}
           disabled={locked}
           aria-label="Duplicate"
-          title={`Duplicate: a copy on top, with a new id${hint("duplicate")}`}
+          title={`Duplicate: a copy on top, with a new name${hint("duplicate")}`}
         >
           <DuplicateIcon />
         </button>
@@ -162,12 +193,17 @@ export function ElementPanel({
         </button>
       </div>
       <div className="props">
-        <label>
-          id
+        <label
+          className="ins-row"
+          title="The element's name in the lists, the layout file and the handout: lowercase letters, digits and dashes"
+        >
+          Name
           <input
             type="text"
             value={el.id}
             disabled={locked}
+            spellCheck={false}
+            autoComplete="off"
             aria-invalid={idError ? true : undefined}
             aria-describedby={idError ? "element-id-error" : undefined}
             onChange={(e) =>
@@ -183,48 +219,42 @@ export function ElementPanel({
         {(el.type === "figure" || el.type === "existing") && (
           <>
             <ImageSwap el={el} asset={asset} locked={locked} onChangeImage={onChangeImage} />
-            {el.type === "existing" && (
-              <label title="A calibration made in Settings → Projection: the tattoo is drawn from all its photos; position, size and cut-out apply only while that cannot be built.">
-                projection {text(el.projection, (projection) => onChange({ ...el, projection }))}
-              </label>
-            )}
-            <h3 className="props-head">
-              Position <span className="props-head-note">u around · v along</span>
-            </h3>
+            <h3 className="props-head">Position</h3>
+            {readout}
             <div className="field-pair">
-              <Box k="u">
+              <Box k="Around" unit="u" title={AROUND_HELP}>
                 {num(el.position.u, (u) => onChange({ ...el, position: { ...el.position, u: u ?? 0 } }), {
-                  label: "u (around)",
+                  label: "Position around (u)",
                 })}
               </Box>
-              <Box k="v">
+              <Box k="Along" unit="v" title={ALONG_HELP}>
                 {num(el.position.v, (v) => onChange({ ...el, position: { ...el.position, v: v ?? 0 } }), {
-                  label: "v (along)",
+                  label: "Position along (v)",
                 })}
               </Box>
             </div>
-            {cm}
             <h3 className="props-head">Size</h3>
             <div className="field-pair">
-              <Box k="H" unit="cm">
+              <Box k="Height" unit="cm">
                 {num(el.size_cm.h, (h) => onChange({ ...el, size_cm: { ...el.size_cm, h } }), {
                   step: 0.1,
                   nullable: true,
-                  label: "height cm",
+                  label: "Height in cm",
                 })}
               </Box>
-              <Box k="W" unit="cm">
+              <Box k="Width" unit="cm" title="Leave empty to follow the image's proportions">
                 {num(
                   el.size_cm.w,
                   (w) => onChange({ ...el, size_cm: { ...el.size_cm, w: w ?? undefined } }),
-                  { step: 0.1, nullable: true, label: "width cm" },
+                  { step: 0.1, nullable: true, label: "Width in cm" },
                 )}
               </Box>
-              <Box k="↻" unit="°">
+              <Box k="Rotation" unit="°" title="Turns the whole element on the skin, counter-clockwise">
                 {num(el.rotation_deg, (r) => onChange({ ...el, rotation_deg: r ?? undefined }), {
                   step: 1,
                   nullable: true,
-                  label: "rotation °",
+                  label: "Rotation in degrees",
+                  placeholder: "0",
                 })}
               </Box>
             </div>
@@ -235,15 +265,24 @@ export function ElementPanel({
         {el.type === "band" && (
           <>
             <h3 className="props-head">Position</h3>
-            <label>v (along) {num(el.v, (v) => onChange({ ...el, v: v ?? 0 }))}</label>
-            {cm}
+            {readout}
+            <div className="field-pair">
+              <Box k="Along" unit="v" title={ALONG_HELP}>
+                {num(el.v, (v) => onChange({ ...el, v: v ?? 0 }), { label: "Position along (v)" })}
+              </Box>
+            </div>
             <h3 className="props-head">Size</h3>
-            <label>
-              width cm {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), { step: 0.1 })}
-            </label>
+            <div className="field-pair">
+              <Box k="Width" unit="cm" title="How wide the band is, along the limb">
+                {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), {
+                  step: 0.1,
+                  label: "Width in cm",
+                })}
+              </Box>
+            </div>
             <h3 className="props-head">Style</h3>
-            <label>
-              pattern
+            <label className="ins-row">
+              Pattern
               <PatternSelect
                 value={el.pattern}
                 options={BAND_PATTERNS}
@@ -256,8 +295,10 @@ export function ElementPanel({
         {el.type === "line" && (
           <>
             <h3 className="props-head">Position</h3>
-            <p className="cm-readout flush">{positionCm}</p>
-            <p className="muted small">{el.points.length} points: drag the dots in the editor.</p>
+            {readout}
+            <p className="ins-help">
+              {el.points.length} points. Drag the dots on the sheet to reshape the line.
+            </p>
             <div className="toolbar">
               <button
                 type="button"
@@ -278,25 +319,31 @@ export function ElementPanel({
               </button>
             </div>
             <h3 className="props-head">Style</h3>
-            <div className="props-row">
-              <span>colour</span>
+            <div className="props-row ins-row">
+              <span>Colour</span>
               <ColorField
                 value={el.color}
                 disabled={locked}
                 onChange={(color) => onChange({ ...el, color })}
               />
             </div>
-            <label>
-              width cm {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), { step: 0.1 })}
-            </label>
+            <div className="field-pair">
+              <Box k="Thickness" unit="cm">
+                {num(el.width_cm, (w) => onChange({ ...el, width_cm: w ?? 1 }), {
+                  step: 0.1,
+                  label: "Thickness in cm",
+                })}
+              </Box>
+            </div>
           </>
         )}
         <h3 className="props-head">Notes</h3>
         <textarea
-          aria-label="notes"
+          aria-label="Notes"
           value={el.notes ?? ""}
           disabled={locked}
           rows={2}
+          placeholder="For you and the artist; printed in the handout"
           onChange={(e) => onChange({ ...el, notes: e.target.value || undefined })}
         />
       </div>
@@ -304,10 +351,20 @@ export function ElementPanel({
   );
 }
 
-/** A compact number field: a short key in front, an optional unit behind (Pro inspector). */
-function Box({ k, unit, children }: { k: string; unit?: string; children: ReactNode }) {
+/** A compact number field: a short label in front, an optional unit behind (Pro inspector). */
+function Box({
+  k,
+  unit,
+  title,
+  children,
+}: {
+  k: string;
+  unit?: string;
+  title?: string;
+  children: ReactNode;
+}) {
   return (
-    <label className="field-box">
+    <label className="field-box" title={title}>
       <span className="k" aria-hidden="true">
         {k}
       </span>
@@ -321,9 +378,16 @@ function Box({ k, unit, children }: { k: string; unit?: string; children: ReactN
   );
 }
 
-const CROP_KEYS = ["x", "y", "w", "h"] as const;
+const CROP_FIELDS = [
+  { key: "x", label: "Left" },
+  { key: "y", label: "Top" },
+  { key: "w", label: "Width" },
+  { key: "h", label: "Height" },
+] as const;
 
-/** Reference-mode fields of a figure: the asset preview with its cut-out, turn, flip, feather, filter. */
+const ADVANCED_KEY = "layout.inspector.advanced";
+
+/** How a figure's image is shown: look, turn, mirror; cut-out, soft edge and projection under Advanced. */
 function ImageFields(props: {
   el: FigureLike;
   asset?: AssetInfo | null;
@@ -333,35 +397,39 @@ function ImageFields(props: {
 }) {
   const { el, asset, autoFilter, locked, onChange } = props;
   const crop = el.crop ?? asset?.crop;
+  const [advanced, setAdvanced] = useState(() => readFlag(ADVANCED_KEY, false));
+  const toggleAdvanced = () => {
+    writeFlag(ADVANCED_KEY, !advanced);
+    setAdvanced(!advanced);
+  };
+  // What Advanced holds that differs from the defaults, so a closed section does not hide a setting.
+  const custom = [
+    el.crop ? "crop" : null,
+    el.feather_cm != null ? "soft edge" : null,
+    el.type === "existing" && el.projection ? "projection" : null,
+  ].filter((c): c is string => c !== null);
   return (
     <fieldset className="image-fields" disabled={locked}>
-      <legend>Image fit</legend>
-      <div className="crop-row">
-        <span>crop {el.crop ? "" : asset?.crop ? "(asset)" : "(whole image)"}</span>
-        {CROP_KEYS.map((k) => (
-          <label key={k} className="crop-field">
-            {k}
-            <input
-              type="number"
-              min={0}
-              max={1}
-              step={0.005}
-              value={crop?.[k] ?? FULL_IMAGE[k]}
-              onChange={(e) => {
-                const n = e.target.valueAsNumber;
-                if (!Number.isFinite(n)) return;
-                const next = { ...(crop ?? FULL_IMAGE), [k]: Math.round(n * 1000) / 1000 };
-                onChange({ ...el, crop: next });
-              }}
-            />
-          </label>
-        ))}
-        <button type="button" onClick={() => onChange({ ...el, crop: undefined })} disabled={!el.crop}>
-          Reset
-        </button>
-      </div>
-      <label>
-        turn image
+      <legend>Image</legend>
+      <label className="ins-row" title="How the image is drawn on the skin in Reference mode">
+        Look
+        <select
+          value={el.filter ?? ""}
+          onChange={(e) =>
+            onChange({ ...el, filter: (e.target.value || undefined) as ImageFilter | undefined })
+          }
+        >
+          <option value="">Automatic ({filterLabel(autoFilter).toLowerCase()})</option>
+          {/* The option equal to "auto" would read twice; it stays only while explicitly set. */}
+          {IMAGE_FILTERS.filter((f) => f !== autoFilter || el.filter === f).map((f) => (
+            <option key={f} value={f}>
+              {filterLabel(f)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="ins-row" title="Turns the image inside its box in quarter turns">
+        Turn image
         <select
           value={el.image_rotation_deg ?? 0}
           onChange={(e) => {
@@ -371,55 +439,118 @@ function ImageFields(props: {
         >
           {IMAGE_ROTATIONS.map((d) => (
             <option key={d} value={d}>
-              {d === 0 ? "upright" : `${d}° clockwise`}
+              {d === 0 ? "Upright" : `${d}° clockwise`}
             </option>
           ))}
         </select>
       </label>
-      <label>
-        filter
-        <select
-          value={el.filter ?? ""}
-          onChange={(e) =>
-            onChange({ ...el, filter: (e.target.value || undefined) as ImageFilter | undefined })
-          }
-        >
-          <option value="">auto ({autoFilter})</option>
-          {/* The option equal to "auto" would read twice; it stays only while explicitly set. */}
-          {IMAGE_FILTERS.filter((f) => f !== autoFilter || el.filter === f).map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        feather cm
-        <input
-          type="number"
-          min={0}
-          step={0.1}
-          value={el.feather_cm ?? ""}
-          placeholder="1 (default)"
-          onChange={(e) => {
-            const n = e.target.valueAsNumber;
-            onChange({ ...el, feather_cm: Number.isFinite(n) && n >= 0 ? n : undefined });
-          }}
-        />
-      </label>
-      <label className="check">
+      <label className="check ins-check">
         <input
           type="checkbox"
           checked={!!el.flip}
           onChange={(e) => onChange({ ...el, flip: e.target.checked || undefined })}
         />
-        mirror left-right
+        Mirror left to right
       </label>
+      <div className="ins-adv">
+        <button
+          type="button"
+          className="ghost ins-adv-toggle"
+          aria-expanded={advanced}
+          aria-controls="inspector-advanced"
+          onClick={toggleAdvanced}
+        >
+          <ChevronIcon dir={advanced ? "down" : "right"} />
+          Advanced
+          {!advanced && custom.length > 0 && <span className="ins-adv-note">{custom.join(", ")} set</span>}
+        </button>
+        {advanced && (
+          <div id="inspector-advanced" className="ins-adv-body">
+            <div className="ins-sub">
+              <span>Crop</span>
+              <span className="ins-sub-note">
+                {el.crop ? "custom" : asset?.crop ? "from the image's entry" : "whole image"}
+              </span>
+              <button
+                type="button"
+                className="link"
+                onClick={() => onChange({ ...el, crop: undefined })}
+                disabled={!el.crop}
+              >
+                Reset
+              </button>
+            </div>
+            <div
+              className="field-pair"
+              title="The part of the image that is used, as fractions of its width and height (0 to 1)"
+            >
+              {CROP_FIELDS.map(({ key, label }) => (
+                <label key={key} className="field-box">
+                  <span className="k" aria-hidden="true">
+                    {label}
+                  </span>
+                  <input
+                    type="number"
+                    aria-label={`Crop ${label.toLowerCase()}`}
+                    min={0}
+                    max={1}
+                    step={0.005}
+                    value={crop?.[key] ?? FULL_IMAGE[key]}
+                    onChange={(e) => {
+                      const n = e.target.valueAsNumber;
+                      if (!Number.isFinite(n)) return;
+                      const next = { ...(crop ?? FULL_IMAGE), [key]: Math.round(n * 1000) / 1000 };
+                      onChange({ ...el, crop: next });
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="field-pair">
+              <label className="field-box" title="How far the image's edge fades into the skin">
+                <span className="k" aria-hidden="true">
+                  Soft edge
+                </span>
+                <input
+                  type="number"
+                  aria-label="Soft edge in cm"
+                  min={0}
+                  step={0.1}
+                  value={el.feather_cm ?? ""}
+                  placeholder="1"
+                  onChange={(e) => {
+                    const n = e.target.valueAsNumber;
+                    onChange({ ...el, feather_cm: Number.isFinite(n) && n >= 0 ? n : undefined });
+                  }}
+                />
+                <span className="u" aria-hidden="true">
+                  cm
+                </span>
+              </label>
+            </div>
+            {el.type === "existing" && (
+              <label
+                className="ins-row"
+                title="A calibration made in Settings → Projection: the tattoo is drawn from all its photos; position, size and crop apply only while that cannot be built."
+              >
+                Projection
+                <input
+                  type="text"
+                  value={el.projection ?? ""}
+                  placeholder="none"
+                  spellCheck={false}
+                  onChange={(e) => onChange({ ...el, projection: e.target.value || undefined })}
+                />
+              </label>
+            )}
+          </div>
+        )}
+      </div>
     </fieldset>
   );
 }
 
-/** The figure's image, large, with Change image (opens the picker). */
+/** The figure's image, large; changing it is a quiet button on the image (it opens the picker). */
 function ImageSwap(props: {
   el: FigureLike;
   asset?: AssetInfo | null;
@@ -428,31 +559,35 @@ function ImageSwap(props: {
 }) {
   const { el, asset, locked, onChangeImage } = props;
   const crop = el.crop ?? asset?.crop;
+  const shown = !!el.asset && !!asset;
   return (
     <div className="image-swap">
-      <div className="image-swap-thumb">
+      <div className={`image-swap-thumb${shown ? "" : " ins-noimage"}`}>
         {!el.asset ? (
           <p className="muted small">No image yet.</p>
         ) : asset === null ? (
-          <p className="warn small">{el.asset} is not in the catalogue.</p>
+          <p className="warn small">{el.asset} is not among the project's images.</p>
         ) : asset === undefined ? (
           <p className="muted small">No images available.</p>
         ) : (
           <AssetThumb asset={asset} crop={crop} />
         )}
-      </div>
-      <div className="image-swap-bar">
         <button
           type="button"
-          className="primary change-image"
+          className="ins-change-image"
           disabled={locked || !onChangeImage}
           onClick={(e) => onChangeImage?.(e.currentTarget)}
-          title={locked ? "Unlock it to change its image" : "Pick another image"}
+          title={locked ? "Unlock it to change its image" : "Pick another image from the project"}
         >
+          <ImageIcon />
           {el.asset ? "Change image" : "Choose image"}
         </button>
       </div>
-      {el.asset && <p className="image-swap-id mono faint">{el.asset}</p>}
+      {el.asset && (
+        <p className="image-swap-id faint" title={`Image: ${el.asset}`}>
+          <span className="mono">{el.asset}</span>
+        </p>
+      )}
     </div>
   );
 }
