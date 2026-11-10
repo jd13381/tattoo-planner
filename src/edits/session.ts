@@ -101,10 +101,8 @@ export function closeQuestion(work: ReturnType<typeof unsavedWork>): string | nu
 /** Question before a pick or "Continue from" that drops later versions (null when none are dropped). */
 export function dropQuestion(fromIndex: number, lastIndex: number): string | null {
   if (lastIndex < fromIndex) return null;
-  const range =
-    fromIndex === lastIndex
-      ? versionLabel(fromIndex)
-      : `${versionLabel(fromIndex)}–${versionLabel(lastIndex)}`;
+  // Plain words, as everywhere in the studio (src/edits/studioWords.ts): "Version 2", "Versions 1 to 3".
+  const range = fromIndex === lastIndex ? `Version ${fromIndex}` : `Versions ${fromIndex} to ${lastIndex}`;
   return `${range} will be dropped from this session. Continue?`;
 }
 

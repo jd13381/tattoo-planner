@@ -118,8 +118,8 @@ describe("closing", () => {
 
   it("names the versions a pick drops", () => {
     expect(dropQuestion(2, 1)).toBeNull();
-    expect(dropQuestion(2, 2)).toBe("v2 will be dropped from this session. Continue?");
-    expect(dropQuestion(1, 3)).toBe("v1–v3 will be dropped from this session. Continue?");
+    expect(dropQuestion(2, 2)).toBe("Version 2 will be dropped from this session. Continue?");
+    expect(dropQuestion(1, 3)).toBe("Versions 1 to 3 will be dropped from this session. Continue?");
   });
 });
 

@@ -36,8 +36,9 @@ import {
   sessionForAsset,
   sessionJobs,
   unsavedWork,
-  versionLabel,
 } from "./session.ts";
+import { generativeBlock, runButtonLabel, versionName, versionTitleFor } from "./studioWords.ts";
+import { KeyIcon } from "../ui/icons.tsx";
 import {
   FocusView,
   JobTile,
@@ -46,7 +47,7 @@ import {
   VersionStrip,
   type StripVersion,
 } from "./StudioResults.tsx";
-import { artboardAspect, formatUsd, hasResult, runEstimate, runLabel, spentUsd, stepId } from "./studio.ts";
+import { artboardAspect, formatUsd, hasResult, runEstimate, spentUsd, stepId } from "./studio.ts";
 import {
   applyUrl,
   CREATE_BACKGROUNDS,
@@ -71,6 +72,7 @@ import {
 const MAX_RUNNING_GENERATIVE = 4;
 /** Reference images per request; the server enforces the same number (MAX_REFERENCES). */
 const MAX_REFS = 4;
+const KEY_HREF = "#settings/image-generation";
 const VARIANT_CHOICES = Array.from({ length: MAX_VARIANTS_PER_RUN }, (_, i) => i + 1);
 
 async function call<T>(url: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<T> {
@@ -508,7 +510,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
               listing.message
             )}
           </p>
-          <a className="button primary" href="#data">
+          <a className="button primary" href="#settings/project">
             Open a project
           </a>
         </section>
@@ -521,6 +523,20 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
   const canApply = hasTarget && !busy && overview?.builtin.enabled === true && !!lastSrc;
   const engineLabel =
     activeEngine === "openai" && overview?.generative.enabled ? overview.generative.model : null;
+  // Nothing to work on yet: the canvas shows the one empty state; the inspector stays quiet.
+  const noImage = mode === "edit" && !selected;
+  const keyMissing = generativeBlock(overview?.builtin, overview?.generative) === "key";
+  /** Why the run button is off, shown right above it (a read-only sample, a missing key). */
+  const runReason =
+    activeEngine === "builtin"
+      ? overview && !overview.builtin.enabled
+        ? overview.builtin.reason
+        : null
+      : overview && !overview.generative.enabled
+        ? keyMissing
+          ? "Needs an OpenAI API key (Settings → Image generation)."
+          : overview.generative.reason
+        : null;
   /** Built-in engine on the last version: the canvas shows the live preview there. */
   const previewing = activeEngine === "builtin" && !!lastSrc && view === last && !focusId;
   const lastAttempt = attempts.at(-1);
@@ -571,13 +587,13 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
             ))}
           </select>
         </div>
-        <p className="studio-assets-hint faint">
-          {mode === "edit"
-            ? usesRefs
-              ? "Click to pick · corner button adds a reference"
-              : "Click an image to pick it"
-            : `Click to add as reference · up to ${MAX_REFS}`}
-        </p>
+        {usesRefs && (
+          <p className="studio-assets-hint faint">
+            {mode === "edit"
+              ? "Click to pick · the corner button adds a reference"
+              : `Click to add as a reference · up to ${MAX_REFS}`}
+          </p>
+        )}
         {shown.length === 0 ? (
           <p className="muted small studio-assets-none">No image matches the filter.</p>
         ) : (
@@ -633,20 +649,41 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
 
   // ── Centre: canvas ──
   let canvas: ReactNode;
-  let barTitle: ReactNode;
+  let barTitle: ReactNode = null;
   if (!session) {
     // Browse: no session open. The picked image (or the artboard of a new one) and its saved versions.
     if (mode === "edit" && !selected) {
-      barTitle = <span className="muted">No image picked</span>;
+      // No bar: the empty state below is the only thing on the canvas.
       canvas = (
         <div className="studio-center">
           <section className="empty studio-hint">
-            <h2>Pick an image on the left</h2>
+            <h2>Pick an image to edit</h2>
             <p>
-              Then apply a built-in operation on the right, or describe a change for GPT Image. Every step
-              becomes a version; <strong>Save &amp; close</strong> writes the last one as a new image. The
-              original stays as it is.
+              Choose one on the left. The built-in tools change it right here; GPT Image can redraw it. Each
+              step becomes a version, and <strong>Save &amp; close</strong> keeps the result as a new image.
+              The original stays as it is.
             </p>
+            <div className="studio-hint-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setTileable(false);
+                  switchMode("create");
+                }}
+              >
+                Create a new image
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  setTileable(true);
+                  switchMode("create");
+                }}
+              >
+                Make a background tile
+              </button>
+            </div>
           </section>
         </div>
       );
@@ -721,7 +758,9 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
               </span>
               <span className="faint">
                 {!generativeOk
-                  ? "New images need an OpenAI API key"
+                  ? keyMissing
+                    ? "New images need an OpenAI API key"
+                    : "Not available in this project; the note on the right says why"
                   : tileable
                     ? "Describe the background on the right; the result is made seamless and shown tiled 3 × 3"
                     : "Describe it on the right, then create it"}
@@ -744,20 +783,21 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
       </>
     );
     const viewSrc = versionSrc(view);
+    const viewTitle = versionTitleFor(view, session.mode === "create");
     const viewJob = view === 0 ? undefined : byId.get(session.versions[view - 1]!);
     const head = (
       <div className="studio-round-head">
         <span className="tile-label">
-          {attempts.length === 0 || previewing ? versionLabel(view) : `Results from ${versionLabel(view)}`}
+          {attempts.length === 0 || previewing ? viewTitle : `Results from ${versionName(view)}`}
         </span>
         {view < last ? (
           <>
             <span className="faint small">
-              Earlier version · the next run starts from {versionLabel(last)}
+              Earlier version · the next run starts from {versionName(last)}
             </span>
             <span className="spacer" />
             <button type="button" className="small-button" disabled={busy} onClick={() => continueFrom(view)}>
-              Continue from {versionLabel(view)}
+              Continue from {versionName(view)}
             </button>
           </>
         ) : (
@@ -773,7 +813,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                 type="button"
                 className="ghost small-button"
                 disabled={!canRetry}
-                title={`Run "${lastAttempt.instructions.at(-1) ?? ""}" again on ${versionLabel(view)}`}
+                title={`Run "${lastAttempt.instructions.at(-1) ?? ""}" again on ${versionName(view)}`}
                 onClick={() => {
                   const text = lastAttempt.instructions.at(-1) ?? "";
                   setInstruction(text);
@@ -792,7 +832,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
             disabled={busy}
             onClick={() => saveVersion(view)}
           >
-            Save {versionLabel(view)}
+            Save {versionName(view)}
           </button>
         )}
         {viewJob?.kept && <span className="chip ok">saved as {viewJob.kept.id}</span>}
@@ -818,9 +858,9 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
             <figure className="studio-hero">
               <div className="checker">
                 {session.create?.tileable ? (
-                  <TiledPreview src={viewSrc} label={`${versionLabel(view)} tiled 3 × 3`} />
+                  <TiledPreview src={viewSrc} label={`${viewTitle} tiled 3 × 3`} />
                 ) : (
-                  <img src={viewSrc} alt={versionLabel(view)} />
+                  <img src={viewSrc} alt={viewTitle} />
                 )}
               </div>
             </figure>
@@ -852,7 +892,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
           {viewSrc && (
             <li className="studio-tile source">
               <div className="tile-head">
-                <span className="tile-label">{versionLabel(view)}</span>
+                <span className="tile-label">{viewTitle}</span>
                 <span className="faint small">before</span>
               </div>
               <div className="tile-image checker">
@@ -898,7 +938,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
     <div className={`studio backdrop-${backdrop}`}>
       <aside className="studio-assets" aria-label="Images">
         <div className="studio-col-head">
-          <h2 className="float-title">{mode === "edit" ? "Images" : "References"}</h2>
+          <h2 className="float-title">{mode === "create" && !tileable ? "References" : "Images"}</h2>
           <span className="mono faint">
             {shown.length === assets.length ? assets.length : `${shown.length}/${assets.length}`}
           </span>
@@ -917,78 +957,80 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
       </aside>
 
       <section className="studio-stage" aria-label="Preview">
-        <div className="float float-bar studio-bar">
-          {focusJob ? (
-            <>
-              <button type="button" className="ghost" onClick={() => setFocusId(null)}>
-                ← All results
-              </button>
-              <span className="toolbar-sep" />
-              <strong className="studio-bar-title">{focusJob.instructions.at(-1)}</strong>
-              {focusIds.length > 1 && (
-                <span className="button-pair">
-                  <button
-                    type="button"
-                    className="ghost icon-button"
-                    aria-label="Previous result"
-                    onClick={() => setFocusId(stepId(focusIds, focusJob.id, -1))}
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost icon-button"
-                    aria-label="Next result"
-                    onClick={() => setFocusId(stepId(focusIds, focusJob.id, 1))}
-                  >
-                    ›
-                  </button>
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="studio-bar-title">{barTitle}</span>
-          )}
-          <span className="spacer" />
-          <span className="segmented" role="group" aria-label="Backdrop">
-            {(["dark", "light"] as const).map((b) => (
-              <button
-                key={b}
-                type="button"
-                aria-pressed={backdrop === b}
-                title={
-                  b === "dark"
-                    ? "Dark checkerboard behind the images"
-                    : "Light checkerboard: shows black line work on a transparent background"
-                }
-                onClick={() => setBackdrop(b)}
-              >
-                {b === "light" ? "Light" : "Dark"}
-              </button>
-            ))}
-          </span>
-          {session && (
-            <>
-              <span className="toolbar-sep" />
-              <button type="button" className="ghost" disabled={busy} onClick={closeSession}>
-                Close
-              </button>
-              <button
-                type="button"
-                className="primary"
-                disabled={busy || last === 0}
-                title={
-                  last === 0
-                    ? "Pick a result with “Continue with this” first"
-                    : `Save ${versionLabel(last)} as a new image and end the session`
-                }
-                onClick={saveAndClose}
-              >
-                Save &amp; close
-              </button>
-            </>
-          )}
-        </div>
+        {(barTitle !== null || focusJob || session) && (
+          <div className="float float-bar studio-bar">
+            {focusJob ? (
+              <>
+                <button type="button" className="ghost" onClick={() => setFocusId(null)}>
+                  ← All results
+                </button>
+                <span className="toolbar-sep" />
+                <strong className="studio-bar-title">{focusJob.instructions.at(-1)}</strong>
+                {focusIds.length > 1 && (
+                  <span className="button-pair">
+                    <button
+                      type="button"
+                      className="ghost icon-button"
+                      aria-label="Previous result"
+                      onClick={() => setFocusId(stepId(focusIds, focusJob.id, -1))}
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost icon-button"
+                      aria-label="Next result"
+                      onClick={() => setFocusId(stepId(focusIds, focusJob.id, 1))}
+                    >
+                      ›
+                    </button>
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="studio-bar-title">{barTitle}</span>
+            )}
+            <span className="spacer" />
+            <span className="segmented" role="group" aria-label="Backdrop">
+              {(["dark", "light"] as const).map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  aria-pressed={backdrop === b}
+                  title={
+                    b === "dark"
+                      ? "Dark checkerboard behind the images"
+                      : "Light checkerboard: shows black line work on a transparent background"
+                  }
+                  onClick={() => setBackdrop(b)}
+                >
+                  {b === "light" ? "Light" : "Dark"}
+                </button>
+              ))}
+            </span>
+            {session && (
+              <>
+                <span className="toolbar-sep" />
+                <button type="button" className="ghost" disabled={busy} onClick={closeSession}>
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={busy || last === 0}
+                  title={
+                    last === 0
+                      ? "Pick a result with “Continue with this” first"
+                      : `Keep ${versionName(last)} as a new image and end the session`
+                  }
+                  onClick={saveAndClose}
+                >
+                  Save &amp; close
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {errand && (
           <div className="notice studio-errand small" role="status">
@@ -1011,53 +1053,51 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
         )}
         <div className="studio-canvas">{canvas}</div>
 
-        <div className="float status-bar studio-status">
-          <span>
-            {flash ? (
-              <span className="ok-text">{flash}</span>
-            ) : !session ? (
-              sessions.length === 0 ? (
-                "No editing session open"
-              ) : (
-                `${sessions.length} editing session${sessions.length === 1 ? "" : "s"} open`
-              )
-            ) : (
-              <>
-                <span className="mono">{own.length}</span> result{own.length === 1 ? "" : "s"}
-                {running > 0 && (
-                  <>
-                    {" "}
-                    · <span className="mono">{running}</span> running
-                  </>
-                )}
-                {ready > 0 && (
-                  <>
-                    {" "}
-                    · <span className="mono">{ready}</span> to choose from
-                  </>
-                )}
-              </>
-            )}
-          </span>
-          {spent !== null && (
+        {(flash || session || sessions.length > 0) && (
+          <div className="float status-bar studio-status">
             <span>
-              spent ≈ <span className="mono">{formatUsd(spent)}</span>
+              {flash ? (
+                <span className="ok-text">{flash}</span>
+              ) : !session ? (
+                `Unsaved versions in ${sessions.length} open session${sessions.length === 1 ? "" : "s"}`
+              ) : (
+                <>
+                  <span className="mono">{own.length}</span> result{own.length === 1 ? "" : "s"}
+                  {running > 0 && (
+                    <>
+                      {" "}
+                      · <span className="mono">{running}</span> running
+                    </>
+                  )}
+                  {ready > 0 && (
+                    <>
+                      {" "}
+                      · <span className="mono">{ready}</span> to choose from
+                    </>
+                  )}
+                </>
+              )}
             </span>
-          )}
-          <span className="spacer" />
-          <span className="faint">
-            {focusJob ? (
-              <>
-                <kbd className="kbd">←</kbd> <kbd className="kbd">→</kbd> step ·{" "}
-                <kbd className="kbd">Esc</kbd> back
-              </>
-            ) : session ? (
-              "Unsaved versions are lost when the planner closes"
-            ) : (
-              ""
+            {spent !== null && (
+              <span>
+                spent ≈ <span className="mono">{formatUsd(spent)}</span>
+              </span>
             )}
-          </span>
-        </div>
+            <span className="spacer" />
+            <span className="faint">
+              {focusJob ? (
+                <>
+                  <kbd className="kbd">←</kbd> <kbd className="kbd">→</kbd> step ·{" "}
+                  <kbd className="kbd">Esc</kbd> back
+                </>
+              ) : session ? (
+                "Unsaved versions are lost when the planner closes"
+              ) : (
+                ""
+              )}
+            </span>
+          </div>
+        )}
       </section>
 
       <aside className="studio-inspector" aria-label="Image studio">
@@ -1091,15 +1131,13 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
         </div>
 
         <div className="studio-inspector-body">
-          {(serviceError ||
-            (hasTarget && availability && !availability.enabled && activeEngine === "builtin")) && (
+          {serviceError && (
             <div className="notices">
-              {serviceError && <p className="notice error">{serviceError}</p>}
-              {hasTarget && availability && !availability.enabled && activeEngine === "builtin" && (
-                <p className="notice warn">{availability.reason}</p>
-              )}
+              <p className="notice error">{serviceError}</p>
             </div>
           )}
+
+          {mode === "create" && !session && keyMissing && <KeySetup creating />}
 
           {mode === "create" && !session && tileable && (
             <BackgroundSettings
@@ -1125,36 +1163,27 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
             />
           )}
 
-          {mode === "edit" && !selected ? (
-            <p className="faint small studio-pick-hint">Pick an image on the left.</p>
-          ) : (
+          {noImage ? null : (
             <>
-              <InspectorSection
-                title="Engine"
-                note={
-                  engineLabel ? (
-                    <span className="mono" title="Model that runs the edit">
-                      {engineLabel}
-                    </span>
-                  ) : undefined
-                }
-              >
-                {creatingNew ? (
-                  <div className="engine-options single">
-                    <span className="engine-option static">
-                      <strong>GPT Image</strong>
-                      <span>Draws a new image via the OpenAI API</span>
-                    </span>
-                  </div>
-                ) : (
+              {!creatingNew && (
+                <InspectorSection
+                  title="Engine"
+                  note={
+                    engineLabel ? (
+                      <span className="mono" title="Model that runs the edit">
+                        {engineLabel}
+                      </span>
+                    ) : undefined
+                  }
+                >
                   <div className="engine-options" role="radiogroup" aria-label="Engine">
                     {(
                       [
-                        ["builtin", "Built-in", "Simple edits on this computer, no key"],
+                        ["builtin", "Built-in", "Quick edits on this computer. Free, no key."],
                         [
                           "openai",
                           "Generative",
-                          generativeOk ? "GPT Image, redraws" : "GPT Image · needs an API key",
+                          keyMissing ? "GPT Image redraws it. Needs an API key." : "GPT Image redraws it.",
                         ],
                       ] as const
                     ).map(([value, title, sub]) => (
@@ -1166,26 +1195,24 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                         className={`engine-option${engine === value ? " on" : ""}`}
                         onClick={() => setEngine(value)}
                       >
-                        <strong>{title}</strong>
+                        <strong>
+                          {title}
+                          {value === "openai" && keyMissing && <KeyIcon />}
+                        </strong>
                         <span>{sub}</span>
                       </button>
                     ))}
                   </div>
-                )}
-              </InspectorSection>
-
-              {activeEngine === "openai" && !generativeOk ? (
-                <InspectorSection title="Set up GPT Image">
-                  <div className="studio-setup">
-                    <p className="small">
-                      Generative edits and new images need an OpenAI API key (from platform.openai.com).
+                  {keyMissing && engine === "builtin" && (
+                    <p className="studio-keyline">
+                      Generative edits need an OpenAI API key. <a href={KEY_HREF}>Set one up in Settings</a>
                     </p>
-                    <p className="faint small">
-                      <a href="#settings/image-generation">Set it up in Settings → Image generation</a>. The
-                      built-in operations work without it.
-                    </p>
-                  </div>
+                  )}
                 </InspectorSection>
+              )}
+
+              {activeEngine === "openai" && keyMissing && !creatingNew ? (
+                <KeySetup />
               ) : activeEngine === "builtin" ? (
                 <InspectorSection title="Operation">
                   <BuiltinPanel
@@ -1198,7 +1225,16 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                 </InspectorSection>
               ) : (
                 <>
-                  <InspectorSection title="Prompt">
+                  <InspectorSection
+                    title={creatingNew ? "Description" : "Prompt"}
+                    note={
+                      creatingNew && engineLabel ? (
+                        <span className="mono" title="Model that draws the image">
+                          {engineLabel}
+                        </span>
+                      ) : undefined
+                    }
+                  >
                     {!creatingNew && (
                       <div className="edit-presets" role="group" aria-label="Presets">
                         {EDIT_PRESETS.map((p) => (
@@ -1223,7 +1259,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                       maxLength={2000}
                       placeholder={
                         creatingNew && tileable
-                          ? "What should the tile show? e.g. Wolken im Stil von Tattoo-Flash, locker verteilt. Pick a preset above to start."
+                          ? "What should the tile show? e.g. Wolken im Stil von Tattoo-Flash, locker verteilt. Or pick a preset above."
                           : creatingNew
                             ? "What should it show? e.g. Ein rotes Dreieck als Rahmen, Linien wie im Referenzbild; or a dotwork pattern for the forearm."
                             : "What should change? e.g. Mache ein rotes Dreieck drumherum wie im Referenzbild (German is fine)."
@@ -1233,7 +1269,9 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canRun) void run();
                       }}
                     />
-                    <span className="studio-charcount mono faint">{instruction.length} / 2000</span>
+                    {instruction.length > 1500 && (
+                      <span className="studio-charcount mono faint">{instruction.length} / 2000</span>
+                    )}
                   </InspectorSection>
 
                   {usesRefs && (
@@ -1246,7 +1284,7 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
                       }
                     >
                       {references.length === 0 ? (
-                        <p className="faint small">
+                        <p className="faint small studio-section-hint">
                           {mode === "create"
                             ? "Optional: click images on the left to send them along."
                             : "Optional: the + on an image on the left sends it along."}
@@ -1317,69 +1355,78 @@ export function ImageEditPage({ active = true }: { active?: boolean }) {
           )}
         </div>
 
-        <div className="studio-run">
-          {activeEngine === "builtin" ? (
-            <>
-              <p className="studio-estimate faint">
-                <span>{runEstimate("builtin", 1)}</span>
-              </p>
-              <span className="studio-run-row">
-                {session && last > 0 && (
+        {!noImage && (
+          <div className="studio-run">
+            {activeEngine === "builtin" ? (
+              <>
+                {runReason ? (
+                  <p className="studio-run-reason">{runReason}</p>
+                ) : (
+                  <p className="studio-estimate faint">
+                    <span>{runEstimate("builtin", 1)}</span>
+                  </p>
+                )}
+                <span className="studio-run-row">
+                  {session && last > 0 && (
+                    <button
+                      type="button"
+                      className="ghost"
+                      disabled={busy}
+                      title={`Drop ${versionName(last)} and go back to ${versionName(last - 1)}`}
+                      onClick={undo}
+                    >
+                      Undo
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="ghost"
-                    disabled={busy}
-                    title={`Drop ${versionLabel(last)} and go back to ${versionLabel(last - 1)}`}
-                    onClick={undo}
+                    className="primary studio-run-button"
+                    disabled={!canApply}
+                    onClick={() => void applyOp()}
                   >
-                    Undo
+                    {runButtonLabel({
+                      creatingNew,
+                      version: last,
+                      engine: "builtin",
+                      count: 1,
+                      opLabel: builtinOp(opId)?.label ?? opId,
+                    })}
                   </button>
+                </span>
+              </>
+            ) : (
+              <>
+                {runReason ? (
+                  <p className="studio-run-reason">{runReason}</p>
+                ) : (
+                  <p className="studio-estimate faint">
+                    <span>
+                      {atLimit
+                        ? `${MAX_RUNNING_GENERATIVE} edits are running; wait for one.`
+                        : runEstimate("openai", count)}
+                    </span>
+                    {runningCount > 0 && (
+                      <span className="mono">
+                        {runningCount}/{MAX_RUNNING_GENERATIVE} running
+                      </span>
+                    )}
+                  </p>
                 )}
                 <button
                   type="button"
                   className="primary studio-run-button"
-                  disabled={!canApply}
-                  onClick={() => void applyOp()}
+                  disabled={!canRun}
+                  title={generativeOk && !instruction.trim() ? "Describe it first" : undefined}
+                  onClick={() => void run()}
                 >
-                  {runLabel({
-                    creatingNew,
-                    version: last,
-                    engine: "builtin",
-                    count: 1,
-                    opLabel: builtinOp(opId)?.label ?? opId,
-                  })}
+                  {runButtonLabel({ creatingNew, version: last, engine: "openai", count })}
+                  <kbd className="kbd">⌘↵</kbd>
                 </button>
-              </span>
-            </>
-          ) : (
-            <>
-              {generativeOk && (
-                <p className="studio-estimate faint">
-                  <span>
-                    {atLimit
-                      ? `${MAX_RUNNING_GENERATIVE} edits are running; wait for one.`
-                      : runEstimate("openai", count)}
-                  </span>
-                  {runningCount > 0 && (
-                    <span className="mono">
-                      {runningCount}/{MAX_RUNNING_GENERATIVE} running
-                    </span>
-                  )}
-                </p>
-              )}
-              <button
-                type="button"
-                className="primary studio-run-button"
-                disabled={!canRun}
-                onClick={() => void run()}
-              >
-                {runLabel({ creatingNew, version: last, engine: "openai", count })}
-                <kbd className="kbd">⌘↵</kbd>
-              </button>
-            </>
-          )}
-          {actionError && <p className="error-text small studio-run-error">{actionError}</p>}
-        </div>
+              </>
+            )}
+            {actionError && <p className="error-text small studio-run-error">{actionError}</p>}
+          </div>
+        )}
       </aside>
     </div>
   );
@@ -1508,6 +1555,27 @@ function OpenSessions({
         })}
       </ul>
     </InspectorSection>
+  );
+}
+
+/** The way to Settings → Image generation when only the OpenAI key is missing. */
+function KeySetup({ creating = false }: { creating?: boolean }) {
+  return (
+    <section className="studio-keycard" aria-label="Set up GPT Image">
+      <span className="studio-keycard-icon" aria-hidden="true">
+        <KeyIcon />
+      </span>
+      <div className="studio-keycard-text">
+        <strong>{creating ? "New images need GPT Image" : "Set up GPT Image"}</strong>
+        <p>
+          It needs an OpenAI API key (from platform.openai.com). The built-in tools under Edit work without
+          one.
+        </p>
+        <a className="button" href={KEY_HREF}>
+          Open Settings → Image generation
+        </a>
+      </div>
+    </section>
   );
 }
 

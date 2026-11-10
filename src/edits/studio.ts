@@ -23,27 +23,6 @@ export function formatUsd(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
-export type RunContext = {
-  /** A new image whose session has no version yet: the run draws it from the description. */
-  creatingNew: boolean;
-  /** Index of the version the run starts from (the session's last version). */
-  version: number;
-  engine: EditEngine;
-  /** Jobs one click starts. */
-  count: number;
-  /** Built-in engine: label of the chosen operation. */
-  opLabel?: string;
-};
-
-/** Text of the run button; it names the version the run starts from. */
-export function runLabel(c: RunContext): string {
-  if (c.creatingNew) return c.count > 1 ? `Create ${c.count} variants` : "Create with GPT Image";
-  const v = `v${c.version}`;
-  if (c.engine === "openai")
-    return c.count > 1 ? `Make ${c.count} variants of ${v}` : `Edit ${v} with GPT Image`;
-  return `Apply ${c.opLabel ?? "operation"} to ${v}`;
-}
-
 /** The time and cost line under the run button. */
 export function runEstimate(engine: EditEngine, count: number): string {
   return engine === "openai"

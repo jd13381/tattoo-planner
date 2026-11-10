@@ -6,7 +6,6 @@ import {
   hasInput,
   hasResult,
   runEstimate,
-  runLabel,
   spentUsd,
   stepId,
 } from "../src/edits/studio.ts";
@@ -50,15 +49,6 @@ describe("cost", () => {
 });
 
 describe("run button", () => {
-  it("names what one click does and the version it starts from", () => {
-    const c = { creatingNew: false, version: 2, engine: "openai", count: 1 } as const;
-    expect(runLabel({ ...c, creatingNew: true, version: 0 })).toBe("Create with GPT Image");
-    expect(runLabel({ ...c, creatingNew: true, version: 0, count: 3 })).toBe("Create 3 variants");
-    expect(runLabel({ ...c, count: 2 })).toBe("Make 2 variants of v2");
-    expect(runLabel(c)).toBe("Edit v2 with GPT Image");
-    expect(runLabel({ ...c, engine: "builtin", version: 0, opLabel: "Mirror" })).toBe("Apply Mirror to v0");
-  });
-
   it("estimates per engine", () => {
     expect(runEstimate("openai", 2)).toMatch(/^2 × GPT Image/);
     expect(runEstimate("builtin", 1)).toMatch(/no key, no cost/);
