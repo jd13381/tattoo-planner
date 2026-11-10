@@ -18,6 +18,7 @@ import { layoutRegion, parseLayout } from "../layout/yamlDoc.ts";
 import { coverage, DIFF_THRESHOLD_PCT, type Coverage } from "../metrics/coverage.ts";
 import { MetricsPanel } from "../metrics/MetricsPanel.tsx";
 import { renderUnwrap } from "../render/unwrapCanvas.ts";
+import { CompareArt } from "../settings/EmptyArt.tsx";
 import { SwapIcon } from "../ui/icons.tsx";
 import { ArmViewer, ORBIT_HINT, PoseControl, ViewButtons } from "../viewer/ArmViewer.tsx";
 import { createCameraSync } from "../viewer/cameraSync.ts";
@@ -121,17 +122,19 @@ export function ComparePage({ arm, pose, working, onOpenLayout }: Props) {
   if (files && files.length < 2 && !working?.dirty)
     return (
       <div className="compare-page cmp-blank">
-        <section className="empty compare-empty">
-          <h2>Only one variant of the {REGIONS[region].label.toLowerCase()} so far</h2>
+        <section className="pg-empty" aria-labelledby="cmp-empty-title">
+          <CompareArt />
+          <h2 id="cmp-empty-title">Only one {REGIONS[region].label.toLowerCase()} layout so far</h2>
           <p>
-            Compare shows two layout variants side by side, with their coverage and the elements that differ.
-            Create a second one with <strong>Save as…</strong> in the Layout tab, or make an edit there to
-            compare it with the saved file.
+            Compare puts two layouts side by side. Save a copy with <strong>Save as…</strong> in the Layout
+            tab, or edit there to compare against the saved file.
           </p>
           {onOpenLayout && (
-            <button type="button" className="primary" onClick={onOpenLayout}>
-              Open Layout
-            </button>
+            <div className="pg-empty-actions">
+              <button type="button" className="primary" onClick={onOpenLayout}>
+                Open Layout
+              </button>
+            </div>
           )}
         </section>
       </div>

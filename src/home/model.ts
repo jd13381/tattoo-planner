@@ -69,3 +69,27 @@ export function plannedSummary(regions: readonly HomeRegion[]): string {
   if (planned === 0) return "Nothing planned yet";
   return `${planned} of ${regions.length} regions planned`;
 }
+
+export type HomeSummary = {
+  planned: number;
+  total: number;
+  /** Figures and existing tattoos over all regions. */
+  motifs: number;
+  /** Mean coverage over the planned regions, whole percent; null without any. */
+  averagePct: number | null;
+};
+
+/** The numbers of the overview tiles, from what the region cards already show. */
+export function homeSummary(
+  regions: readonly HomeRegion[],
+  stats: Partial<Record<RegionId, RegionStats | null>>,
+): HomeSummary {
+  const planned = regions.filter((r) => r.layout && r.layout.elements.length > 0);
+  const own = planned.map((r) => stats[r.id]).filter((s): s is RegionStats => !!s);
+  return {
+    planned: planned.length,
+    total: regions.length,
+    motifs: own.reduce((n, s) => n + s.motifs, 0),
+    averagePct: own.length ? Math.round(own.reduce((n, s) => n + s.coveragePct, 0) / own.length) : null,
+  };
+}

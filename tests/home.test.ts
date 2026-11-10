@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveBody } from "../src/body/body.ts";
-import { homeRegions, plannedSummary, regionStats } from "../src/home/model.ts";
+import { homeRegions, homeSummary, plannedSummary, regionStats } from "../src/home/model.ts";
 
 const SAM = path.resolve(import.meta.dirname, "..", "samples", "demo", "persons", "sam", "layouts");
 const files = readdirSync(SAM)
@@ -40,5 +40,26 @@ describe("home regions", () => {
     expect(stats.coveragePct).toBeLessThan(60);
     const empty = regionStats({ name: "e", elements: [] }, body.regions.torso.profile);
     expect(empty).toEqual({ coveragePct: 0, motifs: 0, elements: 0 });
+  });
+});
+
+describe("homeSummary", () => {
+  it("counts planned regions, motifs and the mean coverage of the planned ones", () => {
+    const base = { variants: 1, marked: false, error: null };
+    const layout = { elements: [{}] } as never;
+    const regions = [
+      { id: "arm-left", variant: "a", layout, ...base },
+      { id: "arm-right", variant: "b", layout, ...base },
+      { id: "torso", variant: null, layout: null, ...base },
+    ] as never;
+    const s = homeSummary(regions, {
+      "arm-left": { coveragePct: 10, motifs: 2, elements: 2 },
+      "arm-right": { coveragePct: 21, motifs: 1, elements: 1 },
+    });
+    expect(s).toEqual({ planned: 2, total: 3, motifs: 3, averagePct: 16 });
+  });
+
+  it("has no average without planned regions", () => {
+    expect(homeSummary([], {}).averagePct).toBeNull();
   });
 });

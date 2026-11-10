@@ -120,10 +120,10 @@ export function ProjectionPage({
   if (names.length === 0)
     return (
       <div className="projection-page">
-        <section className="empty">
-          <h2>No existing tattoos yet</h2>
+        <section className="pg-empty" aria-labelledby="proj-none-title">
+          <h2 id="proj-none-title">No existing tattoos yet</h2>
           <p>Add one from its photos with the guided setup first; this page then fine-tunes it.</p>
-          {back}
+          <div className="pg-empty-actions">{back}</div>
         </section>
       </div>
     );
