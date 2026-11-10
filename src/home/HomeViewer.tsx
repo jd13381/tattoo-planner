@@ -1,28 +1,25 @@
 // Home's full-body view (docs/adr/0018-home.md): the person's whole body with every region's active
 // layout, on a slow turntable that stops as soon as the user takes the camera. View only: a click on
 // a region asks the page to open it in the Layout tab. Reuses the full-body meshes of BodyViewer.
-import { ContactShadows, OrbitControls } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import type { BufferGeometry } from "three";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { ResolvedBody } from "../body/body.ts";
 import { REGION_IDS, type RegionId } from "../body/regions.ts";
 import { RegionMesh, type RegionTexture } from "../viewer/BodyViewer.tsx";
 import { NeutralBody } from "../viewer/NeutralBody.tsx";
 import { armGeometry } from "../viewer/scene.ts";
+import {
+  STAGE_DPR,
+  STAGE_GL,
+  StageLights,
+  StageShadow,
+  useCameraFlight,
+  useOnScreen,
+} from "../viewer/Stage.tsx";
 import { BODY_VIEWS, CAMERA_FOV, fitCamera, type BodyViewName } from "../viewer/views.ts";
 
-/** Studio lights: a warm key, a soft fill and two cool rim lights that draw the silhouette. */
-const STUDIO = {
-  hemisphere: { sky: "#fff7f0", ground: "#3d3733", intensity: 0.7 },
-  key: { position: [70, 150, 120] as const, intensity: 1.8, color: "#fff1e4" },
-  fill: { position: [-110, 60, 80] as const, intensity: 0.45, color: "#f3f1ff" },
-  rimLeft: { position: [-120, 120, -140] as const, intensity: 1.1, color: "#dfe4ff" },
-  rimRight: { position: [130, 90, -120] as const, intensity: 0.8, color: "#ffe6d6" },
-};
-/** Emissive tint of the region under the pointer: a cool lift that reads on skin and ink. */
-const HIGHLIGHT = "#3a3478";
 /** One turn in about a minute and a quarter (OrbitControls: 2 = one turn in 30 s). */
 const TURNTABLE_SPEED = 0.8;
 const MARGIN = 1.1;
@@ -63,28 +60,24 @@ export function HomeViewer(props: Props) {
     [body],
   );
   useEffect(() => () => Object.values(geometries).forEach((g) => g.dispose()), [geometries]);
-  const floor = body.layout.bounds.min[1];
-  const width = body.layout.bounds.max[0] - body.layout.bounds.min[0];
+  // The turntable is the only animation: it renders continuously only while it turns and is on
+  // screen in a visible tab; otherwise frames are on demand. With reduced motion it starts off
+  // (HomePage) and turns only when the user presses play.
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const onScreen = useOnScreen(canvasRef);
+  const turning = spin && onScreen;
 
   return (
     <Canvas
+      ref={canvasRef}
       className="home-canvas"
       camera={{ fov: CAMERA_FOV, near: 1, far: 5000 }}
-      gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
-      dpr={[1, 2]}
+      gl={STAGE_GL}
+      dpr={STAGE_DPR}
+      frameloop={turning ? "always" : "demand"}
       onPointerMissed={() => onLeave(null)}
     >
-      <hemisphereLight
-        args={[STUDIO.hemisphere.sky, STUDIO.hemisphere.ground, STUDIO.hemisphere.intensity]}
-      />
-      {(["key", "fill", "rimLeft", "rimRight"] as const).map((k) => (
-        <directionalLight
-          key={k}
-          position={[...STUDIO[k].position]}
-          intensity={STUDIO[k].intensity}
-          color={STUDIO[k].color}
-        />
-      ))}
+      <StageLights />
       {REGION_IDS.map((id) => (
         <RegionMesh
           key={id}
@@ -92,7 +85,6 @@ export function HomeViewer(props: Props) {
           placement={body.layout.placements[id]}
           texture={textures[id]}
           highlight={hover === id}
-          highlightColor={HIGHLIGHT}
           onClick={(e) => {
             // A drag that turned the body is not a pick.
             if (e.delta > 4) return;
@@ -107,15 +99,10 @@ export function HomeViewer(props: Props) {
         />
       ))}
       <NeutralBody layout={body.layout} />
-      <ContactShadows
-        position={[0, floor + 0.2, 0]}
-        scale={Math.max(width * 2.2, 120)}
-        far={60}
-        blur={2.6}
-        opacity={0.5}
-        resolution={512}
-      />
-      <TurntableRig body={body} view={view} spin={spin} onInteract={onInteract} />
+      {/* The same soft contact shadow as the other stages: one quad, no extra render pass. */}
+      <StageShadow bounds={body.layout.bounds} opacity={0.5} />
+      <TurntableRig body={body} view={view} spin={turning} onInteract={onInteract} />
+      <HoverCursor hover={hover !== null} />
     </Canvas>
   );
 }
@@ -131,13 +118,14 @@ function TurntableRig({
   spin: boolean;
   onInteract: () => void;
 }) {
-  const controls = useRef<OrbitControlsImpl>(null);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const bounds = body.layout.bounds;
   const height = bounds.max[1] - bounds.min[1];
   // The first framing after a return to Home takes the camera it left with.
   const restore = useRef(lastCamera);
+  const { controls, fly } = useCameraFlight();
+  const lastRequest = useRef<number | null>(null);
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
@@ -147,29 +135,33 @@ function TurntableRig({
       camera.setViewOffset(size.width, size.height, fit.offset[0], fit.offset[1], size.width, size.height);
     const saved = restore.current;
     restore.current = null;
-    if (saved) {
-      camera.position.set(...saved.position);
-      c.target.set(...saved.target);
-    } else {
+    // A press on a view button swings the camera there; the first framing and resizes jump.
+    const pressed = lastRequest.current !== null && lastRequest.current !== view.request;
+    lastRequest.current = view.request;
+    if (saved) fly({ position: saved.position, target: saved.target }, false);
+    else
       // Look a little above the middle and from a touch higher, as a photographer would.
-      camera.position.set(fit.position[0], fit.position[1] + height * 0.04, fit.position[2]);
-      c.target.set(fit.target[0], fit.target[1] + height * 0.02, fit.target[2]);
-    }
-    c.update();
-  }, [bounds, height, view, camera, size.width, size.height]);
+      fly(
+        {
+          position: [fit.position[0], fit.position[1] + height * 0.04, fit.position[2]],
+          target: [fit.target[0], fit.target[1] + height * 0.02, fit.target[2]],
+        },
+        pressed,
+      );
+  }, [bounds, height, view, camera, size.width, size.height, fly, controls]);
   useEffect(() => {
     const c = controls.current;
     return () => {
       if (c) lastCamera = { position: camera.position.toArray(), target: c.target.toArray() };
     };
-  }, [camera]);
+  }, [camera, controls]);
   return (
     <OrbitControls
       ref={controls}
       makeDefault
       enablePan={false}
       enableDamping
-      dampingFactor={0.08}
+      dampingFactor={0.1}
       autoRotate={spin}
       autoRotateSpeed={TURNTABLE_SPEED}
       minDistance={height * 0.6}
@@ -179,4 +171,16 @@ function TurntableRig({
       onStart={onInteract}
     />
   );
+}
+
+/** A pointer cursor over a region (a click opens it), the grab hand elsewhere. */
+function HoverCursor({ hover }: { hover: boolean }) {
+  const canvas = useThree((s) => s.gl.domElement);
+  useEffect(() => {
+    canvas.style.setProperty("cursor", hover ? "pointer" : "");
+    return () => {
+      canvas.style.removeProperty("cursor");
+    };
+  }, [canvas, hover]);
+  return null;
 }

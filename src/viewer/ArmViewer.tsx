@@ -1,15 +1,16 @@
 import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CameraIcon } from "../ui/icons.tsx";
+import { CameraIcon, ChevronDownIcon } from "../ui/icons.tsx";
+import { Popover } from "../ui/Popover.tsx";
 import { createPortal } from "react-dom";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { RegionProfile } from "../body/profile.ts";
 import { ArmModel } from "./ArmModel.tsx";
 import type { CameraSync } from "./cameraSync.ts";
 import { MAX_FLEXION_DEG, regionBendDeg, supportsBend } from "../body/bend.ts";
 import { addSample, textureToLayout, type UV } from "../editor/stroke.ts";
-import { armGeometry, LIGHTS, VIEWER_BACKGROUND } from "./scene.ts";
+import { armGeometry, VIEWER_BACKGROUND } from "./scene.ts";
+import { STAGE_DPR, STAGE_GL, StageLights, StageShadow, useCameraFlight } from "./Stage.tsx";
 import { useViewState, type ViewState } from "./useViewState.ts";
 import { useFreeInsets } from "./useFreeInsets.ts";
 import { boundsAspect, CAMERA_FOV, fitCamera, viewDir, viewsFor, type Bounds } from "./views.ts";
@@ -51,7 +52,7 @@ type Props = {
 };
 
 /** How to move the camera; the viewers' hint starts with it. */
-export const ORBIT_HINT = "Drag to rotate, scroll to zoom, right-drag to pan.";
+export const ORBIT_HINT = "Drag to rotate, scroll to zoom, right-drag to pan, double-click to reset.";
 
 export function ArmViewer(props: Props) {
   const { profile, canvas, version, hint, viewState, toolbar = true, sync, label } = props;
@@ -135,14 +136,17 @@ export function ArmViewer(props: Props) {
         <Canvas
           ref={canvasRef}
           camera={{ fov: CAMERA_FOV, near: 1, far: 2000 }}
-          gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
-          dpr={[1, 2]}
+          gl={STAGE_GL}
+          dpr={STAGE_DPR}
+          // Static view: a frame only when something changed (controls, texture, pose, resize).
+          frameloop="demand"
+          onPointerMissed={(e) => {
+            // Double-click resets the camera to the current fixed view (not while drawing).
+            if (e.type === "dblclick" && !drawing) vs.select(vs.view);
+          }}
         >
-          <hemisphereLight
-            args={[LIGHTS.hemisphere.sky, LIGHTS.hemisphere.ground, LIGHTS.hemisphere.intensity]}
-          />
-          <directionalLight position={LIGHTS.key.position} intensity={LIGHTS.key.intensity} />
-          <directionalLight position={LIGHTS.fill.position} intensity={LIGHTS.fill.intensity} />
+          <StageLights />
+          <StageShadow bounds={bounds} />
           <ArmModel
             geometry={geometry}
             canvas={canvas}
@@ -207,28 +211,15 @@ export function ViewButtons({
   );
 }
 
-/**
- * Elbow pose: a flexion slider with presets (the same texture bends with the skin). "inline" is one
- * row for a toolbar; "panel" stacks title and value, presets and slider for a floating panel.
- */
-export function PoseControl({
-  bendDeg,
-  onChange,
-  variant = "inline",
-}: {
-  bendDeg: number;
-  onChange: (deg: number) => void;
-  variant?: "inline" | "panel";
-}) {
-  const panel = variant === "panel";
+/** The pose in words: "Straight", "Bent 90°" or the angle. */
+export function poseLabel(bendDeg: number): string {
+  return bendDeg === 0 ? "Straight" : bendDeg === 90 ? "Bent 90°" : `${bendDeg}°`;
+}
+
+/** Presets and the free slider of the elbow pose. */
+function PoseFields({ bendDeg, onChange }: { bendDeg: number; onChange: (deg: number) => void }) {
   return (
-    <span className={`pose-control${panel ? " panel" : ""}`} role="group" aria-label="Elbow pose">
-      {panel && (
-        <span className="pose-head">
-          <span className="float-title">Elbow pose</span>
-          <span className="pose-value mono">{bendDeg}°</span>
-        </span>
-      )}
+    <>
       <span className="segmented">
         <button
           type="button"
@@ -255,9 +246,56 @@ export function PoseControl({
         value={bendDeg}
         onChange={(e) => onChange(Number(e.target.value))}
         aria-label="Elbow flexion in degrees"
+        aria-valuetext={poseLabel(bendDeg)}
         title="Elbow flexion"
       />
-      {!panel && <span className="muted small pose-value">{bendDeg}°</span>}
+    </>
+  );
+}
+
+/**
+ * Elbow pose: a flexion slider with presets (the same texture bends with the skin). "inline" is one
+ * row for a toolbar; "panel" is a compact button showing the pose that opens the presets and the
+ * slider in a popover (a rarely used control should not cover the viewport).
+ */
+export function PoseControl({
+  bendDeg,
+  onChange,
+  variant = "inline",
+}: {
+  bendDeg: number;
+  onChange: (deg: number) => void;
+  variant?: "inline" | "panel";
+}) {
+  const [open, setOpen] = useState(false);
+  if (variant === "panel")
+    return (
+      <span className="pose-control panel popover-anchor" role="group" aria-label="Elbow pose">
+        <button
+          type="button"
+          className="ghost vw-pose-trigger"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+          title="Elbow pose: straight, bent 90° or any angle up to 120°"
+        >
+          <span className="vw-pose-name">Elbow</span>
+          <span className="vw-pose-state">{poseLabel(bendDeg)}</span>
+          <ChevronDownIcon />
+        </button>
+        <Popover open={open} onClose={() => setOpen(false)} label="Elbow pose" className="vw-pose-pop">
+          <span className="pose-head">
+            <span className="popover-title">Elbow pose</span>
+            <span className="pose-value mono">{bendDeg}°</span>
+          </span>
+          <PoseFields bendDeg={bendDeg} onChange={onChange} />
+        </Popover>
+      </span>
+    );
+  return (
+    <span className="pose-control" role="group" aria-label="Elbow pose">
+      <PoseFields bendDeg={bendDeg} onChange={onChange} />
+      <span className="muted small pose-value">{bendDeg}°</span>
     </span>
   );
 }
@@ -333,13 +371,17 @@ function CameraRig(props: {
   const { view, request, free, setFree } = state;
   // What the last framing was for: a new pose re-frames a fixed view, but not a hand-rotated camera.
   const framedFor = useRef<{ key: string; profile: RegionProfile | null }>({ key: "", profile: null });
-  const controls = useRef<OrbitControlsImpl>(null);
   // Set while a camera from another viewer is applied, so it is not sent back.
   const applying = useRef(false);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
+  const invalidate = useThree((s) => s.invalidate);
   const dir = viewDir(profile, view);
   const insets = useFreeInsets(props.frameAround, boundsAspect(bounds, dir, FRAME_MARGIN));
+  const { controls, fly } = useCameraFlight();
+  // The view request framed last: only a new button press animates; resizes and poses jump.
+  const lastRequest = useRef<{ view: string; request: number } | null>(null);
+  const radius = useMemo(() => Math.hypot(...bounds.max.map((v, i) => v - bounds.min[i]!)) / 2, [bounds]);
 
   // Re-frame on a view request and whenever the region or the canvas changes size; panels that move
   // only re-frame a fixed view, never a hand-rotated camera.
@@ -355,12 +397,15 @@ function CameraRig(props: {
       else
         camera.setViewOffset(size.width, size.height, fit.offset[0], fit.offset[1], size.width, size.height);
     }
-    camera.position.set(...fit.position);
-    c.target.set(...fit.target);
-    c.update();
+    const distance = Math.hypot(...fit.position.map((v, i) => v - fit.target[i]!));
+    const prev = lastRequest.current;
+    lastRequest.current = { view, request };
+    const pressed = prev !== null && (prev.view !== view || prev.request !== request);
+    fly({ position: fit.position, target: fit.target }, pressed, Math.max(radius * 10, distance * 1.5));
+    invalidate();
     // `dir` follows `view` and `profile`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, bounds, view, request, free, camera, size.width, size.height, insets]);
+  }, [profile, bounds, view, request, free, camera, size.width, size.height, insets, fly, controls, radius]);
 
   useEffect(() => {
     if (!sync) return;
@@ -372,8 +417,9 @@ function CameraRig(props: {
       c.target.set(...s.target);
       c.update();
       applying.current = false;
+      invalidate();
     });
-  }, [sync, camera]);
+  }, [sync, camera, invalidate, controls]);
 
   const publish = () => {
     const c = controls.current;
@@ -388,8 +434,11 @@ function CameraRig(props: {
     <OrbitControls
       ref={controls}
       makeDefault
-      enableDamping={false}
+      enableDamping
+      dampingFactor={0.14}
       enableRotate={rotate}
+      // Close enough to read a 1 mm line; the far limit is set per framing (see above).
+      minDistance={radius * 0.45}
       onStart={setFree}
       onChange={publish}
     />

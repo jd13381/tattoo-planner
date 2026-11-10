@@ -1,5 +1,6 @@
 // Offscreen renders of the four fixed views for the export (PROJECT_BRIEF.md §10.1 F2, F10): the
-// same mesh, materials and lights as the live viewer (src/viewer/scene.ts), on a white background,
+// same mesh and materials as the live viewer and the export's own LIGHTS (src/viewer/scene.ts; the live
+// viewers use STAGE_LIGHTS), on a white background,
 // at print resolution. Browser only (WebGL); the maths it relies on is tested elsewhere.
 import {
   ACESFilmicToneMapping,
