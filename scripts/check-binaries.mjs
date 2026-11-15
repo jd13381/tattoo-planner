@@ -42,21 +42,57 @@ export const BACKGROUND_FOLDER = "assets/backgrounds/";
 export const BACKGROUND_EXTENSIONS = ["png", "webp"];
 export const BACKGROUND_MAX_BYTES = 2 * 1024 * 1024;
 
+/**
+ * The second exception (docs/adr/0026, Jan, 2026-11-15): the README screenshots, written by
+ * `npm run screenshots` from the shipped sample project only. WebP directly in that folder, at
+ * most SCREENSHOT_MAX_BYTES each. Never a photo, a reference image or anything from a real project.
+ */
+export const SCREENSHOT_FOLDER = "docs/screenshots/";
+export const SCREENSHOT_EXTENSIONS = ["webp"];
+export const SCREENSHOT_MAX_BYTES = 500 * 1024;
+
+/** Folders where images of the given kinds and size may be committed (flat, no subfolders). */
+const SIZED_IMAGE_FOLDERS = [
+  {
+    folder: BACKGROUND_FOLDER,
+    extensions: BACKGROUND_EXTENSIONS,
+    maxBytes: BACKGROUND_MAX_BYTES,
+    what: "standard background",
+  },
+  {
+    folder: SCREENSHOT_FOLDER,
+    extensions: SCREENSHOT_EXTENSIONS,
+    maxBytes: SCREENSHOT_MAX_BYTES,
+    what: "README screenshot",
+  },
+];
+
+/** "2 MB", "500 KB". */
+function formatBytes(n) {
+  return n >= 1024 * 1024 ? `${n / 1024 / 1024} MB` : `${n / 1024} KB`;
+}
+
+/** Whether the file's size must be known to judge it (it lies in one of the sized image folders). */
+export function needsSize(file) {
+  const p = file.replaceAll("\\", "/");
+  return SIZED_IMAGE_FOLDERS.some(({ folder }) => p.startsWith(folder));
+}
+
 /** Build output folders at the repo root that never go into git (the web build, the desktop app's). */
 export const BUILD_DIRS = ["dist", "dist-desktop", "release"];
 
 /**
  * Returns the reason a path is rejected, or null when it may be committed. `bytes` is the file's
- * size (checked for the standard backgrounds; unknown counts as too large there).
+ * size (checked in the sized image folders; unknown counts as too large there).
  */
 export function rejectReason(file, bytes) {
   const p = file.replaceAll("\\", "/");
   if (ALLOW_PREFIXES.some((prefix) => p.startsWith(prefix))) return null;
   const ext = p.split("/").pop().split(".").slice(1).pop()?.toLowerCase();
-  if (p.startsWith(BACKGROUND_FOLDER) && !p.slice(BACKGROUND_FOLDER.length).includes("/")) {
-    if (ext && BACKGROUND_EXTENSIONS.includes(ext)) {
-      if (bytes === undefined || bytes > BACKGROUND_MAX_BYTES)
-        return `standard background over ${BACKGROUND_MAX_BYTES / 1024 / 1024} MB`;
+  for (const { folder, extensions, maxBytes, what } of SIZED_IMAGE_FOLDERS) {
+    if (!p.startsWith(folder) || p.slice(folder.length).includes("/")) continue;
+    if (ext && extensions.includes(ext)) {
+      if (bytes === undefined || bytes > maxBytes) return `${what} over ${formatBytes(maxBytes)}`;
       return null;
     }
   }
@@ -84,7 +120,7 @@ function stagedBytes(file) {
 function main() {
   const all = process.argv.includes("--all");
   const offenders = listFiles(all)
-    .map((f) => [f, rejectReason(f, f.startsWith(BACKGROUND_FOLDER) ? stagedBytes(f) : undefined)])
+    .map((f) => [f, rejectReason(f, needsSize(f) ? stagedBytes(f) : undefined)])
     .filter(([, reason]) => reason);
   if (offenders.length === 0) return 0;
   console.error(`check-binaries: ${offenders.length} file(s) must not be committed:`);
