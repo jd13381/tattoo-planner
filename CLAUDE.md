@@ -14,7 +14,7 @@ Local web tool that previews Jan's left-arm tattoo sleeve on a parametric 3D arm
   Exception: `docs/measuring.md` (measuring guide and entry sheet) is in German at Jan's request.
   When Jan fills in its "Eintragen" tables, transfer the final values into `config/measurements.yaml`.
 - **Never commit images, PDFs or exports.** All binary/visual data lives in `TATTOO_DATA_DIR` (Seafile). Respect the pre-commit guard; never bypass it (no `--no-verify`, no editing the allow-list to sneak a file in).
-  The one exception: the generated standard background tiles in `assets/backgrounds/` (PNG/WebP, at most 2 MB each, written by `npm run backgrounds:generate`; Jan, 2026-11-06, docs/adr/0019). Never a reference image, photo or export there.
+  Two exceptions: the generated standard background tiles in `assets/backgrounds/` (PNG/WebP, at most 2 MB each, written by `npm run backgrounds:generate`; Jan, 2026-11-06, docs/adr/0019) and the README screenshots in `docs/screenshots/` (WebP, at most 500 KB each, written by `npm run screenshots` from the sample project only; Jan, 2026-11-15, docs/adr/0026). Never a reference image, photo or export there.
 - Read paths only via `TATTOO_DATA_DIR`; never hard-code Jan's absolute paths in committed files. Jan's real path lives only in the git-ignored `.env`.
 - No public deployment; the planner stays local. Sending an image to an image-edit service (OpenAI, for generative edits; Jan, 2026-11-04) is fine; never put data-folder files into a git repo or anywhere public. The dev server binds to `127.0.0.1` only.
 - Prefer small, reviewable commits per phase step; keep `README.md` current.

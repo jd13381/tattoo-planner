@@ -53,6 +53,16 @@ describe("check-binaries", () => {
     }
   });
 
+  it("allows README screenshots in docs/screenshots/ only, as WebP up to 500 KB", () => {
+    expect(reason("docs/screenshots/home.webp", 80 * 1024)).toBeNull();
+    expect(reason("docs/screenshots/home.WEBP", 80 * 1024)).toBeNull();
+    expect(reason("docs/screenshots/home.webp", 500 * 1024 + 1)).toMatch(/README screenshot over 500 KB/);
+    expect(reason("docs/screenshots/home.webp")).toMatch(/over 500 KB/);
+    expect(reason("docs/screenshots/home.png", 1024)).toBe(".png file");
+    expect(reason("docs/screenshots/sub/home.webp", 1024)).toBe(".webp file");
+    expect(reason("docs/home.webp", 1024)).toBe(".webp file");
+  });
+
   it("allows standard background tiles in assets/backgrounds/ only, as PNG/WebP up to 2 MB", () => {
     expect(reason("assets/backgrounds/clouds.png", 900_000)).toBeNull();
     expect(reason("assets/backgrounds/stars.WebP", 2 * 1024 * 1024)).toBeNull();

@@ -76,6 +76,15 @@ npm run backgrounds:generate -- --force       # every entry, replacing the files
 
 Sends each fixed prompt to GPT Image (`TATTOO_OPENAI_API_KEY` from the shell or `.env`; one paid request per image), makes the result seamless, writes `assets/backgrounds/<name>.png` (at most 1024 px and 2 MB) and sets `file`, `generated` and `licence` in the catalogue. Review the tiles in the planner (Layers → +), then commit them: they are the one image exception the pre-commit guard allows (`docs/adr/0019-background-layers.md`).
 
+## README screenshots
+
+```sh
+npx playwright install chromium   # once
+npm run screenshots               # writes docs/screenshots/*.webp from the sample project
+```
+
+Starts the planner on a free port with an empty, throwaway settings folder (no `.env`, no data folder, no key), opens the sample project and photographs the views listed in `scripts/screenshots.ts`. The WebP files are the second image exception the pre-commit guard allows (at most 500 KB each, `docs/adr/0026-readme-screenshots.md`). `SCREENSHOTS_CHROMIUM=/path/to/chrome` uses another browser binary.
+
 ## The server
 
 The planner's server (`server/`, mounted by `npm run dev` and `npm run serve`) reads `<project>/manifest.yaml` (schema: `src/assets/manifest.ts`) and serves, on `127.0.0.1` only:
@@ -98,6 +107,7 @@ The planner's server (`server/`, mounted by `npm run dev` and `npm run serve`) r
 | `npm run build`               | Static production bundle in `dist/`                                                                                                |
 | `npm run serve -- [port]`     | serves `dist/` plus the API on 127.0.0.1 without Vite (run `npm run build` first)                                                  |
 | `npm run migrate -- <folder>` | moves the repo's `config/` into a project folder (see [Older data folders](#older-data-folders-and-npm-run-migrate-jans-workflow)) |
+| `npm run screenshots`         | the README screenshots in `docs/screenshots/` (see [README screenshots](#readme-screenshots))                                      |
 | `npm run check`               | lint, typecheck, tests and the binary guard over all files                                                                         |
 | `npm run desktop`             | builds the page and the desktop shell, then starts the Electron app                                                                |
 | `npm run desktop:build`       | compiles `desktop/` and the server into `dist-desktop/` and draws the app icon                                                     |
