@@ -96,7 +96,9 @@ jobs:
       - name: Known vulnerabilities (high and critical fail the build)
         run: npm audit --audit-level=high
       - name: Registry signatures and provenance of the installed packages
-        run: npm audit signatures
+        # npm 10 (bundled with Node 22) does not know the registry's current attestation key and
+        # fails with EMISSINGSIGNATUREKEY, so this check runs with a pinned npm 11.
+        run: npx --yes npm@11.21.1 audit signatures
       - name: Software bill of materials (CycloneDX)
         run: npm sbom --sbom-format cyclonedx --omit dev > sbom.cdx.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
