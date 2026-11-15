@@ -4,7 +4,7 @@
 // Signing switches itself on: with CSC_LINK (a Developer ID .p12, base64 or path) or CSC_NAME the app
 // is signed with the hardened runtime, and with APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and
 // APPLE_TEAM_ID it is notarised as well. Without them it is ad-hoc signed ("-"), which Apple
-// Silicon needs to start the app at all, and users open it once via right-click → Open.
+// Silicon needs to start the app at all, and users allow it once (docs/install-macos.md).
 
 const env = process.env;
 const has = (name) => typeof env[name] === "string" && env[name].trim() !== "";

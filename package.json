@@ -1,6 +1,6 @@
 {
   "name": "tattoo-planner",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Local 3D tattoo planner: sketch on a 2D unwrap of an arm, leg or torso and see it live on a 3D body (sketch, not design).",

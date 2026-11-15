@@ -1,14 +1,24 @@
-# Builds the macOS desktop app (docs/adr/0015-desktop-app.md): one DMG per architecture, uploaded as a
-# workflow artifact and, for a tag v*, attached to a GitHub Release. Never committed to the repo.
+# Builds the macOS desktop app (docs/adr/0015-desktop-app.md, docs/adr/0028-unsigned-dmg-release.md):
+# one DMG per architecture, uploaded as a workflow artifact with SHA-256 checksums. Never committed.
+#
+# Releasing: Actions → Desktop → Run workflow on main with "release" ticked. The version comes from
+# package.json; the run creates the tag v<version> and a GitHub Release with the DMGs, the checksums
+# and docs/install-macos.md as its text. A pushed tag v* does the same.
+#
 # Signing and notarisation switch on only when the secrets exist (roadmap §7, open point 1):
-#   CSC_LINK, CSC_KEY_PASSWORD                         Developer ID certificate (.p12, base64)
+#   CSC_LINK, CSC_KEY_PASSWORD                            Developer ID certificate (.p12, base64)
 #   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID  notarisation
-# Without them the app is ad-hoc signed and users open it once via right-click → Open.
+# Without them the app is ad-hoc signed and users allow it once in System Settings (docs/install-macos.md).
 name: Desktop
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a GitHub Release v<package.json version> with the DMGs"
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -16,10 +26,15 @@ concurrency:
   cancel-in-progress: false
 jobs:
   dmg:
+    name: Build the DMGs
     runs-on: macos-latest
     timeout-minutes: 40
     permissions:
-      contents: write # create the release on tags
+      contents: read
+      id-token: write # sign the build provenance attestation
+      attestations: write # store it
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -29,6 +44,16 @@ jobs:
           node-version: 22
           # No npm cache for a release build: a poisoned cache from another workflow must not reach the DMG.
           package-manager-cache: false
+      - name: Version from package.json
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(node -p 'require("./package.json").version')"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${version}."
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
       - run: npm ci
       - run: npm run check
       - name: Build the DMGs
@@ -51,21 +76,58 @@ jobs:
             echo "::notice::No notarisation credentials: the app is not notarised."
           fi
           npm run dist:mac
+      - name: Check the DMGs and the app signature
+        run: |
+          set -euo pipefail
+          for dmg in release/*.dmg; do
+            hdiutil verify "$dmg"
+          done
+          for app in release/mac*/"Tattoo Planner.app"; do
+            codesign --verify --deep --strict --verbose=2 "$app"
+            codesign -dv "$app" 2>&1 | grep -E '^(Identifier|Signature|Authority|TeamIdentifier)=' || true
+          done
+          (cd release && shasum -a 256 ./*.dmg | sed 's# \./# #' > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - name: Build provenance attestation
+        # Attestations need a public repository (or GitHub Enterprise); a private build skips it.
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: release/*.dmg
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tattoo-planner-dmg
-          path: release/*.dmg
+          path: |
+            release/*.dmg
+            release/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
-      - name: Attach to the GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+
+  release:
+    name: Publish the GitHub Release
+    needs: dmg
+    if: ${{ github.ref_type == 'tag' || (inputs.release && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the tag and the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: tattoo-planner-dmg
+          path: release
+      - name: Create or update the release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.dmg.outputs.version }}
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
+          tag="v${VERSION}"
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" release/*.dmg --clobber
+            gh release upload "$tag" release/*.dmg release/SHA256SUMS.txt --clobber
           else
-            gh release create "$tag" release/*.dmg --title "$tag" --generate-notes --draft
+            gh release create "$tag" release/*.dmg release/SHA256SUMS.txt \
+              --target "${GITHUB_SHA}" --title "Tattoo Planner ${VERSION}" --notes-file docs/install-macos.md --latest
           fi
