@@ -4,7 +4,8 @@
 // Starts the planner on a free local port with an isolated, empty settings folder, opens the
 // read-only sample project shipped in samples/demo and photographs a fixed set of views into
 // docs/screenshots/*.webp. It never reads the user's own projects, settings, .env or OpenAI key:
-// the server gets a hand-built environment instead of process.env and the git-ignored .env.
+// the server gets a hand-built environment instead of process.env and the git-ignored .env, with a
+// placeholder key and the key check off, so nothing is ever sent to OpenAI.
 //
 // Needs a Chromium for Playwright once: `npx playwright install chromium`. A different binary can
 // be given with SCREENSHOTS_CHROMIUM=/path/to/chrome (for example in a container).
@@ -25,35 +26,54 @@ const viewport = { width: 1440, height: 900 };
 interface Shot {
   name: string;
   scheme: "light" | "dark";
-  /** Runs after the page opened on Home (the start screen for "start"). */
+  /** Runs after the page opened on the sample's Home. */
   go(page: Page): Promise<void>;
 }
 
 const tab = (page: Page, label: string) =>
   page.locator('nav[aria-label="Sections"] [role=tab]', { hasText: label }).first().click();
 
+const button = (page: Page, name: string) => page.getByRole("button", { name, exact: true }).first().click();
+
+/** In README order. Dark mode throughout (Jan, 2026-11-15). */
 const SHOTS: Shot[] = [
-  { name: "start", scheme: "light", go: async () => {} },
-  { name: "home", scheme: "light", go: async () => {} },
-  { name: "layout", scheme: "light", go: (page) => tab(page, "Layout") },
-  {
-    name: "layout-blockout",
-    scheme: "light",
-    go: async (page) => {
-      await tab(page, "Layout");
-      await page.getByRole("button", { name: "Blockout", exact: true }).first().click();
-    },
-  },
+  { name: "home", scheme: "dark", go: async () => {} },
+  { name: "layout", scheme: "dark", go: (page) => tab(page, "Layout") },
   {
     name: "image-studio",
-    scheme: "light",
+    scheme: "dark",
     go: async (page) => {
       await tab(page, "Image studio");
       await page.locator('aside[aria-label="Images"] button[title^="compass"]').first().click();
+      await page.locator('button.engine-option:has-text("Generative")').first().click();
     },
   },
-  { name: "assets", scheme: "light", go: (page) => tab(page, "Assets") },
-  { name: "layout-dark", scheme: "dark", go: (page) => tab(page, "Layout") },
+  {
+    name: "measure",
+    scheme: "dark",
+    go: async (page) => {
+      await tab(page, "Settings");
+      await page.getByText("Body & measurements", { exact: true }).first().click();
+      await button(page, "Measure yourself");
+      for (let i = 0; i < 3; i++) await button(page, "Next");
+    },
+  },
+  {
+    name: "projection",
+    scheme: "dark",
+    go: async (page) => {
+      await tab(page, "Settings");
+      await page.getByText("Projection", { exact: true }).first().click();
+    },
+  },
+  {
+    name: "layout-blockout",
+    scheme: "dark",
+    go: async (page) => {
+      await tab(page, "Layout");
+      await button(page, "Blockout");
+    },
+  },
 ];
 
 /** Waits until the page has stopped loading and the 3D view had time to draw a few frames. */
@@ -64,8 +84,19 @@ async function settle(page: Page) {
 
 async function main() {
   const settingsDir = await mkdtemp(join(tmpdir(), "tattoo-planner-screenshots-"));
-  // Only these variables: no TATTOO_DATA_DIR, no OpenAI key, settings in a throwaway folder.
-  const env = { HOME: settingsDir, XDG_CONFIG_HOME: settingsDir };
+  // The key check at start is off, so the server never contacts OpenAI.
+  await mkdir(join(settingsDir, "tattoo-planner"), { recursive: true });
+  await writeFile(
+    join(settingsDir, "tattoo-planner", "config.json"),
+    JSON.stringify({ openaiStartupCheck: false }),
+  );
+  // Only these variables: no TATTOO_DATA_DIR, settings in a throwaway folder, and a placeholder
+  // instead of a real OpenAI key, so the Image studio shows its generative panel. Nothing is sent.
+  const env = {
+    HOME: settingsDir,
+    XDG_CONFIG_HOME: settingsDir,
+    TATTOO_OPENAI_API_KEY: "sk-screenshot-placeholder-not-a-real-key",
+  };
   const context = createContext({ env, root });
   const api = createApi(context);
   const server = await createServer({
@@ -94,7 +125,7 @@ async function main() {
         reducedMotion: "reduce",
       });
       // The server remembers the open project, so each shot sets it explicitly before loading.
-      const action = shot.name === "start" ? "close" : "open-sample";
+      const action = "open-sample";
       const res = await page.request.post(new URL(`/api/project/${action}`, url).href);
       if (!res.ok()) throw new Error(`POST /api/project/${action}: ${res.status()}`);
       await page.goto(url);

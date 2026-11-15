@@ -50,9 +50,11 @@ Build the DMGs (macOS only; arm64 and x64 into `release/`, which git ignores):
 npm run dist:mac
 ```
 
-Without a Developer ID certificate the app is ad-hoc signed and not notarised. Signing switches on when `CSC_LINK` (or `CSC_NAME`) and `CSC_KEY_PASSWORD` are set, notarisation when `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` are set too. CI (`.github/workflows/desktop.yml`) builds the DMGs on every `v*` tag and on manual runs, uploads them as a workflow artifact and attaches them to a draft GitHub Release for tags; it uses the same variables as repository secrets when they exist.
+Without a Developer ID certificate the app is ad-hoc signed and not notarised. Signing switches on when `CSC_LINK` (or `CSC_NAME`) and `CSC_KEY_PASSWORD` are set, notarisation when `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` are set too. CI (`.github/workflows/desktop.yml`, docs/adr/0028-unsigned-dmg-release.md) builds the DMGs on every `v*` tag and on manual runs, checks them (`hdiutil verify`, `codesign --verify`), writes `SHA256SUMS.txt`, attests their build provenance (public repository only) and uploads them as a workflow artifact; it uses the same variables as repository secrets when they exist.
 
-**First start of an unsigned app.** macOS says the app cannot be opened because Apple cannot check it. Either right-click (or Control-click) Tattoo Planner in Applications → **Open** → **Open**, or try to open it once, then go to System Settings → Privacy & Security and click **Open Anyway**. macOS remembers the choice. Each new version (ad-hoc signed again) may ask once for Keychain access to "Tattoo Planner Safe Storage"; allow it so the stored key can be read.
+**Releasing.** Set `version` in `package.json`, merge, then Actions → **Desktop** → **Run workflow** on `main` with **release** ticked. The run creates the tag `v<version>` and a GitHub Release with both DMGs, the checksums and [docs/install-macos.md](install-macos.md) as its text. Pushing a tag `v<version>` does the same (the tag must match `package.json`).
+
+**First start of an unsigned app.** macOS blocks it once; the steps for each macOS version are in [docs/install-macos.md](install-macos.md). Each new version (ad-hoc signed again) may ask once for Keychain access to "Tattoo Planner Safe Storage"; allow it so the stored key can be read.
 
 `npm run dist:dir` packs an unpacked app for the current platform into `release/` (a quick packaging check, also on Linux).
 
