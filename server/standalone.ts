@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { createApi, type ApiContext } from "./api.ts";
 import { isInside } from "./assetsApi.ts";
 import { createContext, readEnv } from "./context.ts";
+import { setSecurityHeaders } from "./securityHeaders.ts";
 
 export const DEFAULT_PORT = 4322;
 
@@ -66,7 +67,6 @@ async function serveStatic(dist: string, req: IncomingMessage, res: ServerRespon
   res.statusCode = 200;
   res.setHeader("Content-Type", TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream");
   res.setHeader("Content-Length", String(s.size));
-  res.setHeader("X-Content-Type-Options", "nosniff");
   // Hashed bundle files never change; the page itself is revalidated.
   res.setHeader(
     "Cache-Control",
@@ -90,6 +90,7 @@ export async function startServer(opts: StartOptions): Promise<{ url: string; cl
   const api = createApi(opts.context);
   let port = 0;
   const server = http.createServer((req, res) => {
+    setSecurityHeaders(res);
     if (!isLocalHost(req.headers.host, port)) {
       res.statusCode = 421;
       res.end("wrong host");

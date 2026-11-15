@@ -1,5 +1,10 @@
 # Tattoo Planner
 
+[![CI](https://github.com/jd13381/tattoo-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/jd13381/tattoo-planner/actions/workflows/ci.yml)
+[![Security](https://github.com/jd13381/tattoo-planner/actions/workflows/security.yml/badge.svg)](https://github.com/jd13381/tattoo-planner/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jd13381/tattoo-planner/badge)](https://scorecard.dev/viewer/?uri=github.com/jd13381/tattoo-planner)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 Plan a tattoo on a 3D body before you see the artist: place images, patterns, bands and lines on a 2D unwrap of an arm, a leg or the torso, see them live in 3D, and export a PDF handout. The output is a **sketch, not a finished design**: the artist designs the tattoo. Everything runs locally on your computer.
 
 > [!NOTE]
@@ -54,6 +59,10 @@ A project is one folder you choose (YAML files and images: layouts, measurements
 ## How it was made
 
 The planner was built in a couple of weeks with [Claude Code](https://claude.com/claude-code), starting from my plan for one sleeve and growing into a general tool. The history is left as it happened. [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md) is the original brief, [docs/adr/](docs/adr/) records the technical decisions, [docs/claude-decisions.md](docs/claude-decisions.md) the decisions Claude made for my review, and [docs/product/roadmap.md](docs/product/roadmap.md) the product plan.
+
+## Quality and security
+
+Every push and pull request runs lint, typecheck, unit tests and an end-to-end smoke test in Chromium, plus a security pipeline: **CodeQL** (SAST) on the code and the workflows, **Gitleaks** secret scanning, **npm audit** with registry signature checks, a **CycloneDX SBOM**, dependency review, **zizmor** for the GitHub Actions workflows, and an **OWASP ZAP** baseline scan (DAST) against the running app. All actions are pinned to commit SHAs with least-privilege tokens; **OpenSSF Scorecard** rates the result. Details: [docs/adr/0027-ci-security-pipeline.md](docs/adr/0027-ci-security-pipeline.md), [SECURITY.md](SECURITY.md).
 
 ## Documentation
 
