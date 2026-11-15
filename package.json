@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Local 3D preview tool for planning a tattoo sleeve (sketch, not design).",
+  "description": "Local 3D tattoo planner: sketch on a 2D unwrap of an arm, leg or torso and see it live on a 3D body (sketch, not design).",
   "main": "dist-desktop/desktop/main.js",
   "engines": {
     "node": ">=22.18"

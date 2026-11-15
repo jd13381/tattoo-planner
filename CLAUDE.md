@@ -24,6 +24,8 @@ Local web tool that previews Jan's left-arm tattoo sleeve on a parametric 3D arm
 
 ## Working style
 
+- **The repository is public (2026-11-15).** Everything committed is visible to anyone, history included. Never add personal data beyond what is already there (no new measurements, photos, paths, names or keys), and keep `README.md`'s "not maintained, no PRs" notice.
+
 - Work on a task branch, push it and open a PR against `main`. Claude may merge its own PRs once CI is green (Jan, 2026-11-03).
 - Before every commit: `git diff --cached --stat` must show no file from the data folder, no image, PDF or export.
 - Judge test and lint runs by their real exit code, never through a pipe without `set -o pipefail`.
