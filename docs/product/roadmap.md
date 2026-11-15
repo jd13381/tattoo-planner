@@ -1,6 +1,6 @@
 # From personal planner to open-source product: roadmap
 
-- Status: accepted (2026-11-05); decisions in §7, two points still open
+- Status: accepted (2026-11-05); Phases A–C done. **Phase D superseded (2026-11-15):** Jan published this repository as it is, history included, instead of starting a fresh public one; it is not actively maintained (README). The open points in §7 (Apple account, final name) stay open.
 - Context: market scan "Tattoo Planner: market scan and publishing options" (Claude Doc, 2026-11-05) found no comparable tool. Jan decided to publish the planner as an open-source project with a Mac DMG.
 
 This document is the plan for the next steps. `PROJECT_BRIEF.md` stays the source of truth for Jan's own sleeve; this file is the source of truth for the product work. Decisions taken along the way become ADRs in `docs/adr/`.
@@ -129,7 +129,9 @@ Order matters: the feature review comes first, so no time goes into polishing wh
 
 - **Done when:** a new user on a clean Mac installs the DMG, opens the sample project, places three elements on an arm and a back, and exports a handout without reading code; and Jan's own sleeve still works as a project.
 
-### Phase D: Public repo
+### Phase D: Public repo (superseded)
+
+> Not done this way. On 2026-11-15 Jan decided to make this repository public with its full history, add README screenshots (ADR 0026), the MIT licence and a security pipeline (ADR 0027), and not to maintain it further. The plan below is kept for the record.
 
 - New public repository with the finished code as its first commit (fresh history: the current history contains Jan's measurements and brief).
 - Jan's personal project stays in a private folder or repo, outside the public one.

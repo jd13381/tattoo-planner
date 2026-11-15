@@ -2,6 +2,8 @@
 
 > **Purpose of this document:** This is the founding document of the `tattoo-planner` repository. It summarises a long planning conversation (held in German, 2026-11-03) about a full left-arm tattoo sleeve and describes the plan for a small software tool that lets us visualise the sleeve on a 3D model of the arm. It is written for two readers: Jan (the owner) and Claude Code (the agent that will build the tool). Treat it as the single source of truth until it is split into `docs/`.
 >
+> **Historical note (2026-11-15):** this is the founding brief, kept as it was written when the repository was private. The tool has since grown into a general planner (`docs/product/roadmap.md`) and the repository was made public with its history; statements about a private repo or "no public deployment" describe that time. The planner itself still runs only locally.
+>
 > **Naming (Jan, 2026-11-03):** the project and tool are called **Tattoo Planner** and the data folder variable is **`TATTOO_DATA_DIR`**. The left-arm sleeve is the first use case; the scope may grow later.
 
 ---

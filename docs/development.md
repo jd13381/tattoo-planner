@@ -134,14 +134,4 @@ Added with the UX overhaul of 2026-11-10 (`docs/claude-decisions.md`, ADR 0025):
 
 ## Status
 
-| Phase (PROJECT_BRIEF.md)            | State                                                                                                         |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 0 Bootstrap                         | done                                                                                                          |
-| 1 Stack check and scaffold          | done                                                                                                          |
-| 2 Parametric arm and viewer         | done                                                                                                          |
-| 3 Unwrap editor and blockout mode   | done                                                                                                          |
-| 4 Assets, ideas PDF, reference mode | done                                                                                                          |
-| 5 Export for the artist             | done                                                                                                          |
-| 6 Iteration and polish              | in progress: variant comparison, elbow-bent pose, red-line brush, Anubis from all photos and image edits done |
-
-Phases A–D of the product plan: `docs/product/roadmap.md`.
+Done: the phases of `PROJECT_BRIEF.md` (0 bootstrap to 6 iteration and polish) and Phases A–C of the product plan (`docs/product/roadmap.md`). Phase D (a fresh public repository) was replaced on 2026-11-15 by publishing this repository as it is. The planner is not actively developed; see the README.
