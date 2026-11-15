@@ -1568,8 +1568,8 @@ function KeySetup({ creating = false }: { creating?: boolean }) {
       <div className="studio-keycard-text">
         <strong>{creating ? "New images need GPT Image" : "Set up GPT Image"}</strong>
         <p>
-          It needs an OpenAI API key (from platform.openai.com). The built-in tools under Edit work without
-          one.
+          Bring your own OpenAI API key and GPT Image redraws your references into your own design. Settings
+          explains step by step how to get one; the built-in tools under Edit work without it.
         </p>
         <a className="button" href={KEY_HREF}>
           Open Settings → Image generation

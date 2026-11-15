@@ -15,6 +15,7 @@ import {
 } from "../edits/keyCheck.ts";
 import { LockIcon } from "../ui/icons.tsx";
 import { announceKeyCheck, keyApi } from "./openaiKeyClient.ts";
+import { KeyGuide } from "./KeyGuide.tsx";
 import { PageFrame } from "./PageFrame.tsx";
 
 /**
@@ -185,7 +186,7 @@ export function ImageGenerationSettings() {
                 ? `Key ${active.hint}, ${keySourceLabel(active.source, desktopStatus?.backend)}. Model: ${overview.model}.`
                 : unavailable
                   ? `No key is set. The ${desktopStatus!.backend} is not available, so a key cannot be stored safely.`
-                  : "No OpenAI API key is set yet. Create one at platform.openai.com (API keys) and add some credit under Billing."}
+                  : "No OpenAI API key is set yet. “How do I get a key?” below walks you through it in a few minutes."}
         </p>
         {overview && <PrecedenceNote overview={overview} desktop={!!desktop} />}
         {canEnter && (
@@ -248,6 +249,8 @@ export function ImageGenerationSettings() {
           </p>
         )}
       </section>
+
+      {canEnter && <KeyGuide open={!!overview && !active} />}
 
       <section className="df-panel" aria-label="Startup check">
         <div className="df-panel-head">
