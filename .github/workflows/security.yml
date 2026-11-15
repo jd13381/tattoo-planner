@@ -26,6 +26,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: read # CodeQL reads the workflow run (required in private repositories)
       security-events: write # upload the SARIF results to code scanning
     strategy:
       fail-fast: false
