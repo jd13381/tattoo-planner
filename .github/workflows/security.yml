@@ -1,0 +1,168 @@
+# Security pipeline (docs/adr/0027-ci-security-pipeline.md):
+#   sast          CodeQL (security-extended) on the TypeScript code and on these workflows
+#   secrets       Gitleaks over the commits of the push / pull request, the full history weekly
+#   dependencies  npm audit (high and above), npm registry signatures, CycloneDX SBOM,
+#                 dependency review (new vulnerable or copyleft dependencies) on pull requests
+#   workflows     zizmor: static analysis of the GitHub Actions workflows themselves
+#   dast          OWASP ZAP baseline scan against the built planner served on 127.0.0.1
+# Every third-party action is pinned to a commit SHA; every job gets the least permissions it needs.
+name: Security
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 4 * * 1" # Mondays: new advisories and rules also reach code that did not change
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  sast:
+    name: SAST (CodeQL, ${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read # CodeQL reads the workflow run (required in private repositories)
+      security-events: write # upload the SARIF results to code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+          config: |
+            paths-ignore:
+              - node_modules
+              - dist
+              - benchmark
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:${{ matrix.language }}
+          # Code scanning needs a public repository (or GitHub Advanced Security); a private copy
+          # still runs the analysis and keeps the SARIF as an artifact of the run.
+          upload: ${{ github.event.repository.private && 'never' || 'always' }}
+          output: sarif
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: codeql-${{ matrix.language }}
+          path: sarif/
+          retention-days: 14
+
+  secrets:
+    name: Secret scan (Gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read # list the commits of a pull request
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0 # the scan walks the history
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITLEAKS_ENABLE_COMMENTS: false
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: true
+          GITLEAKS_ENABLE_SUMMARY: true
+
+  dependencies:
+    name: Dependencies (audit, signatures, SBOM, review)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Known vulnerabilities (high and critical fail the build)
+        run: npm audit --audit-level=high
+      - name: Registry signatures and provenance of the installed packages
+        run: npm audit signatures
+      - name: Software bill of materials (CycloneDX)
+        run: npm sbom --sbom-format cyclonedx --omit dev > sbom.cdx.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom
+          path: sbom.cdx.json
+          retention-days: 90
+      - name: Dependency review (new vulnerabilities and licences)
+        # The dependency graph API behind it needs a public repository.
+        if: github.event_name == 'pull_request' && !github.event.repository.private
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: high
+          deny-licenses: AGPL-1.0-only, AGPL-1.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later, SSPL-1.0
+
+  workflows:
+    name: Workflow lint (zizmor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Static analysis of .github/workflows
+        env:
+          GH_TOKEN: ${{ github.token }} # online audits: impostor commits, known-vulnerable actions
+        run: pipx run zizmor==1.30.0 --format=github --min-severity=low .github/workflows
+
+  dast:
+    name: DAST (OWASP ZAP baseline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Start the planner on 127.0.0.1:4322 (no project, no key)
+        run: |
+          set -euo pipefail
+          XDG_CONFIG_HOME="$RUNNER_TEMP/settings" nohup node server/standalone.ts 4322 > "$RUNNER_TEMP/serve.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -fsS -o /dev/null http://127.0.0.1:4322/ && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/serve.log"
+          exit 1
+      - name: Baseline scan (passive; warnings fail unless listed in .zap/rules.tsv)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/zap" && cp .zap/rules.tsv "$RUNNER_TEMP/zap/" && chmod -R a+rwx "$RUNNER_TEMP/zap"
+          docker run --rm --network host -v "$RUNNER_TEMP/zap:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:2.17.0@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af \
+            zap-baseline.py -t http://127.0.0.1:4322/ -c rules.tsv -r zap-report.html -J zap-report.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: zap-report
+          path: ${{ runner.temp }}/zap/zap-report.*
+          retention-days: 14

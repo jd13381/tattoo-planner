@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { route } from "../server/api.ts";
 import { createContext } from "../server/context.ts";
 import type { Handler } from "../server/http.ts";
+import { CONTENT_SECURITY_POLICY, SECURITY_HEADERS } from "../server/securityHeaders.ts";
 import { isLocalHost, parsePort, startServer, staticFile } from "../server/standalone.ts";
 
 describe("route", () => {
@@ -66,6 +67,15 @@ describe("standalone server", () => {
     expect(js.headers.get("content-type")).toContain("javascript");
     const layouts = await fetch(new URL("api/layouts", server.url));
     expect(await layouts.json()).toEqual([]);
+  });
+
+  it("sends the security headers on pages, the API and errors", async () => {
+    for (const p of ["", "assets/app.js", "api/layouts", "nope.js"]) {
+      const res = await fetch(new URL(p, server.url));
+      for (const [name, value] of SECURITY_HEADERS) expect(res.headers.get(name), `${p} ${name}`).toBe(value);
+    }
+    expect(CONTENT_SECURITY_POLICY).toContain("frame-ancestors 'none'");
+    expect(CONTENT_SECURITY_POLICY).not.toMatch(/script-src[^;]*unsafe/);
   });
 
   it("answers 404 for missing files and files outside dist", async () => {

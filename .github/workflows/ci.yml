@@ -1,3 +1,4 @@
+# Build and test (docs/adr/0027-ci-security-pipeline.md). Security scans live in security.yml.
 name: CI
 on:
   push:
@@ -10,13 +11,16 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   check:
+    name: Lint, typecheck, test, build (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       matrix:
-        node: [22, 25] # 22: Claude cloud sessions, 25: Jan's Mac
+        node: [22, 25] # 22: the oldest supported, 25: Jan's Mac
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ matrix.node }}
@@ -28,3 +32,26 @@ jobs:
       - run: npm run build
       - name: No images, PDFs or exports in the repo
         run: node scripts/check-binaries.mjs --all
+
+  e2e:
+    # End-to-end smoke test: the README screenshot routine opens the sample project in a real
+    # Chromium and walks through Home, Layout, Image studio and Assets; any broken view fails it.
+    name: End-to-end smoke (sample project)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run screenshots
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots
+          path: docs/screenshots/
+          retention-days: 14

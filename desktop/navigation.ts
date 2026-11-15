@@ -32,18 +32,5 @@ export function isAllowedRequest(url: string, origin: string): boolean {
 /** Browser permissions the page may get; every other request (camera, location, …) is denied. */
 export const ALLOWED_PERMISSIONS: ReadonlySet<string> = new Set(["clipboard-sanitized-write"]);
 
-/** The Content-Security-Policy for the app's pages: own origin only, no remote content. */
-export const CONTENT_SECURITY_POLICY = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self' data: blob:",
-  "worker-src 'self' blob:",
-  "media-src 'self' data: blob:",
-  "object-src 'none'",
-  "base-uri 'none'",
-  "form-action 'none'",
-  "frame-ancestors 'none'",
-].join("; ");
+/** The Content-Security-Policy for the app's pages; shared with the standalone server. */
+export { CONTENT_SECURITY_POLICY } from "../server/securityHeaders.ts";

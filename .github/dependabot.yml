@@ -1,0 +1,24 @@
+# Dependency updates (docs/adr/0027-ci-security-pipeline.md). Monthly and grouped, so the repository
+# gets at most a few pull requests a month; security updates come as soon as an advisory appears.
+# The cooldown matches .npmrc's min-release-age: no release younger than 7 days.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

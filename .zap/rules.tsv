@@ -1,0 +1,10 @@
+# OWASP ZAP baseline rules (.github/workflows/security.yml, docs/adr/0027-ci-security-pipeline.md).
+# Format: rule id <TAB> IGNORE | INFO | WARN | FAIL <TAB> (name and why). Unlisted rules are WARN and fail the scan.
+# Only informational findings and accepted, explained trade-offs are listed here; a real finding is fixed instead.
+10049	INFO	(Storable and cacheable content: informational)
+10015	INFO	(Re-examine Cache-control directives: hashed bundles are immutable on purpose, the page is no-cache)
+10109	INFO	(Modern web application: informational, the planner is a single-page app)
+10027	INFO	(Information disclosure, suspicious comments: matches words like "user" in the minified bundle)
+10096	INFO	(Timestamp disclosure: numbers in the minified bundle)
+10055	IGNORE	(CSP style-src unsafe-inline: React and three.js set inline style attributes; script-src stays self only)
+90004	IGNORE	(Spectre site isolation, COEP: everything is same-origin on 127.0.0.1 and COOP/CORP are set)
