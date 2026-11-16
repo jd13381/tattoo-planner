@@ -9,7 +9,7 @@ description: "Anubis, inner left forearm, combined from five photos"
 # The area of skin the combined picture covers
 patch:
   u: [0, 1] # lateral … medial
-  v: [0, 0.65] # wrist to above the elbow on Sam's arm, enough for what the photos show
+  v: [0, 0.65] # wrist to above the elbow, enough for what the photos show
   px_per_cm: 20
   feather_cm: 0.5 # soft edge where the patch ends
 blend:
