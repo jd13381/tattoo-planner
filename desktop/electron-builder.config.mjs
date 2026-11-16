@@ -29,9 +29,11 @@ const config = {
     "dist-desktop/desktop/**/*",
     "dist-desktop/server/**/*",
     "dist-desktop/src/**/*",
-    // The read-only sample project (YAML only; its images are drawn at runtime). The server finds it
-    // next to dist/ inside app.asar (server/context.ts), not through the working directory.
+    // The read-only sample project: YAML, its placeholder images are drawn at runtime, plus the
+    // Anubis photos of its existing tattoo (docs/adr/0029). The server finds it next to dist/ inside
+    // app.asar (server/context.ts), not through the working directory.
     "samples/**/*.yaml",
+    "samples/demo/photos/*.jpg",
     "!**/*.map",
     "!node_modules/**/*",
     "node_modules/yaml/**/*",

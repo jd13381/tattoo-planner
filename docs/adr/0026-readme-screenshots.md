@@ -6,7 +6,7 @@
 ## Decision
 
 - **A second exception: `docs/screenshots/*.webp`.** The pre-commit guard (`scripts/check-binaries.mjs`) and `.gitignore` allow WebP files directly in that folder, at most 500 KB each. PNG, JPEG, subfolders and anything larger are still refused.
-- **Only generated, only from the sample.** `npm run screenshots` (`scripts/screenshots.ts`) starts the planner's server on a free local port with a hand-built environment (no `TATTOO_DATA_DIR`, no OpenAI key, a throwaway settings folder) and never reads `.env`, so it cannot open a real project. It opens the read-only sample in `samples/demo` (motifs drawn at runtime) and photographs a fixed list of views with Playwright at 1440 × 900, rendered at 2× and scaled down, re-encoded to WebP.
+- **Only generated, only from the sample.** `npm run screenshots` (`scripts/screenshots.ts`) starts the planner's server on a free local port with a hand-built environment (no `TATTOO_DATA_DIR`, no OpenAI key, a throwaway settings folder) and never reads `.env`, so it cannot open a real project. It opens the read-only sample in `samples/demo` (motifs drawn at runtime; Sam's Anubis photos are the one real image set, ADR 0029) and photographs a fixed list of views with Playwright at 1440 × 900, rendered at 2× and scaled down, re-encoded to WebP.
 - **Playwright** (`playwright`, devDependency) drives the browser. It needs a Chromium once: `npx playwright install chromium`; `SCREENSHOTS_CHROMIUM` points it at another binary (containers, CI). WebGL runs through SwiftShader where there is no GPU.
 
 ## Consequences

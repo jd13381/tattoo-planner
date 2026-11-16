@@ -2,7 +2,8 @@
 // README screenshots (docs/adr/0026-readme-screenshots.md): `npm run screenshots`.
 //
 // Starts the planner on a free local port with an isolated, empty settings folder, opens the
-// read-only sample project shipped in samples/demo and photographs a fixed set of views into
+// read-only sample project shipped in samples/demo (its Sam carries the author's Anubis tattoo,
+// docs/adr/0029) and photographs a fixed set of views into
 // docs/screenshots/*.webp. It never reads the user's own projects, settings, .env or OpenAI key:
 // the server gets a hand-built environment instead of process.env and the git-ignored .env, with a
 // placeholder key and the key check off, so nothing is ever sent to OpenAI.
@@ -26,6 +27,8 @@ const viewport = { width: 1440, height: 900 };
 interface Shot {
   name: string;
   scheme: "light" | "dark";
+  /** The sample person to show (persons in samples/demo/project.yaml); default the first, Alice. */
+  person?: string;
   /** Runs after the page opened on the sample's Home. */
   go(page: Page): Promise<void>;
 }
@@ -35,9 +38,25 @@ const tab = (page: Page, label: string) =>
 
 const button = (page: Page, name: string) => page.getByRole("button", { name, exact: true }).first().click();
 
+/**
+ * Turns the Home body a little towards its left side by dragging, so Sam's inner left forearm with
+ * the projected Anubis faces the camera, then moves the mouse off the body (no hover label).
+ */
+async function turnHomeBody(page: Page, dx: number) {
+  const box = await page.locator("canvas").first().boundingBox();
+  if (!box) throw new Error("Home shows no 3D view");
+  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx, y, { steps: 10 });
+  await page.mouse.up();
+  await page.mouse.move(box.x + box.width + 200, box.y + box.height - 20);
+}
+
 /** In README order. Dark mode throughout (Jan, 2026-11-15). */
 const SHOTS: Shot[] = [
-  { name: "home", scheme: "dark", go: async () => {} },
+  // Sam, the male body, with the Anubis already projected (Jan, 2026-11-16).
+  { name: "home", scheme: "dark", person: "sam", go: (page) => turnHomeBody(page, -75) },
   { name: "layout", scheme: "dark", go: (page) => tab(page, "Layout") },
   {
     name: "image-studio",
@@ -59,11 +78,15 @@ const SHOTS: Shot[] = [
     },
   },
   {
+    // Sam's Anubis in the projection workspace: a photo with its outline and distances, the 3D arm
+    // and the unwrap built from all five photos.
     name: "projection",
     scheme: "dark",
+    person: "sam",
     go: async (page) => {
       await tab(page, "Settings");
       await page.getByText("Projection", { exact: true }).first().click();
+      await button(page, "Edit");
     },
   },
   {
@@ -128,6 +151,11 @@ async function main() {
       const action = "open-sample";
       const res = await page.request.post(new URL(`/api/project/${action}`, url).href);
       if (!res.ok()) throw new Error(`POST /api/project/${action}: ${res.status()}`);
+      if (shot.person) {
+        const select = `/api/project/persons/${shot.person}/select`;
+        const sel = await page.request.post(new URL(select, url).href);
+        if (!sel.ok()) throw new Error(`POST ${select}: ${sel.status()}`);
+      }
       await page.goto(url);
       await settle(page);
       await shot.go(page);

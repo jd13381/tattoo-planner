@@ -1,6 +1,7 @@
 // The sample project (docs/adr/0012-project-folder.md, "Sample project"): samples/demo/ in the app
 // folder, opened read-only. Its manifest names PNG files that do not exist; the server draws them on
 // request (src/sample/placeholders.ts), and "Save as new project" writes them into the new folder.
+// The one set of real files are the Anubis photos in photos/ (docs/adr/0029), served and copied as they are.
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { MANIFEST_FILE } from "../../src/assets/manifest.ts";
@@ -30,7 +31,7 @@ export function placeholderPng(file: string): Buffer | null {
   return png;
 }
 
-/** Files of the sample, relative, forward slashes: only YAML (the images are drawn, never shipped). */
+/** YAML files of the sample, relative, forward slashes (images are drawn or copied via the manifest). */
 async function sampleFiles(dir: string, rel = ""): Promise<string[]> {
   const out: string[] = [];
   for (const name of (await readdir(path.join(dir, rel))).sort()) {
@@ -47,7 +48,8 @@ export type SampleCopy = { files: string[]; images: string[] };
 
 /**
  * Copies the sample into `target` (an existing, empty folder): its YAML files, the standard project
- * folders, and every placeholder as a real PNG at the path its manifest entry names. project.yaml
+ * folders, every placeholder as a real PNG at the path its manifest entry names, and every shipped
+ * photo the manifest names (docs/adr/0029). project.yaml
  * gets the chosen name and body, keeping its comments. Never overwrites a file (flag "wx").
  * Reads with readFile/readdir/stat only, which also work inside the desktop app's app.asar.
  */
@@ -70,11 +72,13 @@ export async function copySample(
     const parsed = parseManifestText(await readFile(path.join(sampleDir, MANIFEST_FILE), "utf8"));
     if ("error" in parsed) throw new Error(parsed.error);
     for (const asset of parsed.assets) {
-      const png = placeholderPng(asset.file);
       const dest = assetPath(target, asset.file);
-      if (!png || !dest.ok) continue;
+      if (!dest.ok) continue;
+      const shipped = assetPath(sampleDir, asset.file);
+      const bytes = placeholderPng(asset.file) ?? (shipped.ok ? await readFile(shipped.path) : null);
+      if (!bytes) continue;
       await mkdir(path.dirname(dest.path), { recursive: true });
-      await writeFile(dest.path, png, { flag: "wx" });
+      await writeFile(dest.path, bytes, { flag: "wx" });
       images.push(asset.file);
     }
   }

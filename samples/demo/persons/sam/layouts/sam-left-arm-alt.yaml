@@ -3,6 +3,12 @@ name: sam-left-arm-alt
 region: arm-left
 description: "Compass instead of the mountains, the rest kept lighter"
 elements:
+  - id: anubis
+    type: existing
+    projection: anubis # persons/sam/projections/anubis.yaml, built from five photos
+    locked: true
+    position: { u: 0.50, v: 0.20 } # inner forearm
+    size_cm: { h: 26 }
   - id: compass
     type: figure
     asset: compass

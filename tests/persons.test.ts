@@ -304,7 +304,7 @@ describe("persons in the project store", () => {
     const s = store();
     const status = await s.openSample();
     expect(status.persons.map((p) => [p.id, p.name, p.body])).toEqual([
-      ["me", "Alex", "female"],
+      ["me", "Alice", "female"],
       ["sam", "Sam", "male"],
     ]);
     const sam = await s.selectPerson("sam");

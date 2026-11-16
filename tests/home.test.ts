@@ -34,8 +34,8 @@ describe("home regions", () => {
     const body = resolveBody({ units: "cm", body: "male" });
     const arm = homeRegions(files, {})[0]!;
     const stats = regionStats(arm.layout!, body.regions["arm-left"].profile);
-    expect(stats.motifs).toBe(2);
-    expect(stats.elements).toBe(3); // the stars are a background layer now (docs/adr/0019)
+    expect(stats.motifs).toBe(3); // mountains, fern and the existing Anubis (docs/adr/0029)
+    expect(stats.elements).toBe(4); // plus the wrist band; the hatching is a background layer (docs/adr/0019)
     expect(stats.coveragePct).toBeGreaterThan(5);
     expect(stats.coveragePct).toBeLessThan(60);
     const empty = regionStats({ name: "e", elements: [] }, body.regions.torso.profile);
