@@ -5,14 +5,9 @@
 # people without the gh CLI) cannot see that, so this workflow downloads the attestations, verifies
 # them against this repository and uploads them as Tattoo-Planner-<version>.intoto.jsonl.
 #
-# Runs after each release (called by desktop.yml) and by hand for an existing tag.
+# desktop.yml runs the same script after each release; this workflow is for an existing tag.
 name: Release provenance
 on:
-  workflow_call:
-    inputs:
-      tag:
-        type: string
-        required: true
   workflow_dispatch:
     inputs:
       tag:
@@ -30,27 +25,12 @@ jobs:
       contents: write # upload the file to the release
       attestations: read # download the stored attestations
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Download, verify and upload
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ inputs.tag }}
-        run: |
-          set -euo pipefail
-          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Tag must look like v1.2.3, got: $TAG"
-            exit 1
-          fi
-          mkdir dmg && cd dmg
-          gh release download "$TAG" --pattern '*.dmg'
-          out="Tattoo-Planner-${TAG#v}.intoto.jsonl"
-          : > "../$out"
-          for dmg in *.dmg; do
-            gh attestation verify "$dmg" --repo "$GH_REPO" --signer-workflow "$GH_REPO/.github/workflows/desktop.yml"
-            gh attestation download "$dmg" --repo "$GH_REPO"
-            cat sha256:*.jsonl >> "../$out"
-            rm sha256:*.jsonl
-          done
-          cd ..
-          wc -l "$out"
-          gh release upload "$TAG" "$out" --clobber
+        run: scripts/release-provenance.sh "$TAG"
