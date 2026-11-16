@@ -25,6 +25,8 @@ Three workflows plus Dependabot, every third-party action pinned to a full commi
 
 **Accepted ZAP findings** are listed with the reason in `.zap/rules.tsv`: informational alerts (cacheable content, bundle comments and numbers, "modern web app") and two trade-offs: `style-src 'unsafe-inline'` (React and three.js set style attributes; scripts stay `'self'` only) and no `Cross-Origin-Embedder-Policy` (everything is same-origin on loopback).
 
+**Accepted Gitleaks findings** are listed by exact fingerprint in `.gitleaksignore` (Jan, 2026-11-16): the placeholder OpenAI key `sk-proj-abcdefghijklmnop1234` in the commits that added `tests/keyCheck.test.ts` and `tests/desktop.test.ts`. It was never a real key; the weekly full-history scan found it. No rule or path is allowlisted, so any other key still fails.
+
 ## Consequences
 
 - Code scanning results (CodeQL, Scorecard) and dependency review need a public repository; while private, CodeQL keeps its SARIF as a run artifact and the other two are skipped.
