@@ -1,5 +1,6 @@
-# Sam's left arm: the author's own measurements (docs/adr/0029), so the Anubis projected from his
-# photos fits the arm it was fitted on. Every other value comes from the male sample body at 182 cm.
+# Sam is the author at 186 cm (project.yaml): his left arm (docs/adr/0029), so the Anubis projected
+# from his photos fits the arm it was fitted on, and his leg lengths, so arms and legs match. Every
+# other value comes from the male sample body at 186 cm.
 # All values in cm, arm relaxed and straight; how to measure: docs/measuring.md.
 arm: left
 units: cm
@@ -19,3 +20,12 @@ positions:
   forearm_max_below_elbow: 10 # elbow tip down to the forearm_max tape line
   armpit_level_below_shoulder: 17 # shoulder point down to the armpit_level tape line
   shoulder_below_shoulder: 10 # shoulder point down to the shoulder tape line
+regions:
+  leg-right:
+    lengths:
+      ankle_to_knee: 45
+      knee_to_hip: 45
+  leg-left:
+    lengths:
+      ankle_to_knee: 45
+      knee_to_hip: 45
