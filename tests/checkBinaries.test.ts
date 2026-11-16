@@ -63,6 +63,15 @@ describe("check-binaries", () => {
     expect(reason("docs/home.webp", 1024)).toBe(".webp file");
   });
 
+  it("allows the sample's Anubis photos in samples/demo/photos/ only, as JPEG up to 500 KB", () => {
+    expect(reason("samples/demo/photos/anubis-1.jpg", 300 * 1024)).toBeNull();
+    expect(reason("samples/demo/photos/anubis-1.jpg", 500 * 1024 + 1)).toMatch(/sample photo over 500 KB/);
+    expect(reason("samples/demo/photos/anubis-1.jpg")).toMatch(/over 500 KB/);
+    expect(reason("samples/demo/photos/anubis-1.png", 1024)).toBe(".png file");
+    expect(reason("samples/demo/photos/sub/anubis-1.jpg", 1024)).toBe(".jpg file");
+    expect(reason("samples/demo/anubis-1.jpg", 1024)).toBe(".jpg file");
+  });
+
   it("allows standard background tiles in assets/backgrounds/ only, as PNG/WebP up to 2 MB", () => {
     expect(reason("assets/backgrounds/clouds.png", 900_000)).toBeNull();
     expect(reason("assets/backgrounds/stars.WebP", 2 * 1024 * 1024)).toBeNull();

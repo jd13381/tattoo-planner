@@ -3,13 +3,15 @@
 // - every write answers 409 with SAMPLE_READ_ONLY (layouts, projections, measurements, project
 //   details, migration, asset scan and entry edits, the Image studio, exports);
 // - GET /api/exports and GET /api/edits report exports and edits as unavailable, with the same reason;
-// - GET /api/assets marks the drawn placeholders as present and GET /api/assets/image/<id> serves them.
+// - GET /api/assets marks the drawn placeholders as present and GET /api/assets/image/<id> serves them,
+//   or the shipped photo the entry names (docs/adr/0029).
 // Opening, creating and closing projects, opening the sample and "Save as new project" stay allowed.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AssetListing } from "../src/assets/types.ts";
 import type { EditOverview } from "../src/edits/types.ts";
 import type { ExportStatus } from "../src/export/names.ts";
 import { listAssets } from "./assetsApi.ts";
+import { serveImage } from "./assetsHandler.ts";
 import { send, subPath } from "./http.ts";
 import { placeholderPng, SAMPLE_READ_ONLY } from "./project/sample.ts";
 
@@ -53,7 +55,7 @@ export async function sampleAssets(sampleDir: string): Promise<AssetListing> {
   };
 }
 
-async function servePlaceholder(res: ServerResponse, sampleDir: string, rawId: string) {
+async function serveSampleImage(req: IncomingMessage, res: ServerResponse, sampleDir: string, rawId: string) {
   let id: string;
   try {
     id = decodeURIComponent(rawId);
@@ -63,7 +65,8 @@ async function servePlaceholder(res: ServerResponse, sampleDir: string, rawId: s
   const listing = await listAssets(sampleDir);
   const asset = listing.status === "ok" ? listing.assets.find((a) => a.id === id) : undefined;
   const png = asset ? placeholderPng(asset.file) : null;
-  if (!png) return send(res, 404, { error: `unknown asset ${id}` });
+  // Not drawn: a photo shipped with the sample (docs/adr/0029), or 404.
+  if (!png) return serveImage(req, res, sampleDir, id);
   res.statusCode = 200;
   res.setHeader("Content-Type", "image/png");
   res.setHeader("Content-Length", String(png.length));
@@ -103,7 +106,7 @@ export async function handleSampleRequest(
   }
   const image = /^\/api\/assets\/image\/([^/]+)$/.exec(p);
   if (image) {
-    await servePlaceholder(res, sampleDir, image[1]!);
+    await serveSampleImage(req, res, sampleDir, image[1]!);
     return true;
   }
   return false;

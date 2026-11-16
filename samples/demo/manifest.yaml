@@ -1,6 +1,8 @@
 # Asset catalogue of the sample project. The images are simple placeholder motifs that the planner
 # draws itself (src/sample/placeholders.ts): no image file is shipped, and none of them is real tattoo
 # art. "Save as new project" writes them as PNG files into the new project's images/ folder.
+# The exception are the five photos in photos/: Jan's real Anubis tattoo, cropped to the forearm, which
+# Sam's existing-tattoo projection is built from (docs/adr/0029). They ship as JPEG files.
 version: 1
 assets:
   - id: compass
@@ -51,3 +53,33 @@ assets:
     source: placeholder drawn by the planner
     notes: Swallow in flight.
     tags: [placeholder, animal]
+  - id: anubis-1
+    file: photos/anubis-1.jpg
+    kind: existing
+    source: Jan's own Anubis tattoo (photo by the author, shared for the sample)
+    notes: Palm up, arm lying sideways; the reference view.
+    tags: [anubis, existing, photo]
+  - id: anubis-2
+    file: photos/anubis-2.jpg
+    kind: existing
+    source: Jan's own Anubis tattoo (photo by the author, shared for the sample)
+    notes: Arm upright, palm up, wrist turned a little towards medial.
+    tags: [anubis, existing, photo]
+  - id: anubis-3
+    file: photos/anubis-3.jpg
+    kind: existing
+    source: Jan's own Anubis tattoo (photo by the author, shared for the sample)
+    notes: Forearm turned towards the thumb, the lateral side.
+    tags: [anubis, existing, photo]
+  - id: anubis-4
+    file: photos/anubis-4.jpg
+    kind: existing
+    source: Jan's own Anubis tattoo (photo by the author, shared for the sample)
+    notes: Forearm turned further, the ribbons on the lateral side.
+    tags: [anubis, existing, photo]
+  - id: anubis-5
+    file: photos/anubis-5.jpg
+    kind: existing
+    source: Jan's own Anubis tattoo (photo by the author, shared for the sample)
+    notes: Standing, arm hanging, thumb side towards the camera.
+    tags: [anubis, existing, photo]

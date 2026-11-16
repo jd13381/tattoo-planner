@@ -1,0 +1,21 @@
+# Sam's left arm: the author's own measurements (docs/adr/0029), so the Anubis projected from his
+# photos fits the arm it was fitted on. Every other value comes from the male sample body at 182 cm.
+# All values in cm, arm relaxed and straight; how to measure: docs/measuring.md.
+arm: left
+units: cm
+lengths:
+  shoulder_to_elbow: 44 # acromion (shoulder point) to elbow tip
+  elbow_to_wrist: 30 # elbow tip to wrist crease
+circumferences:
+  wrist: 19
+  forearm_mid: 25
+  forearm_max: 29 # thickest point just below the elbow
+  elbow: 29
+  above_elbow: 33
+  biceps_mid: 36 # relaxed
+  armpit_level: 38
+  shoulder: 40
+positions:
+  forearm_max_below_elbow: 10 # elbow tip down to the forearm_max tape line
+  armpit_level_below_shoulder: 17 # shoulder point down to the armpit_level tape line
+  shoulder_below_shoulder: 10 # shoulder point down to the shoulder tape line

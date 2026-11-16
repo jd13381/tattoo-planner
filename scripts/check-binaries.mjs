@@ -51,6 +51,15 @@ export const SCREENSHOT_FOLDER = "docs/screenshots/";
 export const SCREENSHOT_EXTENSIONS = ["webp"];
 export const SCREENSHOT_MAX_BYTES = 500 * 1024;
 
+/**
+ * The third exception (docs/adr/0029, Jan, 2026-11-16): the photos of Jan's Anubis tattoo that the
+ * sample's existing-tattoo projection uses, cropped to the forearm. JPEG directly in that folder, at
+ * most SAMPLE_PHOTO_MAX_BYTES each. Nothing else from the data folder.
+ */
+export const SAMPLE_PHOTO_FOLDER = "samples/demo/photos/";
+export const SAMPLE_PHOTO_EXTENSIONS = ["jpg"];
+export const SAMPLE_PHOTO_MAX_BYTES = 500 * 1024;
+
 /** Folders where images of the given kinds and size may be committed (flat, no subfolders). */
 const SIZED_IMAGE_FOLDERS = [
   {
@@ -64,6 +73,12 @@ const SIZED_IMAGE_FOLDERS = [
     extensions: SCREENSHOT_EXTENSIONS,
     maxBytes: SCREENSHOT_MAX_BYTES,
     what: "README screenshot",
+  },
+  {
+    folder: SAMPLE_PHOTO_FOLDER,
+    extensions: SAMPLE_PHOTO_EXTENSIONS,
+    maxBytes: SAMPLE_PHOTO_MAX_BYTES,
+    what: "sample photo",
   },
 ];
 

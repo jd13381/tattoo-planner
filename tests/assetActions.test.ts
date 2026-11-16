@@ -337,7 +337,12 @@ describe("the sample project", () => {
       });
       const l = (await (await api("api/assets")).json()) as Extract<AssetListing, { status: "ok" }>;
       expect(l.readOnly).toBe(true);
-      expect(l.assets.every((a) => a.effectiveCategory === "reference")).toBe(true);
+      // The drawn placeholders are references; Sam's Anubis photos are an existing tattoo (docs/adr/0029).
+      const photos = l.assets.filter((a) => a.file.startsWith("photos/"));
+      expect(photos.length).toBe(5);
+      expect(
+        l.assets.filter((a) => !photos.includes(a)).every((a) => a.effectiveCategory === "reference"),
+      ).toBe(true);
       for (const p of [
         "api/assets/batch",
         "api/assets/undo/abcdefgh12",

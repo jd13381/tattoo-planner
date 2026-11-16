@@ -40,7 +40,7 @@ persons: # optional: further persons
 
 - `POST /api/project/persons { name, body, height_cm? }` adds the entry, creates `persons/<id>/{layouts,projections,photos}` and shows the new person. `PATCH /api/project/persons/<id>` renames or changes body/height.
 - `DELETE /api/project/persons/<id>` never destroys data: the folder moves to the system trash (macOS `~/.Trash`, freedesktop `~/.local/share/Trash` with a `.trashinfo`), or, when that is impossible (another volume, Windows), to `<project>/.trash/`, which the scans skip. The answer says where it went. The root person cannot be removed (its data is the project itself); it can be renamed.
-- The sample shows two persons (Alex, female, root; Sam, male, `persons/sam/`) and allows switching between them; everything else stays read-only.
+- The sample shows two persons (Alice, female, root; Sam, male, `persons/sam/`) and allows switching between them; everything else stays read-only.
 
 ## Alternatives
 

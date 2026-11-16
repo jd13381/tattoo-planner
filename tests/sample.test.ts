@@ -65,12 +65,17 @@ describe("sample project files", () => {
     expect(regions.sort()).toEqual([...REGION_IDS].sort());
   });
 
-  it("names a drawn motif for every manifest entry and ships no image", async () => {
+  it("names a drawn motif for every manifest entry but the shipped Anubis photos", async () => {
     const manifest = manifestSchema.parse(parseDocument(await sampleText("manifest.yaml")).toJS());
     expect(manifest.assets.length).toBeGreaterThanOrEqual(5);
-    for (const a of manifest.assets) expect(motifForFile(a.file), a.file).not.toBeNull();
+    const photos = manifest.assets.filter((a) => a.file.startsWith("photos/")).map((a) => a.file);
+    for (const a of manifest.assets)
+      if (!photos.includes(a.file)) expect(motifForFile(a.file), a.file).not.toBeNull();
+    // The only image files are those photos (docs/adr/0029), each named by the manifest.
     const files = Object.keys(await snapshot(SAMPLE_DIR));
-    expect(files.every((f) => f.endsWith(".yaml"))).toBe(true);
+    const images = files.filter((f) => !f.endsWith(".yaml"));
+    expect(images.sort()).toEqual(photos.sort());
+    expect(images.every((f) => /^photos\/[a-z0-9-]+\.jpg$/.test(f))).toBe(true);
   });
 });
 
@@ -215,6 +220,13 @@ describe("sample in the project store", () => {
     expect(r.images).toContain("images/compass.png");
     const copied = await readFile(path.join(target, "images", "compass.png"));
     expect(copied.equals(placeholderPng("images/compass.png")!)).toBe(true);
+    // The shipped Anubis photos (docs/adr/0029) are copied byte for byte.
+    expect(r.images).toContain("photos/anubis-1.jpg");
+    expect(
+      (await readFile(path.join(target, "photos", "anubis-1.jpg"))).equals(
+        await readFile(path.join(SAMPLE_DIR, "photos", "anubis-1.jpg")),
+      ),
+    ).toBe(true);
     for (const f of ["photos", "projections"])
       expect((await stat(path.join(target, f))).isDirectory()).toBe(true);
     const projectText = await readFile(path.join(target, "project.yaml"), "utf8");
@@ -322,6 +334,9 @@ describe("sample over HTTP", () => {
     expect(image.headers.get("content-type")).toBe("image/png");
     expect(Buffer.from(await image.arrayBuffer()).equals(placeholderPng("images/moon.png")!)).toBe(true);
     expect((await api("api/assets/image/nope")).status).toBe(404);
+    const photo = await api("api/assets/image/anubis-1");
+    expect(photo.status).toBe(200);
+    expect(photo.headers.get("content-type")).toBe("image/jpeg");
 
     expect(await (await api("api/exports")).json()).toEqual({ enabled: false, reason: SAMPLE_READ_ONLY });
     const edits = (await (await api("api/edits")).json()) as { generative: { enabled: boolean } };

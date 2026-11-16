@@ -50,6 +50,9 @@ exports/
 # The second exception (docs/adr/0026, Jan, 2026-11-15): README screenshots of the sample project,
 # written by `npm run screenshots`. WebP only, at most 500 KB each (pre-commit guard).
 !docs/screenshots/*.[wW][eE][bB][pP]
+# The third exception (docs/adr/0029, Jan, 2026-11-16): the Anubis photos of the sample project,
+# cropped to the forearm. JPEG only, at most 500 KB each (pre-commit guard).
+!samples/demo/photos/*.jpg
 
 # Python bytecode (benchmark scripts)
 __pycache__/
