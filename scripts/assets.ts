@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Asset script (PROJECT_BRIEF.md §12.3; ADR 0003). Run by Node's type stripping:
+// Asset script (docs/history/project-brief.md §12.3; ADR 0003). Run by Node's type stripping:
 //   npm run assets:scan  add manifest entries for new images in images/, photos/ and the older folders
 // It only adds to the manifest; Jan's entries, comments and edits stay as they are. The Reload button
 // in the planner runs the same scan. (The ideas.pdf ingestion was removed, see roadmap §3.)

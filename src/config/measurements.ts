@@ -1,4 +1,4 @@
-// Schema for config/measurements.yaml (PROJECT_BRIEF.md §13.1, per region since docs/adr/0011).
+// Schema for config/measurements.yaml (docs/history/project-brief.md §13.1, per region since docs/adr/0011).
 // Every number may be null until someone measures; missing values come from the sample body.
 //
 // The top-level `arm: left` with `lengths`, `circumferences` and `positions` is the original format and

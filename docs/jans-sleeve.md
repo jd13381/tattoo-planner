@@ -1,6 +1,6 @@
 # Jan's sleeve
 
-Notes for the planner's first user: the left-arm sleeve described in `PROJECT_BRIEF.md`. Setup: [development.md](development.md).
+Notes for the planner's first user: the left-arm sleeve described in `docs/history/project-brief.md`. Setup: [development.md](development.md).
 
 ## Moving the data folder
 

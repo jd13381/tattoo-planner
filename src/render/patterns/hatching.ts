@@ -1,4 +1,4 @@
-// Hatching filler (PROJECT_BRIEF.md §4.2, §7): parallel lines in the engraving language of the
+// Hatching filler (docs/history/project-brief.md §4.2, §7): parallel lines in the engraving language of the
 // Anubis. Density tightens the spacing; above the middle a second, crossing layer joins in.
 // Line ends are trimmed by a seeded amount, so the edge frays out instead of ending as a box.
 import { clamp01, clipSegment, hash2, type Generator, type PatternParams, type Shape } from "./geometry.ts";

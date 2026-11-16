@@ -1,4 +1,4 @@
-// Debug texture for checking UV distortion: a cm grid on the unwrap (PROJECT_BRIEF.md §14, Phase 2).
+// Debug texture for checking UV distortion: a cm grid on the unwrap (docs/history/project-brief.md §14, Phase 2).
 // Pure line model + a thin canvas painter, so the model can be tested without a browser.
 import type { RegionProfile } from "../body/profile.ts";
 import { MAIN_LINES } from "../body/regions.ts";

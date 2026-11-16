@@ -1,4 +1,4 @@
-// Asset manifest (PROJECT_BRIEF.md §12.4): the catalogue that layouts reference by asset id.
+// Asset manifest (docs/history/project-brief.md §12.4): the catalogue that layouts reference by asset id.
 // The manifest lives in the data folder (<TATTOO_DATA_DIR>/manifest.yaml), never in the repo,
 // because file names and notes may be private. It holds no image data, only paths and metadata.
 import { z } from "zod";

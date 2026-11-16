@@ -17,7 +17,7 @@ import { SAMPLE_FOLDER, SAMPLE_READ_ONLY } from "../server/project/sample.ts";
 import { startServer } from "../server/standalone.ts";
 import { PENDING_FOLDER, PendingDeletes, projectTrasher } from "../server/trash.ts";
 
-export const JAN_MANIFEST = `# Asset manifest (PROJECT_BRIEF.md §12.4). Hand edits welcome.
+export const JAN_MANIFEST = `# Asset manifest (docs/history/project-brief.md §12.4). Hand edits welcome.
 version: 1
 assets:
   # Pinterest finds

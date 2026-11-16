@@ -1,4 +1,4 @@
-// The four fixed views (PROJECT_BRIEF.md §10.1 F2), in a region's local axes (src/body/geometry.ts).
+// The four fixed views (docs/history/project-brief.md §10.1 F2), in a region's local axes (src/body/geometry.ts).
 // The four names are slots: on the torso "medial" and "lateral" are its left and right side.
 import { surfacePoint } from "../body/geometry.ts";
 import type { RegionProfile } from "../body/profile.ts";

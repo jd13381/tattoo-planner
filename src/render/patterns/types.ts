@@ -1,4 +1,4 @@
-// Contract for procedural fillers and bands (PROJECT_BRIEF.md §7, §14 Phase 4).
+// Contract for procedural fillers and bands (docs/history/project-brief.md §7, §14 Phase 4).
 // A painter fills a pixel rectangle of the unwrap canvas; the caller clips the result to the
 // element's shape. Painters are deterministic: the same inputs always give the same pixels.
 

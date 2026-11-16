@@ -1,4 +1,4 @@
-// Side-by-side comparison of two layout variants (PROJECT_BRIEF.md §14 Phase 6): both on the 3D arm
+// Side-by-side comparison of two layout variants (docs/history/project-brief.md §14 Phase 6): both on the 3D arm
 // with one camera, their coverage next to each other and the elements that differ. Read-only;
 // editing stays in the Layout tab.
 //

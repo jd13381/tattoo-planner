@@ -2,7 +2,7 @@
 
 For people who run the planner from a checkout or work on it. Start: [README](../README.md); features: [usage.md](usage.md); Jan's own sleeve: [jans-sleeve.md](jans-sleeve.md).
 
-Technical decisions live in `docs/adr/`, the product plan in `docs/product/roadmap.md`; `PROJECT_BRIEF.md` is the original brief for Jan's own sleeve. Decisions Claude made without Jan are listed in `docs/claude-decisions.md` for review.
+Technical decisions live in `docs/adr/`, the product plan in `docs/product/roadmap.md`; `docs/history/project-brief.md` is the original brief for Jan's own sleeve. Decisions Claude made without Jan are listed in `docs/claude-decisions.md` for review.
 
 ## Setup
 
@@ -136,4 +136,4 @@ Added with the UX overhaul of 2026-11-10 (`docs/claude-decisions.md`, ADR 0025):
 
 ## Status
 
-Done: the phases of `PROJECT_BRIEF.md` (0 bootstrap to 6 iteration and polish) and Phases A–C of the product plan (`docs/product/roadmap.md`). Phase D (a fresh public repository) was replaced on 2026-11-15 by publishing this repository as it is. The planner is not actively developed; see the README.
+Done: the phases of `docs/history/project-brief.md` (0 bootstrap to 6 iteration and polish) and Phases A–C of the product plan (`docs/product/roadmap.md`). Phase D (a fresh public repository) was replaced on 2026-11-15 by publishing this repository as it is. The planner is not actively developed; see the README.

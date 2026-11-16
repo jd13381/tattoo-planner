@@ -1,5 +1,5 @@
 // Names and limits of export files, shared by the dev-server endpoint (Node) and the browser.
-// Exports live only in <TATTOO_DATA_DIR>/exports/ (PROJECT_BRIEF.md §10.1 F10, §12.3), never in the repo:
+// Exports live only in <TATTOO_DATA_DIR>/exports/ (docs/history/project-brief.md §10.1 F10, §12.3), never in the repo:
 //   exports/<layout>-<YYYY-MM-DD>[-N].pdf        the handout
 //   exports/<layout>-<YYYY-MM-DD>[-N]/<name>.png the views and the unwrap as PNG
 // Plain TypeScript without Node or DOM imports.

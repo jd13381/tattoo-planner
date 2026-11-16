@@ -1,4 +1,4 @@
-// Schema for config/layouts/*.yaml (PROJECT_BRIEF.md §13.2, refined).
+// Schema for config/layouts/*.yaml (docs/history/project-brief.md §13.2, refined).
 // Coordinates: u around the region, v along it. On the arm (the default region) u is 0 outer, 0.25 lateral,
 // 0.5 inner, 0.75 medial and v 0 wrist, 1 shoulder; other regions: src/body/regions.ts, docs/adr/0011.
 // Array order is layer order: later elements are drawn on top.
@@ -32,7 +32,7 @@ const figureFields = {
   rotation_deg: z.number().optional(),
   style: z.string().optional(),
   red_accents: z.boolean().optional(),
-  // Reference mode (PROJECT_BRIEF.md §10.1 F6), all optional; how they combine: src/layout/imageFit.ts.
+  // Reference mode (docs/history/project-brief.md §10.1 F6), all optional; how they combine: src/layout/imageFit.ts.
   /** Cut-out of the asset image, normalised to the image as stored (before image_rotation_deg). */
   crop: rectSchema.optional(),
   /** Quarter turn of the cut-out, clockwise, so a sideways photo stands upright (wrist down). */

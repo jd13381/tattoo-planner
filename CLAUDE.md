@@ -4,11 +4,11 @@ Local web tool that previews Jan's left-arm tattoo sleeve on a parametric 3D arm
 
 ## Session start
 
-1. `PROJECT_BRIEF.md` is the single source of truth (concept, decisions, requirements, data model, phases). Read its table of contents, then the sections your task touches. §14 lists the phases and their acceptance criteria.
+1. `docs/history/project-brief.md` is the single source of truth (concept, decisions, requirements, data model, phases). Read its table of contents, then the sections your task touches. §14 lists the phases and their acceptance criteria.
 2. `docs/product/roadmap.md` is the plan for turning the planner into an open-source product (feature review, phases A–D). For product work it wins over the brief; the brief stays the source for Jan's own sleeve.
 3. `README.md` has the quick start; `docs/development.md` has setup details and commands; `docs/adr/` records technical decisions; `git log` shows where work stands.
 
-## Conventions (from PROJECT_BRIEF.md §15)
+## Conventions (from docs/history/project-brief.md §15)
 
 - **Documentation, code comments, commit messages: English.** Conversation with Jan is in German.
   Exception: `docs/measuring.md` (measuring guide and entry sheet) is in German at Jan's request.
@@ -19,7 +19,7 @@ Local web tool that previews Jan's left-arm tattoo sleeve on a parametric 3D arm
 - No public deployment; the planner stays local. Sending an image to an image-edit service (OpenAI, for generative edits; Jan, 2026-11-04) is fine; never put data-folder files into a git repo or anywhere public. The dev server binds to `127.0.0.1` only.
 - Prefer small, reviewable commits per phase step; keep `README.md` current.
 - Record significant technical choices as ADRs in `docs/adr/` (`NNNN-short-name.md`).
-- When in doubt about design intent (motifs, placement, style), consult `PROJECT_BRIEF.md` §3–§9 and **ask Jan rather than inventing design decisions**. Placeholder values in configs stay `null` until Jan provides them.
+- When in doubt about design intent (motifs, placement, style), consult `docs/history/project-brief.md` §3–§9 and **ask Jan rather than inventing design decisions**. Placeholder values in configs stay `null` until Jan provides them.
 - Keep the layout YAML human-editable and stable (Jan may edit it by hand): stable key order, comments preserved where possible, no reformatting churn.
 
 ## Working style

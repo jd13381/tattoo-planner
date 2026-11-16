@@ -3,7 +3,7 @@
 - Status: accepted (2026-11-05); Phases A–C done. **Phase D superseded (2026-11-15):** Jan published this repository as it is, history included, instead of starting a fresh public one; it is not actively maintained (README). The open points in §7 (Apple account, final name) stay open.
 - Context: market scan "Tattoo Planner: market scan and publishing options" (Claude Doc, 2026-11-05) found no comparable tool. Jan decided to publish the planner as an open-source project with a Mac DMG.
 
-This document is the plan for the next steps. `PROJECT_BRIEF.md` stays the source of truth for Jan's own sleeve; this file is the source of truth for the product work. Decisions taken along the way become ADRs in `docs/adr/`.
+This document is the plan for the next steps. `docs/history/project-brief.md` stays the source of truth for Jan's own sleeve; this file is the source of truth for the product work. Decisions taken along the way become ADRs in `docs/adr/`.
 
 ## 1. Goal
 

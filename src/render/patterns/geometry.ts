@@ -1,4 +1,4 @@
-// Framework-free geometry helpers for the procedural patterns (PROJECT_BRIEF.md §7).
+// Framework-free geometry helpers for the procedural patterns (docs/history/project-brief.md §7).
 // Generators return plain shapes in canvas pixels; `draw.ts` strokes them. Keeping the two apart
 // lets the tests check the geometry in Node without a canvas.
 import type { PatternContext } from "./types.ts";

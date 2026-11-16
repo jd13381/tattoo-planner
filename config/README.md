@@ -1,6 +1,6 @@
 # config/
 
-The original data of the first sleeve the planner was built for (`PROJECT_BRIEF.md`), from before projects had their own folder (docs/adr/0012-project-folder.md). It is kept as an example and because tests read it:
+The original data of the first sleeve the planner was built for (`docs/history/project-brief.md`), from before projects had their own folder (docs/adr/0012-project-folder.md). It is kept as an example and because tests read it:
 
 - `measurements.yaml`: the measurements of one left arm, in cm.
 - `layouts/v1-baseline.yaml`: the first layout, in the old form with a `filler` element; tests read it.
