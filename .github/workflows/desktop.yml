@@ -131,3 +131,13 @@ jobs:
             gh release create "$tag" release/*.dmg release/SHA256SUMS.txt \
               --target "${GITHUB_SHA}" --title "Tattoo Planner ${VERSION}" --notes-file docs/install-macos.md --latest
           fi
+
+  provenance:
+    name: Attach the provenance
+    needs: [dmg, release]
+    permissions:
+      contents: write # upload the file to the release
+      attestations: read # download the stored attestations
+    uses: ./.github/workflows/release-provenance.yml
+    with:
+      tag: v${{ needs.dmg.outputs.version }}
