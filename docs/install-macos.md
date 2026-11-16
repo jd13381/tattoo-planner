@@ -19,7 +19,7 @@ This is the normal behaviour for unsigned open-source apps, not a sign that the 
 
 - The DMGs are built by GitHub Actions from this repository's source ([desktop.yml](https://github.com/jd13381/tattoo-planner/blob/main/.github/workflows/desktop.yml)); the release run's log shows every step.
 - `SHA256SUMS.txt` in the release lists the checksum of each DMG: `shasum -a 256 Tattoo-Planner-*.dmg` must print the same.
-- Each DMG has a signed build provenance attestation that ties it to this repository and workflow: `gh attestation verify Tattoo-Planner-<version>-arm64.dmg --repo jd13381/tattoo-planner`.
+- Each DMG has a signed build provenance attestation that ties it to this repository and workflow: `gh attestation verify Tattoo-Planner-<version>-arm64.dmg --repo jd13381/tattoo-planner`. The same attestations are in the release as `Tattoo-Planner-<version>.intoto.jsonl`.
 
 ## Allow it once
 

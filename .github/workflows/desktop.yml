@@ -110,6 +110,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # create the tag and the release
+      attestations: read # copy the provenance into the release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -131,3 +132,9 @@ jobs:
             gh release create "$tag" release/*.dmg release/SHA256SUMS.txt \
               --target "${GITHUB_SHA}" --title "Tattoo Planner ${VERSION}" --notes-file docs/install-macos.md --latest
           fi
+      - name: Attach the provenance to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.dmg.outputs.version }}
+        run: scripts/release-provenance.sh "v${VERSION}"
