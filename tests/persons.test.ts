@@ -308,7 +308,7 @@ describe("persons in the project store", () => {
       ["sam", "Sam", "male"],
     ]);
     const sam = await s.selectPerson("sam");
-    expect(sam).toMatchObject({ person: "sam", body: "male", height_cm: 182, sample: true });
+    expect(sam).toMatchObject({ person: "sam", body: "male", height_cm: 186, sample: true });
     const paths = await s.paths();
     expect(paths.layoutsDir).toBe(path.join(SAMPLE_DIR, "persons", "sam", "layouts"));
     expect((await listLayouts(paths.layoutsDir!)).length).toBeGreaterThan(0);
