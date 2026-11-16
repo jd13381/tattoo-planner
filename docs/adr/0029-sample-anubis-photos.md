@@ -9,7 +9,7 @@
 - **Five photos, cropped to the forearm.** `samples/demo/photos/anubis-1.jpg` … `anubis-5.jpg`: Jan's five Anubis photos, turned upright and cropped to the forearm (no table, packages or torso), at most 1600 px on the long side, JPEG. Listed in the sample's manifest as `existing` images.
 - **A third image exception in git**, next to ADR 0019 and ADR 0026: the pre-commit guard and `.gitignore` allow `samples/demo/photos/*.jpg`, directly in that folder, at most 500 KB each. The desktop app ships them (`desktop/electron-builder.config.mjs`).
 - **The server serves and copies them as they are**: `GET /api/assets/image/<id>` in the sample falls back from the drawn placeholder to the real file, and "Save as new project" copies them with the placeholders.
-- **README screenshots** (ADR 0026) show Sam on Home, turned so the inner left forearm faces the camera, and Sam's Anubis in the projection workspace.
+- **README screenshots** (ADR 0026) show Sam on Home as the hero (only the 3D stage, turned so the inner left forearm faces the camera) and Sam's Anubis in the projection workspace.
 
 ## Consequences
 

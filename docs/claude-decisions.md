@@ -582,3 +582,10 @@ Jan: "Mache mit fable 5.2 nochmal ein komplettes review, das die app analysiert 
 - **The held area is widened to `v: [0, 0.65]`**, so the projection workspace opens without the note that the saved area cuts off what the photos show.
 - **Home screenshot turned 75 px to the left** so the inner left forearm faces the camera; the Home 3D view does not zoom, so the tattoo is small there. The projection screenshot shows the workspace (photo with outline and distances, 3D arm, unwrap) instead of the list page.
 - **The female sample person is Alice** (was Alex, which reads as either gender; Jan). Renamed in the sample, the test and the docs, including this log.
+
+## 2026-11-16: README order
+
+- **The hero is the whole body** (Sam on Home, with the projected Anubis), the layout editor right below it, then existing tattoos, measuring, Image studio, planning and privacy (Jan). The story runs from your body and the ink you have to the new design.
+- **The hero shows only Home's 3D stage** (`clip` in `scripts/screenshots.ts`): the full window at README width made the body about 300 px tall and the tattoo hard to see. _Alternative:_ the Layout tab with "Full body" (repeats the unwrap shown right below).
+- **`home.webp` is gone**: the full Home screenshot repeated the hero body in "Plan the whole piece"; that section keeps its bullets and the blockout shot.
+- **Pitch texts adjusted to the order:** the intro sentence starts from existing tattoos, "See how it would look on you" became "Start with the ink you already have" with a line that the Anubis is mine, and measuring opens with "Then make the body yours".
