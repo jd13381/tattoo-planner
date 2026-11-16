@@ -1,4 +1,4 @@
-// Snake-scale filler (PROJECT_BRIEF.md §7): staggered rows of overlapping scales in B&G linework.
+// Snake-scale filler (docs/history/project-brief.md §7): staggered rows of overlapping scales in B&G linework.
 // Density decides how many scales are inked; a smooth noise field plus an edge fade makes the
 // texture scatter out into open skin instead of ending as a hard-edged wallpaper (§4.4).
 import { clamp01, hash2, valueNoise, type Generator, type Pt, type Shape } from "./geometry.ts";

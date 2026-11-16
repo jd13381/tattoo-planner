@@ -92,7 +92,7 @@ On the start screen, **Explore the sample** opens a ready-made, read-only projec
 
 ## How it was made
 
-Built in about two weeks with [Claude Code](https://claude.com/claude-code), starting from my plan for one sleeve and growing into a general tool. The history is left as it happened: [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md) is the original brief, [docs/adr/](docs/adr/) records the technical decisions, [docs/claude-decisions.md](docs/claude-decisions.md) the calls Claude made for my review, and [docs/product/roadmap.md](docs/product/roadmap.md) the product plan.
+Built in about two weeks with [Claude Code](https://claude.com/claude-code), starting from my plan for one sleeve and growing into a general tool. The history is left as it happened: the [original brief](docs/history/project-brief.md) is kept as written, [docs/adr/](docs/adr/) records the technical decisions, [docs/claude-decisions.md](docs/claude-decisions.md) the calls Claude made for my review, and [docs/product/roadmap.md](docs/product/roadmap.md) the product plan.
 
 ## Documentation
 

@@ -1,4 +1,4 @@
-// Red strokes drawn on the 3D arm (PROJECT_BRIEF.md §4.3, §14 Phase 6 "brush tool"): from texture
+// Red strokes drawn on the 3D arm (docs/history/project-brief.md §4.3, §14 Phase 6 "brush tool"): from texture
 // coordinates of raycast hits to a simplified `line` element in layout coordinates. Pure maths, no DOM.
 //
 // Lines are drawn straight between their points in (u, y) with u scaled by the local circumference

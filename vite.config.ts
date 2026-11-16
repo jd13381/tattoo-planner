@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), apiPlugin(context)],
     server: {
-      // Local only (PROJECT_BRIEF.md §10.2): never listen on the network.
+      // Local only (docs/history/project-brief.md §10.2): never listen on the network.
       host: "127.0.0.1",
       port: 4320,
       cors: false,

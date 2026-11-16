@@ -1,7 +1,7 @@
 # ADR 0001: Stack
 
 - Status: accepted (Jan, 2026-11-03)
-- Context: PROJECT_BRIEF.md §11.1, §12.1
+- Context: docs/history/project-brief.md §11.1, §12.1
 
 ## Context
 

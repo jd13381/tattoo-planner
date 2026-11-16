@@ -72,7 +72,7 @@ Details in `docs/adr/0004-export.md`.
 - **Views on white, no grid,** cropped to the arm with the same scale for all eight pictures; the unwrap pages keep the cm grid and turn the grey around the skin white. Views render at 1000 × 2400 px (the arm ends up about 450 × 2400), unwraps at 40 px per cm.
 - **JPEG inside the PDF** (quality 0.9, about 2 MB per handout), lossless PNG files next to it.
 - **"Facing this side"** lists an element on a view page when it reaches within a fifth of the circumference of that view's centre line; bands count for every side.
-- **Open questions** in the handout: the nine questions of PROJECT_BRIEF.md §9 as of today (copied into `strings.ts`; remove answered ones there) plus what the layout leaves open: unset heights, guessed widths, missing images and placeholder measurements.
+- **Open questions** in the handout: the nine questions of docs/history/project-brief.md §9 as of today (copied into `strings.ts`; remove answered ones there) plus what the layout leaves open: unset heights, guessed widths, missing images and placeholder measurements.
 - **Fix on the way:** the blockout drew the existing tattoo's outline along the inner seam, which showed as a line down the middle of Anubis on the 3D arm (and in the export). The seam no longer counts as an edge.
 
 ### Phase 6: comparing variants

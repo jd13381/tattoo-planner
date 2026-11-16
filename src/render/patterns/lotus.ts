@@ -1,4 +1,4 @@
-// Lotus / papyrus frieze (PROJECT_BRIEF.md §7, Egyptian side): open lotus flowers alternating with
+// Lotus / papyrus frieze (docs/history/project-brief.md §7, Egyptian side): open lotus flowers alternating with
 // papyrus umbels on short stems, linked by hanging garland arcs, between two thin border lines.
 import { bandFrame } from "./band.ts";
 import { quad, type Generator, type Pt, type Shape } from "./geometry.ts";

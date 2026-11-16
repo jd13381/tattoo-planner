@@ -1,4 +1,4 @@
-// Reference mode (PROJECT_BRIEF.md §10.1 F6, §11.3): the layout drawn with its reference images.
+// Reference mode (docs/history/project-brief.md §10.1 F6, §11.3): the layout drawn with its reference images.
 // Figures and existing tattoos show their cut-out image inside their box, multiplied onto the skin
 // (white paper and pale skin vanish); bands are procedural patterns clipped exactly to
 // their shape; red lines lie on top of everything (§4.3). Missing images show a labelled placeholder.

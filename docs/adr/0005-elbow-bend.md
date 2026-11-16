@@ -1,7 +1,7 @@
 # ADR 0005: Elbow-bent pose
 
 - Status: proposed (2026-11-03)
-- Context: PROJECT_BRIEF.md §10.1 F2 ("plus elbow-bent view if feasible"), §14 Phase 6, ADR 0002 (straight arm, known limits)
+- Context: docs/history/project-brief.md §10.1 F2 ("plus elbow-bent view if feasible"), §14 Phase 6, ADR 0002 (straight arm, known limits)
 
 ## Decision
 

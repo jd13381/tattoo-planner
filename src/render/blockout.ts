@@ -1,4 +1,4 @@
-// Blockout mode (PROJECT_BRIEF.md §10.1 F5): every element as a flat shape coloured by type.
+// Blockout mode (docs/history/project-brief.md §10.1 F5): every element as a flat shape coloured by type.
 import { BACKGROUND, OUTSIDE, type Classification } from "../layout/shapes.ts";
 import type { ElementType } from "../layout/schema.ts";
 

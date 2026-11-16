@@ -1,3 +1,3 @@
 #!/bin/sh
-# Rejects images, PDFs and exports (PROJECT_BRIEF.md §12.5). Enabled by `npm run hooks`.
+# Rejects images, PDFs and exports (docs/history/project-brief.md §12.5). Enabled by `npm run hooks`.
 exec node "$(git rev-parse --show-toplevel)/scripts/check-binaries.mjs"

@@ -187,7 +187,7 @@ function drawCover(w: Writer, h: Handout, images: HandoutImages, box: Rect): voi
   y = w.para(h.description ?? t.subjectFallback, box.x, y, leftW, { size: 11, color: MUTED }) + 3;
   y = w.para(t.dateLine(h.date), box.x, y + 1, leftW, { size: 9, color: MUTED }) + 7;
 
-  // The note: the most important text of the handout (PROJECT_BRIEF.md §1.2).
+  // The note: the most important text of the handout (docs/history/project-brief.md §1.2).
   const pad = 5;
   const noteTop = y;
   const measure = w.measure("normal");

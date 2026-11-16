@@ -1,4 +1,4 @@
-// Meander (Greek key) band (PROJECT_BRIEF.md §7, Greek side): square spirals on a running base line
+// Meander (Greek key) band (docs/history/project-brief.md §7, Greek side): square spirals on a running base line
 // between two thin border lines. The module is about as wide as the band is high.
 import { bandFrame } from "./band.ts";
 import type { Generator, Pt, Shape } from "./geometry.ts";

@@ -1,4 +1,4 @@
-// Coverage metrics (PROJECT_BRIEF.md §10.1 F7): share of skin per element type and zone.
+// Coverage metrics (docs/history/project-brief.md §10.1 F7): share of skin per element type and zone.
 import type { RegionKind, RegionProfile } from "../body/profile.ts";
 import { screenSign, wrapU } from "../body/uv.ts";
 import type { ElementType } from "../layout/schema.ts";

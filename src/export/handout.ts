@@ -1,4 +1,4 @@
-// The content of the artist handout (PROJECT_BRIEF.md §10.1 F10) as plain data: element rows,
+// The content of the artist handout (docs/history/project-brief.md §10.1 F10) as plain data: element rows,
 // coverage rows, open points, which elements face each view. No DOM, no PDF library: the PDF
 // writer (pdf.ts) only lays this out. All wording comes from strings.ts.
 import type { RegionProfile } from "../body/profile.ts";

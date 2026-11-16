@@ -3,7 +3,7 @@
 .idea/
 .vscode/
 
-# Local config: TATTOO_DATA_DIR and anything personal (CLAUDE.md, PROJECT_BRIEF.md §12)
+# Local config: TATTOO_DATA_DIR and anything personal (CLAUDE.md, docs/history/project-brief.md §12)
 .env
 .env.*
 !.env.example
@@ -25,7 +25,7 @@ release/
 exports/
 **/exports/
 
-# Images and PDFs never go into git (PROJECT_BRIEF.md §12.5).
+# Images and PDFs never go into git (docs/history/project-brief.md §12.5).
 # Character classes make the patterns case-insensitive (photo.JPEG, scan.PDF).
 # The pre-commit guard (scripts/check-binaries.mjs) enforces the same rule for force-added files.
 *.[pP][nN][gG]

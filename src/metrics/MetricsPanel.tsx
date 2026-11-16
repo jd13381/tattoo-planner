@@ -78,7 +78,7 @@ type Props = {
   collapsible?: { open: boolean; onToggle: () => void };
 };
 
-/** Coverage per zone (PROJECT_BRIEF.md §10.1 F7): the share of skin each element type takes. */
+/** Coverage per zone (docs/history/project-brief.md §10.1 F7): the share of skin each element type takes. */
 export function MetricsPanel({
   coverage,
   title = "Coverage",

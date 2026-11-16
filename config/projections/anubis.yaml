@@ -1,4 +1,4 @@
-# Projection of the existing Anubis tattoo (PROJECT_BRIEF.md §2.1, §10.1 F9) from several photos onto
+# Projection of the existing Anubis tattoo (docs/history/project-brief.md §2.1, §10.1 F9) from several photos onto
 # the arm's skin coordinates (docs/adr/0006-anubis-projection.md). Numbers only: the photos stay in the
 # data folder and are named by their path there (each needs an entry in manifest.yaml).
 # Fitted by Claude on 2026-11-04 from Jan's photos (edges and marks read off the photos, view angles and

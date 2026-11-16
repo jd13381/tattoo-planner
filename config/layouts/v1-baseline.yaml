@@ -1,6 +1,6 @@
-# Layout variant v1-baseline (PROJECT_BRIEF.md §13.2), copied as proposed in the brief.
+# Layout variant v1-baseline (docs/history/project-brief.md §13.2), copied as proposed in the brief.
 # u = around the arm (0.5 = inner centre line, 0 = outer centre line), v = along the arm (0 = wrist, 1 = shoulder).
-# Asset ids refer to the asset manifest (PROJECT_BRIEF.md §12.4); positions and sizes are Jan's to change.
+# Asset ids refer to the asset manifest (docs/history/project-brief.md §12.4); positions and sizes are Jan's to change.
 name: v1-baseline
 description: "Rhonas outer forearm, skull at elbow, Medusa upper arm, Pegasus inner upper arm"
 elements:

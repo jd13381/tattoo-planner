@@ -1,5 +1,5 @@
 // The words the Layout tab uses for the layout file's terms. The YAML keys stay as they are
-// (PROJECT_BRIEF.md §11); only what the user reads is plain language.
+// (docs/history/project-brief.md §11); only what the user reads is plain language.
 import type { ElementType, ImageFilter } from "../layout/schema.ts";
 
 /** An element type as a noun: "Existing tattoo". */

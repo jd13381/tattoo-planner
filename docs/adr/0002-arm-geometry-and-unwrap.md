@@ -1,7 +1,7 @@
 # ADR 0002: Arm geometry and unwrap
 
 - Status: accepted (2026-11-03)
-- Context: PROJECT_BRIEF.md §11.2, §13, §14 Phase 2
+- Context: docs/history/project-brief.md §11.2, §13, §14 Phase 2
 
 ## Decision
 

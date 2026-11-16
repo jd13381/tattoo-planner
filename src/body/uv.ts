@@ -1,7 +1,7 @@
 // Coordinates on the skin (docs/adr/0002 for the arm; every region follows the same scheme, with its
 // own centre lines and direction, docs/adr/0011 and src/body/regions.ts).
 //
-// Layout coordinates (config/layouts/*.yaml, PROJECT_BRIEF.md §13.2):
+// Layout coordinates (config/layouts/*.yaml, docs/history/project-brief.md §13.2):
 //   u = position around the arm as a fraction of the local circumference.
 //       0 = outer centre line (back of the arm in the palm-forward pose), 0.25 = lateral (thumb side),
 //       0.5 = inner centre line (palm side), 0.75 = medial (towards the body).

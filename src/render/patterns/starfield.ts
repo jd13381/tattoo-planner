@@ -1,4 +1,4 @@
-// Starfield filler (PROJECT_BRIEF.md §7): a sparse, seeded scatter of dots and small four-point
+// Starfield filler (docs/history/project-brief.md §7): a sparse, seeded scatter of dots and small four-point
 // stars (a nod to Nyx and the sky goddess Nut). Density sets how many of a fixed, seeded list of
 // candidates are drawn, so a higher density keeps every star of a lower one and adds more.
 import { clamp01, mulberry32, type Generator, type Pt, type Shape } from "./geometry.ts";

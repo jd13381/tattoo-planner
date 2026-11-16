@@ -1,4 +1,4 @@
-// One-click export (PROJECT_BRIEF.md §14 Phase 5): renders the four views and the unwrap in
+// One-click export (docs/history/project-brief.md §14 Phase 5): renders the four views and the unwrap in
 // blockout and reference mode, writes them as PNGs and builds the PDF handout, then sends every
 // file to the local dev server, which stores it in <TATTOO_DATA_DIR>/exports/. Nothing is uploaded
 // anywhere else and nothing is written into the repo.

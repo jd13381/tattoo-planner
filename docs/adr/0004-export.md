@@ -1,7 +1,7 @@
 # ADR 0004: Export for the artist
 
 - Status: proposed (2026-11-03)
-- Context: PROJECT_BRIEF.md §1.2, §10.1 F10, §11.1 ("PDF export: browser-side or a headless browser — decide in Phase 5"), §12, §14 Phase 5
+- Context: docs/history/project-brief.md §1.2, §10.1 F10, §11.1 ("PDF export: browser-side or a headless browser — decide in Phase 5"), §12, §14 Phase 5
 
 ## Decision
 
@@ -22,7 +22,7 @@
 - p. 2, all four views at a glance (landscape): blockout and reference side by side per view.
 - p. 3–6, one page per view: blockout and reference large, the elements facing that side (with type and size), legend.
 - p. 7–8, the unwrap with cm grid in blockout and in reference mode, with the centre lines named along the top and the print scale.
-- p. 9 on, tables (flowing over pages as needed): element notes (id, type, reference image, size in cm, position in words and u/v, style or pattern, notes from the YAML), coverage per zone, open questions (unset heights, guessed widths, missing images, placeholder measurements, then the design questions of PROJECT_BRIEF.md §9).
+- p. 9 on, tables (flowing over pages as needed): element notes (id, type, reference image, size in cm, position in words and u/v, style or pattern, notes from the YAML), coverage per zone, open questions (unset heights, guessed widths, missing images, placeholder measurements, then the design questions of docs/history/project-brief.md §9).
 
 **Structure.** Pure TypeScript with unit tests: the handout content (`handout.ts`), page geometry, wrapping, table pagination and image cropping (`pdfLayout.ts`), names and the endpoint (`names.ts`, `server/`). Browser-only and thin: `renderViews.ts` (WebGL), `pdf.ts` (jsPDF drawing), `runExport.ts` (orchestration), `ExportButton.tsx`. Every handout text is in `strings.ts` (`HANDOUT_EN`), so a German version is one more object of the same type.
 

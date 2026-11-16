@@ -1,7 +1,7 @@
 # ADR 0026: README screenshots in git, generated from the sample project
 
 - Status: accepted (2026-11-15, Jan: "ja, sonst können sie in der readme nicht angezeigt werden")
-- Context: the repository goes public as it is, history included (Jan, 2026-11-15). A README for strangers needs pictures of the planner, and GitHub only shows images in a README reliably when they live in the repository. The rule "no images in git" (`PROJECT_BRIEF.md` §12) exists to keep Jan's photos, reference images and exports out of the repo; it had one exception so far, the generated background tiles (ADR 0019).
+- Context: the repository goes public as it is, history included (Jan, 2026-11-15). A README for strangers needs pictures of the planner, and GitHub only shows images in a README reliably when they live in the repository. The rule "no images in git" (`docs/history/project-brief.md` §12) exists to keep Jan's photos, reference images and exports out of the repo; it had one exception so far, the generated background tiles (ADR 0019).
 
 ## Decision
 

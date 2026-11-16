@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Pre-commit guard (PROJECT_BRIEF.md §12.5): rejects images, PDFs and exports.
+// Pre-commit guard (docs/history/project-brief.md §12.5): rejects images, PDFs and exports.
 // Default: checks the files staged for commit. `--all` checks every tracked file (used in CI).
 // Exit code 1 lists the offending paths; 0 means the commit may proceed.
 import { execFileSync } from "node:child_process";

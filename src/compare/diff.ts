@@ -1,4 +1,4 @@
-// Which elements differ between two layout variants (read-only comparison, PROJECT_BRIEF.md §14 Phase 6).
+// Which elements differ between two layout variants (read-only comparison, docs/history/project-brief.md §14 Phase 6).
 import type { Layout, LayoutElement } from "../layout/schema.ts";
 
 export type ElementChange = { id: string; type: LayoutElement["type"]; fields: string[] };

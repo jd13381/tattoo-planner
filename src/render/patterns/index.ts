@@ -1,4 +1,4 @@
-// Registry of procedural patterns for the reference renderer (PROJECT_BRIEF.md §7, §14 Phase 4).
+// Registry of procedural patterns for the reference renderer (docs/history/project-brief.md §7, §14 Phase 4).
 // Layout elements name a pattern with `pattern:`; unknown names get a faint fallback hatch.
 import { painterFrom } from "./draw.ts";
 import { fallback } from "./fallback.ts";
