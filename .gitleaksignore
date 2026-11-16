@@ -1,0 +1,5 @@
+# Known false positives (Jan, 2026-11-16): the placeholder OpenAI key "sk-proj-abcdefghijklmnop1234"
+# in two unit tests, never a real key. Listed by exact fingerprint (commit:file:rule:line), so only
+# these two findings are skipped and any other key still fails the scan.
+d1414303676811b9a1899f384c3af0fa6bb58709:tests/keyCheck.test.ts:generic-api-key:17
+d485562e5c52659e65703c03c994da43fc08ebbc:tests/desktop.test.ts:generic-api-key:16
