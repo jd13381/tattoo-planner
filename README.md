@@ -4,7 +4,7 @@
 
 ### See your next tattoo on your body before it's on your skin.
 
-Sketch on a flat sheet, watch it wrap around a 3D body built to your measurements, redraw references with AI, and walk into the studio with a clear brief.
+Start from the tattoos you already have, sketch new ones on a flat sheet and watch them wrap around a 3D body built to your measurements. Redraw references with AI and walk into the studio with a clear brief.
 
 [![CI](https://github.com/jd13381/tattoo-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/jd13381/tattoo-planner/actions/workflows/ci.yml)
 [![Security](https://github.com/jd13381/tattoo-planner/actions/workflows/security.yml/badge.svg)](https://github.com/jd13381/tattoo-planner/actions/workflows/security.yml)
@@ -15,12 +15,30 @@ Sketch on a flat sheet, watch it wrap around a 3D body built to your measurement
 
 </div>
 
+![A male body in 3D with a projected Anubis tattoo on the forearm and planned motifs on the arm and chest](docs/screenshots/hero.webp)
+
+Sketch on a flat sheet of your skin, and the 3D body follows every change.
+
 ![The layout editor: a flat unwrap of the left arm next to the live 3D view](docs/screenshots/layout.webp)
 
 > [!NOTE]
 > **Personal project, published as is.** I built it to plan my own sleeve and I'm not actively developing it. Issues and pull requests are not accepted. Fork it and make it yours under the [MIT licence](LICENSE).
 
 ---
+
+## 🪞 Start with the ink you already have
+
+![Existing tattoos: the author's Anubis, marked on one of five photos and wrapped onto the 3D arm](docs/screenshots/projection.webp)
+
+Your new piece has to work with what's already there. Take one to four photos of an **existing tattoo**, mark its outline and two distances, and the planner **projects it onto the 3D body**, wrapped around the arm the way it really sits. The Anubis in these screenshots is mine, wrapped onto the body from five phone photos.
+
+## 📏 Measured to your body, centimetre for centimetre
+
+![Measuring wizard: one measurement at a time, with a drawing of where to put the tape](docs/screenshots/measure.webp)
+
+Then make the body yours. A tattoo that looks great on a generic mannequin can look completely different on your forearm. A step-by-step **measuring wizard** takes you through wrist, forearm, elbow, biceps and shoulder with a tailor's tape, and the 3D body reshapes to match. Every grid line is a real centimetre, so a 12 cm motif is 12 cm on screen and 12 cm on you.
+
+Arms, legs and torso, on a female or male base body. Skip any value and the sample body fills in.
 
 ## 🎨 Bring your key, build your own design
 
@@ -31,23 +49,7 @@ Found a motif you love but it's not quite _you_? The **Image studio** turns refe
 - **Bring your own OpenAI key.** You pay OpenAI directly, a few cents per image. No subscription, no middleman, no account here. [Get a key in five minutes](docs/openai-key.md).
 - **No key? Still useful.** Background removal, line art, levels, black and grey, rotate and mirror run right on your computer, free.
 
-## 📏 Measured to your body, centimetre for centimetre
-
-![Measuring wizard: one measurement at a time, with a drawing of where to put the tape](docs/screenshots/measure.webp)
-
-A tattoo that looks great on a generic mannequin can look completely different on your forearm. A step-by-step **measuring wizard** takes you through wrist, forearm, elbow, biceps and shoulder with a tailor's tape, and the 3D body reshapes to match. Every grid line is a real centimetre, so a 12 cm motif is 12 cm on screen and 12 cm on you.
-
-Arms, legs and torso, on a female or male base body. Skip any value and the sample body fills in.
-
-## 🪞 See how it would look on you
-
-![Existing tattoos: the author's Anubis, marked on one of five photos and wrapped onto the 3D arm](docs/screenshots/projection.webp)
-
-Your new piece has to work with the ink you already have. Take one to four photos of an **existing tattoo**, mark its outline and two distances, and the planner **projects it onto the 3D body**, wrapped around the arm the way it really sits. Then plan the new motifs around it and see the whole sleeve together.
-
 ## 🧭 Plan the whole piece
-
-![Home: a male body with the projected Anubis and every planned region](docs/screenshots/home.webp)
 
 - **Layout editor:** place figures, bands, freehand lines and background layers (clouds, stars, patterns) on a flat unwrap; drag, resize, rotate, layer, undo. The 3D view follows every change, also with the elbow bent and as a full body.
 - **Blockout and coverage:** switch to blockout to judge the balance of ink and open skin, with the coverage per zone in numbers.

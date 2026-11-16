@@ -29,6 +29,8 @@ interface Shot {
   scheme: "light" | "dark";
   /** The sample person to show (persons in samples/demo/project.yaml); default the first, Alice. */
   person?: string;
+  /** Part of the page to keep, in CSS pixels; default the whole viewport. */
+  clip?: { x: number; y: number; width: number; height: number };
   /** Runs after the page opened on the sample's Home. */
   go(page: Page): Promise<void>;
 }
@@ -55,8 +57,15 @@ async function turnHomeBody(page: Page, dx: number) {
 
 /** In README order. Dark mode throughout (Jan, 2026-11-15). */
 const SHOTS: Shot[] = [
-  // Sam, the male body, with the Anubis already projected (Jan, 2026-11-16).
-  { name: "home", scheme: "dark", person: "sam", go: (page) => turnHomeBody(page, -75) },
+  // The README hero: Sam, the male body, with the Anubis already projected (Jan, 2026-11-16). Only the
+  // 3D stage of Home, so the body stays large at README width.
+  {
+    name: "hero",
+    scheme: "dark",
+    person: "sam",
+    clip: { x: 0, y: 0, width: 1080, height: 900 },
+    go: (page) => turnHomeBody(page, -75),
+  },
   { name: "layout", scheme: "dark", go: (page) => tab(page, "Layout") },
   {
     name: "image-studio",
@@ -162,7 +171,7 @@ async function main() {
       await settle(page);
       const file = join(outDir, `${shot.name}.webp`);
       // Playwright writes PNG or JPEG only; the browser re-encodes to WebP to keep the files small.
-      const png = await page.screenshot({ type: "png" });
+      const png = await page.screenshot({ type: "png", clip: shot.clip });
       const webp = await page.evaluate(async (b64) => {
         const img = new Image();
         img.src = `data:image/png;base64,${b64}`;
