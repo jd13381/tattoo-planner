@@ -586,6 +586,6 @@ Jan: "Mache mit fable 5.2 nochmal ein komplettes review, das die app analysiert 
 ## 2026-11-16: README order
 
 - **The hero is the whole body** (Sam on Home, with the projected Anubis), the layout editor right below it, then existing tattoos, measuring, Image studio, planning and privacy (Jan). The story runs from your body and the ink you have to the new design.
-- **The hero shows only Home's 3D stage** (`clip` in `scripts/screenshots.ts`): the full window at README width made the body about 300 px tall and the tattoo hard to see. _Alternative:_ the Layout tab with "Full body" (repeats the unwrap shown right below).
+- **The hero shows the whole Home window** (Jan: it looks clearly better with the whole app visible), although the body is smaller at README width than in a crop of the 3D stage alone.
 - **`home.webp` is gone**: the full Home screenshot repeated the hero body in "Plan the whole piece"; that section keeps its bullets and the blockout shot.
 - **Pitch texts adjusted to the order:** the intro sentence starts from existing tattoos, "See how it would look on you" became "Start with the ink you already have" with a line that the Anubis is mine, and measuring opens with "Then make the body yours".

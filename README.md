@@ -15,7 +15,7 @@ Start from the tattoos you already have, sketch new ones on a flat sheet and wat
 
 </div>
 
-![A male body in 3D with a projected Anubis tattoo on the forearm and planned motifs on the arm and chest](docs/screenshots/hero.webp)
+![Home: a male body in 3D with a projected Anubis tattoo on the forearm, planned motifs on the arm and chest, and every region of the plan](docs/screenshots/hero.webp)
 
 Sketch on a flat sheet of your skin, and the 3D body follows every change.
 
